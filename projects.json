@@ -1,0 +1,248 @@
+{
+  "projects": [
+    {
+      "id": "f1-clash",
+      "title": "F1 Clash 3D",
+      "kind": "Spiel",
+      "featured": true,
+      "tags": ["3D", "Rennen"],
+      "blurb": "Drei Boliden fahren autonom auf einer eigenen Strecke. Kameras, Pace und Tageszeit schaltest du selbst.",
+      "href": "spiele/f1-clash/index.html"
+    },
+    {
+      "id": "monkey-defense",
+      "title": "Monkey Defense 6",
+      "kind": "Spiel",
+      "featured": true,
+      "tags": ["2D", "Tower Defense"],
+      "blurb": "Tower Defense im Browser, mit eigenen Bloons und Kenney-Grafik.",
+      "href": "https://markwaldeis.github.io/monkey-defense-6/"
+    },
+    {
+      "id": "tiger",
+      "title": "Tiger — Ein Dschungel erwacht",
+      "kind": "Website",
+      "featured": true,
+      "tags": ["3D", "Scroll"],
+      "blurb": "Eine Dschungel-Seite. Der Tiger folgt dem Scrollen und reagiert auf Klicks.",
+      "href": "spiele/tiger/index.html"
+    },
+    {
+      "id": "jet-v2",
+      "title": "Fight Jet 3D v2",
+      "kind": "Spiel",
+      "tags": ["3D", "Flug"],
+      "blurb": "Kampfjet-Dogfight im Browser, die neuere Fassung.",
+      "href": "https://markwaldeis.github.io/v2jetgame/"
+    },
+    {
+      "id": "jet",
+      "title": "Fight Jet 3D",
+      "kind": "Spiel",
+      "tags": ["3D", "Flug"],
+      "blurb": "Die erste Browser-Fassung des Kampfjets.",
+      "href": "https://markwaldeis.github.io/fight-jet-3d/"
+    },
+    {
+      "id": "panzer",
+      "title": "Panzer-Gefecht",
+      "kind": "Spiel",
+      "tags": ["3D", "Panzer"],
+      "blurb": "Panzer wählen, Karte wählen, Gefecht fahren.",
+      "href": "spiele/panzer-gefecht/index.html"
+    },
+    {
+      "id": "everdale",
+      "title": "Everdale",
+      "kind": "Spiel",
+      "tags": ["3D", "Aufbau"],
+      "blurb": "Eine 3D-Welt zum Herumgehen und Aufbauen.",
+      "href": "https://markwaldeis.github.io/Everdale/"
+    },
+    {
+      "id": "civ3d",
+      "title": "3D Civ",
+      "kind": "Spiel",
+      "tags": ["3D", "Strategie"],
+      "blurb": "Prozedurale 3D-Hexkarte im Stil eines Zivilisationsspiels.",
+      "href": "https://markwaldeis.github.io/3d-civ-v2-live/"
+    },
+    {
+      "id": "civilization",
+      "title": "Civilization",
+      "kind": "Spiel",
+      "tags": ["2D", "Strategie"],
+      "blurb": "Hex-Welt im Browser, angelehnt an Civilization 6.",
+      "href": "https://markwaldeis.github.io/civilization-cursor/"
+    },
+    {
+      "id": "aufbau",
+      "title": "2D Aufbau-Spiel",
+      "kind": "Spiel",
+      "tags": ["2D", "Aufbau"],
+      "blurb": "Hex-Karte mit den ersten animierten Einheiten.",
+      "href": "https://markwaldeis.github.io/2D-Aufbau-Spiel/"
+    },
+    {
+      "id": "fabwerk",
+      "title": "Fabwerk",
+      "kind": "Spiel",
+      "tags": ["3D", "Fabrik"],
+      "blurb": "Fabrik aufbauen, Bänder legen, forschen. Läuft ohne Installationsschritt.",
+      "href": "spiele/fabwerk/index.html"
+    },
+    {
+      "id": "forgefront",
+      "title": "Forgefront 3D",
+      "kind": "Spiel",
+      "tags": ["3D", "Fabrik"],
+      "blurb": "Fabrik-Automation mit eigener Oberfläche und prozeduralen Modellen.",
+      "href": "spiele/forgefront/index.html"
+    },
+    {
+      "id": "lumina",
+      "title": "Lumina",
+      "kind": "Spiel",
+      "tags": ["2D", "Jump 'n' Run"],
+      "blurb": "Jump 'n' Run durch Hain, Kristallhöhlen und Himmelszitadelle.",
+      "href": "spiele/lumina/index.html"
+    },
+    {
+      "id": "lumo",
+      "title": "Lumo's Skybound Quest",
+      "kind": "Spiel",
+      "tags": ["2D", "Jump 'n' Run"],
+      "blurb": "Handgezeichnetes Jump 'n' Run. Die Sonnensterne zurückholen.",
+      "href": "spiele/lumo/index.html"
+    },
+    {
+      "id": "jump-heroes",
+      "title": "Jump Heroes",
+      "kind": "Spiel",
+      "tags": ["2D", "Jump 'n' Run"],
+      "blurb": "Zwölf Level, sechs Helden, Shop und Charaktere.",
+      "href": "spiele/jump-heroes/index.html"
+    },
+    {
+      "id": "cyber-pulse",
+      "title": "Cyber Pulse",
+      "kind": "Spiel",
+      "tags": ["2D", "Tower Defense"],
+      "blurb": "Particle-Tower-Defense auf einem dunklen Spielfeld.",
+      "href": "spiele/cyber-pulse/index.html"
+    },
+    {
+      "id": "tower-defense",
+      "title": "Tower Defense 2D",
+      "kind": "Spiel",
+      "tags": ["2D", "Tower Defense"],
+      "blurb": "Mobile Tower Defense mit Liquid-Glass-Oberfläche.",
+      "href": "https://markwaldeis.github.io/tower-defense-2d/"
+    },
+    {
+      "id": "tennis",
+      "title": "Muse Tennis",
+      "kind": "Spiel",
+      "tags": ["3D", "Sport"],
+      "blurb": "Tennisplatz in 3D, direkt im Browser.",
+      "href": "https://markwaldeis.github.io/muse-tennis/"
+    },
+    {
+      "id": "sudoku",
+      "title": "Sudoku",
+      "kind": "Spiel",
+      "tags": ["Rätsel"],
+      "blurb": "Sudoku zum Durchspielen, mit Übungspfad statt nur einem Raster.",
+      "href": "https://markwaldeis.github.io/sudoku-app/"
+    },
+    {
+      "id": "apex-circuit",
+      "title": "Apex Circuit",
+      "kind": "Spiel",
+      "play": "external",
+      "tags": ["Windows", "Lenkrad"],
+      "blurb": "Formel 1 für das Logitech G29, gebaut in Godot. Startet nur unter Windows, nicht im Browser.",
+      "href": "https://github.com/MarkWaldeis/apex-circuit-g29"
+    },
+    {
+      "id": "sea-serpent",
+      "title": "Sea Serpent",
+      "kind": "Szene",
+      "tags": ["3D", "Meer"],
+      "blurb": "Galeone im Sonnenuntergang, mit Wasser, Himmel und freier Kamera.",
+      "href": "spiele/sea-serpent/index.html"
+    },
+    {
+      "id": "piraten-boot",
+      "title": "Piratenboot",
+      "kind": "Szene",
+      "tags": ["3D", "Meer"],
+      "blurb": "Ein Piratenschiff als eigene 3D-Szene.",
+      "href": "spiele/piraten-boot/index.html"
+    },
+    {
+      "id": "steam-train",
+      "title": "Sunset Steam Train",
+      "kind": "Szene",
+      "tags": ["3D"],
+      "blurb": "Dampflok im Abendlicht, zum Drehen und Ansehen.",
+      "href": "spiele/steam-train/index.html"
+    },
+    {
+      "id": "chronometer",
+      "title": "Chromatic Fluid Chronometer",
+      "kind": "Szene",
+      "tags": ["3D"],
+      "blurb": "Makro-Szene einer Uhr aus Farbe und Glas.",
+      "href": "spiele/chronometer/index.html"
+    },
+    {
+      "id": "cyborg",
+      "title": "Futuristic Cyborg",
+      "kind": "Szene",
+      "tags": ["3D", "Figur"],
+      "blurb": "Cyborg-Figur in Three.js, mit Licht und Orbit.",
+      "href": "spiele/cyborg/index.html"
+    },
+    {
+      "id": "civ-hex",
+      "title": "Civ-Hex, nur Gelände",
+      "kind": "Szene",
+      "tags": ["3D", "Karte"],
+      "blurb": "Frühe Hexkarte, nur natürliches Gelände, ohne Spielregeln.",
+      "href": "spiele/civ-hex/index.html"
+    },
+    {
+      "id": "neon-fluid",
+      "title": "Neon Fluid",
+      "kind": "Szene",
+      "tags": ["WebGL"],
+      "blurb": "Leuchtende Flüssigkeit auf schwarzem Grund.",
+      "href": "spiele/neon-fluid/index.html"
+    },
+    {
+      "id": "gravity-fluid",
+      "title": "Gravity Neon Fluid",
+      "kind": "Szene",
+      "tags": ["WebGL"],
+      "blurb": "Dieselbe Fluid-Szene, mit Schwerkraft zum Ausprobieren.",
+      "href": "spiele/gravity-fluid/index.html"
+    },
+    {
+      "id": "kala",
+      "title": "Ökologischer Fußabdruck Kala",
+      "kind": "Website",
+      "tags": ["Rechner"],
+      "blurb": "CO₂- und Nachhaltigkeitsrechner mit persönlichem Aktionsplan.",
+      "href": "https://markwaldeis.github.io/oekologischer-fussabdruck-kala/"
+    },
+    {
+      "id": "github-showcase",
+      "title": "3D-Spiele-Archiv",
+      "kind": "Website",
+      "tags": ["Katalog"],
+      "blurb": "Durchsuchtes Archiv fremder Open-Source-3D-Spiele, mit Screenshots und Dossiers.",
+      "href": "spiele/github-showcase/index.html"
+    }
+  ]
+}

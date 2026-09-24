@@ -1,0 +1,2421 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D GitHub Showcase: Civilization-Klone, Piratenspiele & KI-Spiele</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 24, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover-border: rgba(99, 102, 241, 0.4);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-civ: #10b981;
+      --accent-pirate: #06b6d4;
+      --accent-ai: #8b5cf6;
+      --accent-star: #fbbf24;
+      --accent-primary: #6366f1;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      padding: 32px 24px 80px 24px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .badge-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      color: #c7d2fe;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      max-width: 820px;
+      margin: 0 auto 28px auto;
+    }
+    /* Stats Bar */
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+    .stat-pill {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--card-border);
+      padding: 10px 20px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.92rem;
+    }
+    .stat-number {
+      font-weight: 800;
+      color: #fff;
+      font-size: 1.1rem;
+    }
+    /* Search & Filter Controls */
+    .controls {
+      background: rgba(18, 24, 38, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    }
+    .controls-top {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .search-wrapper {
+      flex: 1;
+      min-width: 280px;
+      position: relative;
+    }
+    .search-input {
+      width: 100%;
+      background: rgba(10, 14, 23, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 16px 12px 42px;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .search-input:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    }
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      pointer-events: none;
+    }
+    .sort-select {
+      background: rgba(10, 14, 23, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 12px 18px;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      cursor: pointer;
+    }
+    .filter-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .filter-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    .filter-btn.active {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+    }
+    /* Cards Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
+      gap: 28px;
+    }
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      border-color: var(--card-hover-border);
+      box-shadow: 0 22px 40px -10px rgba(0, 0, 0, 0.6);
+    }
+    /* Image Showcase */
+    .card-media {
+      position: relative;
+      width: 100%;
+      height: 230px;
+      background: #0d1117;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    .card:hover .card-img {
+      transform: scale(1.05);
+    }
+    .media-badge-group {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      z-index: 2;
+    }
+    .media-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      backdrop-filter: blur(8px);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-civ {
+      background: rgba(16, 185, 129, 0.85);
+      color: #fff;
+    }
+    .badge-pirates {
+      background: rgba(6, 182, 212, 0.85);
+      color: #fff;
+    }
+    .badge-ai {
+      background: rgba(139, 92, 246, 0.85);
+      color: #fff;
+    }
+    .stars-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      color: var(--accent-star);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 4px 9px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      z-index: 2;
+    }
+    .thumbnails-strip {
+      display: flex;
+      gap: 6px;
+      padding: 8px 16px;
+      background: rgba(10, 14, 23, 0.6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      overflow-x: auto;
+    }
+    .thumb-btn {
+      width: 44px;
+      height: 32px;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      opacity: 0.7;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .thumb-btn:hover, .thumb-btn.active {
+      opacity: 1;
+      border-color: var(--accent-primary);
+      transform: scale(1.08);
+    }
+    .thumb-btn img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    /* Card Body */
+    .card-body {
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .card-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+    .card-repo {
+      font-size: 0.84rem;
+      color: #818cf8;
+      font-family: monospace;
+      margin-bottom: 12px;
+      display: inline-block;
+      text-decoration: none;
+    }
+    .card-repo:hover {
+      text-decoration: underline;
+    }
+    .tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .tag-chip {
+      font-size: 0.76rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .tag-chip.ai-chip {
+      background: rgba(139, 92, 246, 0.18);
+      border-color: rgba(139, 92, 246, 0.35);
+      color: #ddd6fe;
+      font-weight: 600;
+    }
+    .tag-chip.engine-chip {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #a7f3d0;
+    }
+    .card-desc {
+      font-size: 0.92rem;
+      color: #cbd5e1;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      flex-grow: 1;
+    }
+    .card-highlights {
+      list-style: none;
+      margin-bottom: 20px;
+      background: rgba(10, 14, 23, 0.4);
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .card-highlights li {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      position: relative;
+      padding-left: 18px;
+      margin-bottom: 6px;
+    }
+    .card-highlights li:last-child {
+      margin-bottom: 0;
+    }
+    .card-highlights li::before {
+      content: "•";
+      color: var(--accent-primary);
+      position: absolute;
+      left: 6px;
+      font-weight: bold;
+    }
+    /* Card Footer & Actions */
+    .card-footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    .btn-clone {
+      background: rgba(99, 102, 241, 0.18);
+      color: #c7d2fe;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      flex: 1;
+      justify-content: center;
+    }
+    .btn-clone:hover {
+      background: var(--accent-primary);
+      color: #fff;
+    }
+    .btn-dossier {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .btn-dossier:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+    }
+    .btn-github {
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .btn-github:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+    .btn-demo {
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .btn-demo:hover {
+      background: rgba(16, 185, 129, 0.85);
+      color: #fff;
+    }
+    /* Lightbox Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 8, 15, 0.94);
+      backdrop-filter: blur(12px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+    .modal.open {
+      display: flex;
+    }
+    .modal-content {
+      max-width: 90vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    .modal-img {
+      max-width: 100%;
+      max-height: 75vh;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .modal-caption {
+      margin-top: 14px;
+      color: #e2e8f0;
+      font-size: 1rem;
+      font-weight: 500;
+      text-align: center;
+    }
+    .modal-close {
+      position: absolute;
+      top: -44px;
+      right: 0;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 2rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1e293b;
+      border: 1px solid var(--accent-primary);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 9999px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+    /* Responsive */
+    @media (max-width: 768px) {
+      h1 { font-size: 2rem; }
+      .grid { grid-template-columns: 1fr; }
+      body { padding: 16px 12px 60px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <header>
+    <div class="badge-top">
+      <span>🚀</span> Antigravity Multi-Agent Scout Report
+    </div>
+    <h1>3D GitHub Projects & Vibe Coding Showcase</h1>
+    <p class="subtitle">
+      Kuratierte Sammlung von 42 kopierbaren 3D-Spielen (Cartoon- & Everdale-Stil, Stylized Adventure, Civ-6-Klone, Piratenspiele & KI-Spiele) von Solo-Developern und kleinen Accounts (< 200 Stars) mit echten Screenshots & Analysen.
+    </p>
+
+    <!-- Stats Bar -->
+        <div class="stats-bar">
+      <div class="stat-pill">
+        <span>🎮</span>
+        <span><span class="stat-number">42</span> Projekte</span>
+      </div>
+      <div class="stat-pill">
+        <span>📸</span>
+        <span><span class="stat-number">84</span> Lokale Screenshots</span>
+      </div>
+      <div class="stat-pill">
+        <span>🌸</span>
+        <span><span class="stat-number">20</span> Cartoon & Cozy</span>
+      </div>
+      <div class="stat-pill">
+        <span>⭐</span>
+        <span><span class="stat-number">0 – 200</span> Stars (Indie Focus)</span>
+      </div>
+      <div class="stat-pill">
+        <span>📋</span>
+        <span><span class="stat-number">100%</span> Klonbar & Open Source</span>
+      </div>
+    </div>
+      <div class="stat-pill">
+        <span>📸</span>
+        <span><span class="stat-number">46</span> Lokale Screenshots</span>
+      </div>
+      <div class="stat-pill">
+        <span>🤖</span>
+        <span><span class="stat-number">12</span> KI & Vibe Coded</span>
+      </div>
+      <div class="stat-pill">
+        <span>⭐</span>
+        <span><span class="stat-number">0 – 200</span> Stars (Indie Focus)</span>
+      </div>
+      <div class="stat-pill">
+        <span>📋</span>
+        <span><span class="stat-number">100%</span> Klonbar & Open Source</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Search & Filter Controls -->
+  <div class="controls">
+    <div class="controls-top">
+      <div class="search-wrapper">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="Projekt, Genre, Engine (Three.js, Godot, Bevy) oder KI-Tool suchen...">
+      </div>
+      <select id="sortSelect" class="sort-select">
+        <option value="recommended">Empfohlene Sortierung</option>
+        <option value="stars-asc">Stars: Niedrig zu Hoch (Geheimtipps)</option>
+        <option value="stars-desc">Stars: Hoch zu Niedrig</option>
+        <option value="name">Alphabetisch (A - Z)</option>
+      </select>
+    </div>
+
+        <div class="filter-pills">
+      <button class="filter-btn active" data-filter="all">Alle anzeigen (54)</button>
+      <button class="filter-btn" data-filter="cozy">🌸 Cozy & Village (Everdale-Stil) (8)</button>
+      <button class="filter-btn" data-filter="adventure">🗡️ Stylized Adventure & Toon (9)</button>
+      <button class="filter-btn" data-filter="toonweb">🌐 WebGL & Toon AI (3)</button>
+      <button class="filter-btn" data-filter="citybuilder">🏙️ Cozy City & Town Builder (12)</button>
+      <button class="filter-btn" data-filter="civ">🏛️ Civilization & 4X (7)</button>
+      <button class="filter-btn" data-filter="pirates">🏴‍☠️ Piraten & Ozean (7)</button>
+      <button class="filter-btn" data-filter="ai">🤖 KI-Gebaut & Vibe Coding (8)</button>
+      <button class="filter-btn" data-filter="web">🌐 Browser-Only</button>
+      <button class="filter-btn" data-filter="engine">⚡ Standalone (Godot / Unity)</button>
+    </div>
+  </div>
+
+  <!-- Cards Grid -->
+  <div class="grid" id="projectsGrid"></div>
+</div>
+
+<!-- Lightbox Modal -->
+<div class="modal" id="imageModal">
+  <div class="modal-content">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <img src="" alt="" class="modal-img" id="modalImg">
+    <div class="modal-caption" id="modalCaption"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span>📋</span> <span id="toastText">Befehl in Zwischenablage kopiert!</span>
+</div>
+
+<script>
+const PROJECTS = [
+  {
+    "id": "birodalmak",
+    "title": "Birodalmak (Empires)",
+    "category": "civ",
+    "category_label": "Civilization & 4X",
+    "repo": "lospolosadwords-dev/birodalmak",
+    "author": "Los Polos Amigos Kft.",
+    "stars": 12,
+    "license": "MIT / CC0",
+    "engine": "Three.js + 2D Canvas",
+    "ai_tools": "Claude Code",
+    "demo_url": "https://skynet.lospolo.hu/birodalmak/en/",
+    "dossier": "projects/01_birodalmak_4x_civilization_3d.md",
+    "clone_url": "https://github.com/lospolosadwords-dev/birodalmak.git",
+    "description": "Vollständiger 3D Civilization VI Klon direkt im Browser ohne Frameworks oder Build-Step. 52 Technologien mit Eurekas, 24 Civics, 49 Einheiten, Dynastie-System und taktische 3D-Hexagon-Schlachten.",
+    "highlights": [
+      "3D Hex-Terrain in Three.js mit dynamischem Tag/Nacht-Zyklus & Fog of War",
+      "Kompletter Tech-Baum mit 52 Techs, 24 Civics & 10 Regierungsformen",
+      "Armee-Formationen, Generäle mit Traits, Belagerung & Mauer-HP",
+      "Dynastie- und Nachfolgesimulation mit 4 Erbfolge-Gesetzen"
+    ],
+    "images": [
+      {
+        "path": "screenshots/birodalmak/3d_nezet.png",
+        "caption": "3D Hexagonale Weltkarte in Three.js"
+      },
+      {
+        "path": "screenshots/birodalmak/tech_fa.png",
+        "caption": "Vollständiger Technologiebaum mit Eurekas"
+      },
+      {
+        "path": "screenshots/birodalmak/dinasztia.png",
+        "caption": "Königliches Dynastie- & Nachfolgesystem"
+      },
+      {
+        "path": "screenshots/birodalmak/varos_kepernyo.png",
+        "caption": "Stadtverwaltung & Bau-Warteschlange"
+      }
+    ]
+  },
+  {
+    "id": "kalozok",
+    "title": "Kalózok (Pirates 3D)",
+    "category": "pirates",
+    "category_label": "Piraten & Segeln",
+    "repo": "lospolosadwords-dev/kalozok",
+    "author": "Los Polos Amigos Kft.",
+    "stars": 0,
+    "license": "MIT",
+    "engine": "Three.js (Pure Vanilla)",
+    "ai_tools": "Claude Code",
+    "demo_url": "https://skynet.lospolo.hu/kalozok/hu/",
+    "dossier": "projects/02_kalozok_3d_pirates_browser.md",
+    "clone_url": "https://github.com/lospolosadwords-dev/kalozok.git",
+    "description": "Vollwertiges 3D-Piratenspiel in einer einzigen 4.300 Zeilen HTML-Datei! Bietet Breitseiten-Kanonenkampf, ein 3-Deck Cutaway Schiffsmanagement (wie FTL), Stürme, Kraken-Bosskämpfe und 2-8 Spieler Multiplayer.",
+    "highlights": [
+      "Eine einzige HTML-Datei mit 0 Build-Tools & 0 Node-Dependencies",
+      "FTL-Style Crew- & Schadensmanagement auf 3 Schiffsetagen (Deck, Kanonendeck, Frachtraum)",
+      "Dynamische Wellenphysik, Stürme, Blitzschlag & mystische Kraken-Begegnungen",
+      "WebRTC Peer-to-Peer Multiplayer für 2 bis 8 Piratenkapitäne"
+    ],
+    "images": [
+      {
+        "path": "screenshots/kalozok/sailing.jpg",
+        "caption": "3D Ozeanfahrt & offene karibische See"
+      },
+      {
+        "path": "screenshots/kalozok/deck.jpg",
+        "caption": "FTL-inspiriertes 3-Deck Crew- und Schadenssystem"
+      },
+      {
+        "path": "screenshots/kalozok/storm.jpg",
+        "caption": "Dynamischer Sturm mit gigantischen Wellen"
+      }
+    ]
+  },
+  {
+    "id": "operacion-siesta",
+    "title": "Operación Siesta",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "alandaitch/operacion-siesta",
+    "author": "Alan Daitch",
+    "stars": 10,
+    "license": "Open Source",
+    "engine": "Three.js + Rapier3D",
+    "ai_tools": "71 Claude Code Subagents",
+    "demo_url": "",
+    "dossier": "projects/03_operacion_siesta_claude_code_3d.md",
+    "clone_url": "https://github.com/alandaitch/operacion-siesta.git",
+    "description": "Humorvolles 3D Stealth-Spiel, gebaut von 71 autonomen Claude Code Subagents. Man steuert eine Agenten-Katze, die laute Haushaltsgeräte sabotieren muss, ohne das schlafende Baby zu wecken. 100% prozedural ohne externe 3D-Modelle oder Soundfiles.",
+    "highlights": [
+      "End-to-End von 71 parallelen Claude Code Subagents programmiert",
+      "100% prozedural: Alle Meshes via SDF, Texturen via Canvas, Sound via Web Audio",
+      "Rapier3D Physik mit dynamischen Soundwellen und Lautstärke-Erkennung",
+      "Physikalisch interagierbare Vorhänge, Kissen und fallende Gegenstände"
+    ],
+    "images": [
+      {
+        "path": "screenshots/operacion-siesta/hero.png",
+        "caption": "Die Spionage-Katze im 3D Kinderzimmer"
+      },
+      {
+        "path": "screenshots/operacion-siesta/baby.png",
+        "caption": "Schlafendes Baby mit dynamischem Aufwach-Balken"
+      },
+      {
+        "path": "screenshots/operacion-siesta/curtains.png",
+        "caption": "Vorhang-Sabotage & physikalische Spielwelt"
+      }
+    ]
+  },
+  {
+    "id": "turbo-kart-rush",
+    "title": "Turbo Kart Rush",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "bridge-mind/turbo-kart-rush",
+    "author": "bridge-mind",
+    "stars": 37,
+    "license": "MIT",
+    "engine": "Three.js 0.185 + TypeScript",
+    "ai_tools": "5 Claude Fable 5.1 Subagents",
+    "demo_url": "https://bridge-mind.github.io/turbo-kart-rush/",
+    "dossier": "projects/04_turbo_kart_rush_3d_mario_kart.md",
+    "clone_url": "https://github.com/bridge-mind/turbo-kart-rush.git",
+    "description": "Mario Kart Klon in Three.js, generiert aus einem einzigen Prompt durch 5 parallele Claude Fable Subagents. Vollständige Drift-Physik mit Funken-Boosts, Fragezeichen-Itemboxen (Bananen, Rote Panzer, Sterne) und 4 Strecken.",
+    "highlights": [
+      "Aus 1 einzigen Master-Prompt durch 5 Fable Subagents generiert",
+      "Echtes Mario-Kart-Driften mit Stufen-Funken & Turbo-Boost",
+      "Komplettes Waffen- und Itemsystem (Zielsuch-Panzer, Bananenschalen, Blitz)",
+      "4 Strecken (Neon Speedway, Desert Canyon, Glacier Ridge, Cosmic Rainbow)"
+    ],
+    "images": [
+      {
+        "path": "screenshots/turbo-kart-rush/title.jpg",
+        "caption": "Titelbildschirm & Grand-Prix-Modus"
+      },
+      {
+        "path": "screenshots/turbo-kart-rush/character-select.jpg",
+        "caption": "Charakter- & Kart-Auswahl mit Attributen"
+      },
+      {
+        "path": "screenshots/turbo-kart-rush/track-select.jpg",
+        "caption": "Streckenauswahl & Pokalmeisterschaften"
+      },
+      {
+        "path": "screenshots/turbo-kart-rush/race.jpg",
+        "caption": "In-Game 3D Kart-Rennen mit Boost-Effekten"
+      }
+    ]
+  },
+  {
+    "id": "claude-of-tanks",
+    "title": "Claude of Tanks",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "Kevin-Liu-01/Claude-of-Tanks",
+    "author": "Kevin Liu",
+    "stars": 25,
+    "license": "MIT",
+    "engine": "Three.js + WebGL2",
+    "ai_tools": "Claude Code & OpenAI Codex",
+    "demo_url": "",
+    "dossier": "projects/05_claude_of_tanks_armored_combat.md",
+    "clone_url": "https://github.com/Kevin-Liu-01/Claude-of-Tanks.git",
+    "description": "Browser-basierter 3D Panzer-Kampfsimulator mit realistischer Ballistik, Panzerungswinkeln (Abpraller), Ketten-Aufhängungsphysik und taktischer KI. Gebaut mit Claude Code und automatisierten Playwright-Prüfungen.",
+    "highlights": [
+      "Physikalische Ballistik: Flugbahnen, Schwerkraft & Panzerungsdurchschlag",
+      "Munitionstypen: Panzerbrechend (AP), Sprenggranate (HE) und Hartkern (APCR)",
+      "Taktische Gegner-KI nutzt Deckung und winkelt Wanne gegen Beschuss an",
+      "3 Arenen: Steilküste, Industriehafen und gefrorener Wintersee"
+    ],
+    "images": [
+      {
+        "path": "screenshots/claude-of-tanks/coastal_ambush.webp",
+        "caption": "Küstengefecht & Klippen-Hinterhalt"
+      },
+      {
+        "path": "screenshots/claude-of-tanks/seafront_duel.webp",
+        "caption": "Panzerduell an der Hafenpromenade"
+      },
+      {
+        "path": "screenshots/claude-of-tanks/winter_lake_duel.webp",
+        "caption": "Wintersee-Arena mit Eis- und Schneetexturen"
+      }
+    ]
+  },
+  {
+    "id": "tron-exonix",
+    "title": "Tron Exonix",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "witnesstodark/tron-exonix",
+    "author": "witnesstodark",
+    "stars": 9,
+    "license": "Open Source",
+    "engine": "Godot 4.7 (Forward+)",
+    "ai_tools": "Claude Code + Godot MCP + Tripo + fal.ai",
+    "demo_url": "",
+    "dossier": "projects/06_tron_exonix_godot_ai_arcade.md",
+    "clone_url": "https://github.com/witnesstodark/tron-exonix.git",
+    "description": "Futuristisches 3D Neon-Arcadespiel in Godot 4.7 (AirXonix & TRON Hommage). Komplett von Claude Code über Godot MCP und Blender MCP orchestriert. 3D-Modelle von TripoAI, PBR-Materialien von fal.ai.",
+    "highlights": [
+      "Vollständig via Model Context Protocol (MCP) und KI entwickelt",
+      "Echtzeit-3D-Polygon-Aufteilung beim Ziehen von Lichtspuren",
+      "Leuchtende PBR-Neon-Shader mit volumetrischem Bloom und Scanlines",
+      "TripoAI 3D-Assets & fal.ai Texturen harmonisch in Godot 4.7 vereint"
+    ],
+    "images": [
+      {
+        "path": "screenshots/tron-exonix/cast.webp",
+        "caption": "Cyber-Schiff & Drohnen-Charaktere"
+      },
+      {
+        "path": "screenshots/tron-exonix/obstacles.webp",
+        "caption": "Hindernisse, Minen und Laserbarrieren"
+      },
+      {
+        "path": "screenshots/tron-exonix/textures.webp",
+        "caption": "Prozedurale PBR Neon-Gittertexturen"
+      },
+      {
+        "path": "screenshots/tron-exonix/sky.webp",
+        "caption": "Cyberpunk 360-Grad HDRI Skybox"
+      }
+    ]
+  },
+  {
+    "id": "taal",
+    "title": "Taal (Civ + Anno 3D)",
+    "category": "civ",
+    "category_label": "Civilization & 4X",
+    "repo": "Resaki1/taal",
+    "author": "Christian Reski",
+    "stars": 13,
+    "license": "MIT",
+    "engine": "React Three Fiber + TypeScript",
+    "ai_tools": "Solo Indie",
+    "demo_url": "https://taal.web.app",
+    "dossier": "projects/07_taal_civ_anno_3d_procedural.md",
+    "clone_url": "https://github.com/Resaki1/taal.git",
+    "description": "Kombiniert die strategische Tiefe von Civilization mit den Warenketten und dem Inselaufbau von Anno in einer unendlich prozedural generierten kubischen Voxel-Welt im Browser.",
+    "highlights": [
+      "Unendliche prozedurale Voxel-Inselwelten mit Simplex-Rausch-Generierung",
+      "Produktionsketten (Holzfäller, Minen, Lagerhäuser) nach Anno-Vorbild",
+      "Flüssige 3D-Orbitalkamera mit Geländehervorhebung & Ertragsanzeige",
+      "Zustand State-Management für ultraschnelle Reaktionszeiten"
+    ],
+    "images": [
+      {
+        "path": "screenshots/taal/taal_screenshot_1.webp",
+        "caption": "Prozedurale kubische Inselwelt & Stadtkern in Taal"
+      }
+    ]
+  },
+  {
+    "id": "openciv",
+    "title": "OpenCiv",
+    "category": "civ",
+    "category_label": "Civilization & 4X",
+    "repo": "RyanGrieb/OpenCiv",
+    "author": "Ryan Grieb",
+    "stars": 200,
+    "license": "MIT",
+    "engine": "TypeScript + WebGL / Canvas",
+    "ai_tools": "Claude Code (CLAUDE.md)",
+    "demo_url": "",
+    "dossier": "projects/08_openciv_browser_civilization.md",
+    "clone_url": "https://github.com/RyanGrieb/OpenCiv.git",
+    "description": "Vollwertiger Open-Source Civilization V/VI Klon für den Webbrowser. Bietet Städtebau, Siedler, Krieger, Technologiebaum, Bürgerverteilung und Multiplayer über WebSockets.",
+    "highlights": [
+      "Umfassender Technologiebaum mit Era-Fortschritt & Einheiten-Freischaltung",
+      "Echtes 2-Stufen Fog of War (unerforscht / Shroud-Erinnerung / aktive Sicht)",
+      "Nahtlose horizontale Welt-Umrundung (Globus-Wrapping)",
+      "Strikte CLAUDE.md Richtlinien für automatisierte KI-Beiträge"
+    ],
+    "images": [
+      {
+        "path": "screenshots/openciv/openciv_ui_2.png",
+        "caption": "OpenCiv 4X Gameplay, Tech-Baum und Stadtmenü"
+      }
+    ]
+  },
+  {
+    "id": "cannonfall",
+    "title": "Cannonfall (Pirate Cove RL)",
+    "category": "pirates",
+    "category_label": "Piraten & Segeln",
+    "repo": "coltonomous/cannonfall",
+    "author": "Colton Allen",
+    "stars": 0,
+    "license": "Open Source",
+    "engine": "Three.js + cannon-es + ONNX",
+    "ai_tools": "Reinforcement Learning (RL)",
+    "demo_url": "",
+    "dossier": "projects/09_cannonfall_pirate_cove_rl.md",
+    "clone_url": "https://github.com/coltonomous/cannonfall.git",
+    "description": "Physikbasiertes 3D-Piratenschiffsspiel mit realistischer Mehrpunkt-Auftriebssimulation auf unruhigem Meer und einer im Browser trainierten Reinforcement-Learning-KI (ONNX Runtime).",
+    "highlights": [
+      "Hydrodynamische Mehrpunkt-Rumpfauftriebsberechnung bei Wellengang",
+      "Kanonenballistik mit Windabdrift und Wellenneigungskompensation",
+      "In-Browser neuronales Netzwerk (ONNX Web) für eigenständig agierende Piraten-KI",
+      "Open Source und ohne externe Engine-Kompilierung lauffähig"
+    ],
+    "images": [
+      {
+        "path": "screenshots/kalozok/sailing.jpg",
+        "caption": "3D Wellenphysik & Schiffsnavigation"
+      }
+    ]
+  },
+  {
+    "id": "pirates-maxematical",
+    "title": "Pirates (Gerstner Waves & Buoyancy)",
+    "category": "pirates",
+    "category_label": "Piraten & Segeln",
+    "repo": "maxematical/pirates",
+    "author": "maxematical",
+    "stars": 2,
+    "license": "Open Source",
+    "engine": "Unity (C# & HLSL)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/10_pirates_gerstner_waves_buoyancy.md",
+    "clone_url": "https://github.com/maxematical/pirates.git",
+    "description": "High-Fidelity Unity Ozeansimulation mit mathematischen Gerstner-Wellen auf der GPU und synchroner volumetrischer CPU-Auftriebsberechnung für Piratensegelschiffe und KI-Schlachten.",
+    "highlights": [
+      "Gerstner-Wellen-Displacement in HLSL mit mehreren Frequenz-Zügen",
+      "Dynamischer Worley-Rauschen-Schaum an Wellenkämmen und Schiffsrümpfen",
+      "Autonome KI-Schiffe mit Wegpunktnavigation und taktischen Breitseiten",
+      "Perfekter Vorlagen-Code zum Kopieren moderner Wasserphysik"
+    ],
+    "images": [
+      {
+        "path": "screenshots/pirates-maxematical/ocean_waves.png",
+        "caption": "Gerstner-Wellen-Displacement & Beleuchtung"
+      },
+      {
+        "path": "screenshots/pirates-maxematical/ocean_foam.png",
+        "caption": "Worley-Noise Gischt und Schaumbildung"
+      }
+    ]
+  },
+  {
+    "id": "vibe-jet",
+    "title": "Vibe Jet (3D Flight Sim)",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "cedrickchee/vibe-jet",
+    "author": "Cedric Chee",
+    "stars": 69,
+    "license": "MIT",
+    "engine": "Three.js + Node.js WebSockets",
+    "ai_tools": "Gemini 2.5 Pro (Canvas + Thinking)",
+    "demo_url": "",
+    "dossier": "projects/11_vibe_jet_gemini_flight_sim.md",
+    "clone_url": "https://github.com/cedrickchee/vibe-jet.git",
+    "description": "3D-Multiplayer-Flugsimulator, gebaut durch 'Vibe Coding' mit Gemini 2.5 Pro über 50+ dokumentierte Prompts. Bietet realistischen Flugmodelle, Barrel Rolls, Nachbrenner und Multiplayer-Dogfights.",
+    "highlights": [
+      "Dokumentiertes Vibe-Coding Meisterwerk mit 50+ Prompt-Transkripten",
+      "Aerodynamisches Flugmodell mit Auftrieb, Widerstand und Nachbrenner-FOV",
+      "Echtzeit-Multiplayer über leichtgewichtigen Node.js WebSocket-Server",
+      "Prozedurale Inselarchipele, Landebahnen und Reflexionswasser"
+    ],
+    "images": [
+      {
+        "path": "screenshots/vibe-jet/gameplay.png",
+        "caption": "Cockpit- & Verfolgerflug über tropischen Inseln"
+      },
+      {
+        "path": "screenshots/vibe-jet/game_visual.png",
+        "caption": "3D Jet-Modell & atmosphärische Beleuchtung"
+      },
+      {
+        "path": "screenshots/vibe-jet/gemini_prompt.png",
+        "caption": "Entwicklung im Gemini 2.5 Pro Canvas Interface"
+      }
+    ]
+  },
+  {
+    "id": "godot4-fps",
+    "title": "Godot 4 FPS & Jeep Template",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "bukkbeek/GodotFPS-Template",
+    "author": "bukkbeek",
+    "stars": 60,
+    "license": "MIT",
+    "engine": "Godot 4.x (GDScript)",
+    "ai_tools": "Cursor AI / Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/12_bukkbeek_godot_fps_template.md",
+    "clone_url": "https://github.com/bukkbeek/GodotFPS-Template.git",
+    "description": "Modulares 3D Ego-Shooter Starter-Kit für Godot 4. Enthält flüssiges Waffenhandling, Waffenwechsel, fahrbare 4x4 Jeeps mit Aufhängungsphysik und Zombie-Gegner-KI mit NavigationAgent3D.",
+    "highlights": [
+      "Komplettes Waffenarsenal (Pistole, Sturmgewehr, Schrotflinte) mit Recoil & Sway",
+      "Voll fahrbarer 4-Rad Jeep mit realistischer Radaufhängung (VehicleBody3D)",
+      "Zombie-KI mit NavigationAgent3D Wegfindung und Verfolgungslogik",
+      "Saubere modulare Knotenarchitektur, ideal als Vorlage"
+    ],
+    "images": [
+      {
+        "path": "screenshots/godot4-fps/banner.png",
+        "caption": "Godot 4 FPS Arsenal, fahrbarer Jeep und Zombie-KI"
+      }
+    ]
+  },
+  {
+    "id": "viber3d-space",
+    "title": "Space Fighter (React 19 + Koota ECS)",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "instructa/space-fighter-game",
+    "author": "Kevin Kern",
+    "stars": 1,
+    "license": "MIT",
+    "engine": "React 19 + R3F + Koota ECS",
+    "ai_tools": "Cursor AI & Viber3D Rules",
+    "demo_url": "https://viber3d-spacewars.kevinkern.dev/",
+    "dossier": "projects/13_viber3d_space_fighter.md",
+    "clone_url": "https://github.com/instructa/space-fighter-game.git",
+    "description": "Moderner 3D-Weltraum-Shooter, gebaut mit React 19, React Three Fiber und dem neuen Koota Entity Component System (ECS). Extrem performant mit hunderten Laserstrahlen und Asteroiden bei 120 FPS.",
+    "highlights": [
+      "Modernste React 19 & Koota ECS Architektur für cache-freundliche Logik",
+      "6 Freiheitsgrade (6-DOF) Raumschiff-Steuerung mit Schubdüsen-Partikeln",
+      "Zerstörbare Asteroidenfelder mit prozeduraler Bruch-Physik",
+      "Inklusive .cursor/rules und Prompts für eigene KI-Spieleentwicklung"
+    ],
+    "images": [
+      {
+        "path": "screenshots/viber3d/banner.png",
+        "caption": "Viber3D Space Combat Banner & Architektur"
+      }
+    ]
+  },
+  {
+    "id": "hexciv-bevy",
+    "title": "HexCiv & Bevy Hex Sandbox (Rust)",
+    "category": "civ",
+    "category_label": "Civilization & 4X",
+    "repo": "teohhanhui/hexciv",
+    "author": "Teoh Han Hui & David Lary",
+    "stars": 25,
+    "license": "Apache-2.0 / MIT",
+    "engine": "Rust + Bevy 0.16",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/14_hexciv_bevy_rust_civ6.md",
+    "clone_url": "https://github.com/teohhanhui/hexciv.git",
+    "description": "Civilization VI Re-Implementation in reinem Rust mit der Bevy ECS Game Engine. Bietet Civ-6-getreue Geländeschichten, axiale Hex-Koordinatenberechnungen und WebRTC P2P-Multiplayer.",
+    "highlights": [
+      "Reine datenorientierte Architektur (Data-Oriented Design) in modernem Rust",
+      "Civ-6-Terrain: Küste, Wüstenhügel, Berge, Grasland, Tundra & Packeis",
+      "Integrierte WebRTC Peer-to-Peer Runden-Synchronisation via Bevy Matchbox",
+      "Kombiniert mit 3D Hexagon-Editor unter Verwendung des Kenney-Assets-Kits"
+    ],
+    "images": [
+      {
+        "path": "screenshots/bevy-hex-sandbox/preview.png",
+        "caption": "Bevy 3D Hexagon Sandbox & Geländeeditor"
+      }
+    ]
+  },
+  {
+    "id": "hexciv-unity",
+    "title": "HexCiv (Unity 6.3 - 80 Civs)",
+    "category": "civ",
+    "category_label": "Civilization & 4X",
+    "repo": "kanta13jp1/HexCiv",
+    "author": "kanta13jp1",
+    "stars": 0,
+    "license": "Custom Open Source",
+    "engine": "Unity 6.3 LTS + C#",
+    "ai_tools": "Claude Code x OpenAI Codex",
+    "demo_url": "",
+    "dossier": "projects/15_hexciv_unity_ai_codex_claude.md",
+    "clone_url": "https://github.com/kanta13jp1/HexCiv.git",
+    "description": "Riesiges 4X-Strategiespiel in Unity 6.3, ko-entwickelt von Claude Code und OpenAI Codex. 80 Zivilisationen, Kultur-Sieg, Nachschublinien-Mechanik (Drücke 'L'), Weltgeschichte-Lexikon und 256x Zuseher-Modus.",
+    "highlights": [
+      "80 spielbare historische Nationen über 6 Weltregionen mit Spezialfähigkeiten",
+      "Hexagonales Nachschublinien-System: Abgeschnittene Armeen erleiden Zermürbung",
+      "Kopfloser deterministischer Simulationskern für ultraschnelle KI-Tests",
+      "Vollständige Multi-Agenten Protokolle (COLLABORATION.md & AGENTS.md)"
+    ],
+    "images": [
+      {
+        "path": "screenshots/hexciv-unity-ai/world_history_banner.png",
+        "caption": "Weltgeschichte-Lexikon & Kampagnen-Banner"
+      },
+      {
+        "path": "screenshots/hexciv-unity-ai/app_icon.png",
+        "caption": "HexCiv Anwendungs-Icon"
+      }
+    ]
+  },
+  {
+    "id": "threejs-hex-map",
+    "title": "Three.js Hex Map (Civ Fog of War)",
+    "category": "civ",
+    "category_label": "Civilization & 4X",
+    "repo": "Bunkerbewohner/threejs-hex-map",
+    "author": "Bunkerbewohner",
+    "stars": 119,
+    "license": "MIT",
+    "engine": "Three.js + TypeScript",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/16_threejs_hex_map_fog_of_war.md",
+    "clone_url": "https://github.com/Bunkerbewohner/threejs-hex-map.git",
+    "description": "Prozedurale 3D-Hexagon-Welt in Three.js mit originalgetreuem Civilization-Nebel des Krieges (Fog of War), geschwungenen Flüssen entlang von Hex-Kanten und Textur-Übergangsmasken.",
+    "highlights": [
+      "2-Stufen Fog of War: Unerforscht (Schwarz) vs. Erforscht (Schleier) vs. Aktiv",
+      "Mäandrierende Flüsse fließen von Bergen zum Meer entlang von Kanten",
+      "Nahtloses Alpha-Blending zwischen Gras-, Wüsten- und Schneefeldern",
+      "Perfekter Baustein für jeden Browser-Civilization-Klon"
+    ],
+    "images": [
+      {
+        "path": "screenshots/threejs-hex-map/screenshot.jpg",
+        "caption": "Prozedurales 3D Hexagon-Gelände mit Flüssen und Bergen"
+      }
+    ]
+  },
+  {
+    "id": "pirate-broadside",
+    "title": "Pirate Broadside (Unity 6)",
+    "category": "pirates",
+    "category_label": "Piraten & Segeln",
+    "repo": "masafykun/pirate-broadside",
+    "author": "masafykun",
+    "stars": 0,
+    "license": "MIT",
+    "engine": "Unity 6 (URP)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/17_pirate_broadside_naval_combat.md",
+    "clone_url": "https://github.com/masafykun/pirate-broadside.git",
+    "description": "Schnelle 3D-Seeschlacht in Unity 6 mit Breitseiten-Zielsystem, dynamischer Schiffssteuerung über Segel und Ruder sowie feindlicher Piraten-KI, die versucht, die T-Form zu kreuzen.",
+    "highlights": [
+      "Dynamisches Flugbahn-Visier abhängig von Rollwinkel und Wellengang",
+      "Maßgeschneiderter stilisierter Ozean-Wasser-Shader für hohe FPS",
+      "Aggressive Flotten-KI liefert koordinierte Breitseiten-Salven",
+      "Sauberes, leicht modifizierbares Unity 6 Projekt"
+    ],
+    "images": [
+      {
+        "path": "screenshots/pirate-broadside/title.png",
+        "caption": "Titelbildschirm & Arenawahl"
+      },
+      {
+        "path": "screenshots/pirate-broadside/battle.png",
+        "caption": "Intensives Breitseiten-Gefecht auf offener See"
+      }
+    ]
+  },
+  {
+    "id": "godot-pirate-game",
+    "title": "Godot Pirate Game Template",
+    "category": "pirates",
+    "category_label": "Piraten & Segeln",
+    "repo": "zKlau/Godot-Pirate-Game",
+    "author": "zKlau",
+    "stars": 2,
+    "license": "Open Source",
+    "engine": "Godot 4 (Forward+)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/18_zklau_godot_pirate_game.md",
+    "clone_url": "https://github.com/zKlau/Godot-Pirate-Game.git",
+    "description": "3D-Piratenspiel-Vorlage für Godot 4 mit Integration des renommierten Boujie Water Shaders, volumetrischem Nebel, physikalischer Rumpf-Auftriebs-Sonde und Insel-Erkundung.",
+    "highlights": [
+      "Boujie Water Shader mit Gerstner-Wellen, Subsurface Scattering & Schaum",
+      "4-Punkt Auftriebs-Sonden-Skript für authentisches Schlingern & Heelen",
+      "Volumetrischer Nebel und atmosphärische karibische Lichtstimmung",
+      "Kanonenabschuss, Schiffsschaden und dynamische Versenkungs-Animationen"
+    ],
+    "images": [
+      {
+        "path": "screenshots/godot-pirate-game/fog.png",
+        "caption": "Volumetrischer Nebel & stimmungsvolle Ozeanfahrt"
+      },
+      {
+        "path": "screenshots/godot-pirate-game/gameplay.png",
+        "caption": "3D Kanonengefecht und Segelmanöver"
+      }
+    ]
+  },
+  {
+    "id": "truewind-simulators",
+    "title": "TrueWind & Windsurf Simulator",
+    "category": "pirates",
+    "category_label": "Piraten & Segeln",
+    "repo": "hclivess/truewind",
+    "author": "hclivess & viachm",
+    "stars": 6,
+    "license": "MIT",
+    "engine": "Three.js + TypeScript",
+    "ai_tools": "Claude AI (CLAUDE.md)",
+    "demo_url": "",
+    "dossier": "projects/19_truewind_windsurfing_simulators.md",
+    "clone_url": "https://github.com/hclivess/truewind.git",
+    "description": "Zwei außergewöhnliche Physik-Simulationen für das Segeln und Windsurfen im Browser. Berechnen aerodynamischen Segel-Auftrieb, Abdrift des Kiels, scheinbaren Wind und Gleitfahrt in Echtzeit.",
+    "highlights": [
+      "120Hz Physik-Schleife mit echter Profil-Polaren-Berechnung (Lift & Drag)",
+      "Scheinbarer Wind (Apparent Wind) reagiert dynamisch auf Fahrtgeschwindigkeit",
+      "Segel-Trimm, Mastneigung und Wasserwiderstand mathematisch exakt modelliert",
+      "Windsurf-Simulator enthält eigenes CLAUDE.md Dokumentations-Protokoll"
+    ],
+    "images": [
+      {
+        "path": "screenshots/truewind/progreso.png",
+        "caption": "TrueWind 3D Hydrodynamik & Bootskiel-Physik"
+      },
+      {
+        "path": "screenshots/windsurf-simulator/desktop.png",
+        "caption": "Windsurf Simulator Desktop-Ansicht mit Windvektoren"
+      }
+    ]
+  },
+  {
+    "id": "claude-of-iron",
+    "title": "Claude of Iron (3D Fighting Game)",
+    "category": "ai",
+    "category_label": "KI-Gebaut & Vibe Coding",
+    "repo": "usama-shiranai90/Claude-of-Iron",
+    "author": "Usama",
+    "stars": 2,
+    "license": "MIT",
+    "engine": "Three.js + WebGL2",
+    "ai_tools": "Claude Code (Single Prompt Loop)",
+    "demo_url": "https://usama-shiranai90.github.io/Claude-of-Iron/",
+    "dossier": "projects/20_claude_of_iron_3d_fighting_game.md",
+    "clone_url": "https://github.com/usama-shiranai90/Claude-of-Iron.git",
+    "description": "Deterministisches 120Hz 3D Kampfspiel (Tekken-Hommage) im Browser, entwickelt aus einem einzigen Fortsetzungs-Prompt mit automatisierten Pixel-Regressionstests. 0 externe Grafik- oder Sound-Assets!",
+    "highlights": [
+      "120Hz deterministische Tick-Engine mit 77 Move-IDs, 51 Zuständen und 9 Würfen",
+      "100% prozedural: Alle Kämpfer-Rigs, Texturen & 37 Web-Audio-SFX im Code erzeugt",
+      "Swept-Capsule Hitboxen & Hurtboxen mit pixelgenauer Trefferauflösung",
+      "Reaktive Computer-KI nutzt denselben Eingabepfad wie menschliche Spieler"
+    ],
+    "images": [
+      {
+        "path": "screenshots/claude-of-iron/training-hitboxes.png",
+        "caption": "Hitbox- & Hurtbox-Kapseln im Trainingsmodus"
+      },
+      {
+        "path": "screenshots/claude-of-iron/neutral-spacing.png",
+        "caption": "Kampfhaltung, Abstandsmessung & Rooftop-Arena"
+      }
+    ]
+  },
+  {
+    "id": "pcp-ship",
+    "title": "PCP Ship (3D Pirate RPG)",
+    "category": "pirates",
+    "category_label": "Piraten & Segeln",
+    "repo": "PCP-Software/pcp-ship",
+    "author": "PCP Software",
+    "stars": 0,
+    "license": "Open Source",
+    "engine": "Unity (URP)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/21_pcp_ship_unity_pirate_rpg.md",
+    "clone_url": "https://github.com/PCP-Software/pcp-ship.git",
+    "description": "3D-Piratenschiff-Prototyp in Unity mit Schiffswerft, Insel-Archipelen, Schiffswrack-Plünderung und taktischem Breitseiten-Kanonenkampf.",
+    "highlights": [
+      "Erkundbare tropische 3D-Inseln mit Riffen und gestrandeten Wracks",
+      "Detailreiches geriggtes Galeonenmodell mit funktionierendem Ruder",
+      "Partikelsysteme für Kanonenrauch und Wassereinschläge",
+      "Solides Unity-Startprojekt für Piraten-RPGs"
+    ],
+    "images": [
+      {
+        "path": "screenshots/pcp-ship/in_game_start.png",
+        "caption": "Start im Hafenbecken vor tropischer Kulisse"
+      },
+      {
+        "path": "screenshots/pcp-ship/shipwreck.png",
+        "caption": "Schiffswrack-Erkundung an den Korallenriffen"
+      }
+    ]
+  },
+  {
+    "id": "godot-hex-math",
+    "title": "Godot 3D Hex Grid & Goldberg Planet",
+    "category": "civ",
+    "category_label": "Civilization & 4X",
+    "repo": "josephmbustamante/Godot-3D-Hex-Grid-Tutorial",
+    "author": "Joe Bustamante & DeanNevan",
+    "stars": 24,
+    "license": "Open Source",
+    "engine": "Godot 3.x / 4.x (GDScript)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/22_godot_3d_hex_grid_tutorial.md",
+    "clone_url": "https://github.com/josephmbustamante/Godot-3D-Hex-Grid-Tutorial.git",
+    "description": "Fundamentale mathematische Grundlagen für 3D-Civilization-Klone in Godot: Axiale Hex-Koordinatenberechnung, 3D Raycast-Klick-Erkennung und prozedurale kugelförmige Goldberg-Polyeder-Planeten.",
+    "highlights": [
+      "Exakte Umrechnung von 3D Weltkoordinaten in hexagonale Axialkoordinaten",
+      "Kamera-Raycast-Picking zum Anklicken und Hervorheben von Hex-Feldern",
+      "Echter sphärischer 3D-Planet aus 12 Fünfecken und hunderten Sechsecken",
+      "Unverzichtbare mathematische Basis für eigene 4X-Strategiespiele"
+    ],
+    "images": [
+      {
+        "path": "screenshots/godot-3d-hex-grid/cover.png",
+        "caption": "3D Hex Grid Raycasting & Kachelplatzierung in Godot"
+      }
+    ]
+  },
+  {
+    "id": "marchlands",
+    "title": "Marchlands",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "tbosier/marchlands",
+    "author": "tbosier",
+    "stars": 1,
+    "license": "Open Source / MIT",
+    "engine": "Godot 4 (GDScript)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/23_marchlands_medieval_village_godot.md",
+    "clone_url": "https://github.com/tbosier/marchlands.git",
+    "description": "Lebendige mittelalterliche Dorfsiedlung in Godot 4 im Stil von Tiny Glade und Everdale. Spieler bauen keine Straßen: Die Bürger laufen Pfade dynamisch ins Gras (Wear-Field-Textur-Shader).",
+    "highlights": [
+      "Dynamische Trampelpfad-Entstehung (Desire Paths) durch Bürger-Fußabdrücke",
+      "Detaillierte Bürger-Tagesabläufe (Wasserholen, Feldbestellung, Mahlen)",
+      "AStarGrid2D-Wegfindung passt sich dynamisch an bestehende Pfade an",
+      "Wunderschöne Godot-4-Beleuchtung mit warmen Nacht-Laternen"
+    ],
+    "images": [
+      {
+        "path": "screenshots/marchlands/first_road.png",
+        "caption": "Erste Trampelpfade entstehen durch Bürger"
+      },
+      {
+        "path": "screenshots/marchlands/night.png",
+        "caption": "Warme Nachtbeleuchtung im mittelalterlichen Dorf"
+      }
+    ]
+  },
+  {
+    "id": "cheoma",
+    "title": "Cheoma",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "midagedev/cheoma",
+    "author": "midagedev",
+    "stars": 1,
+    "license": "MIT",
+    "engine": "Three.js + Svelte 5 / Vite",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/24_cheoma_procedural_joseon_village.md",
+    "clone_url": "https://github.com/midagedev/cheoma.git",
+    "description": "Malerischer 3D-prozeduraler koreanischer Dorf-Generator und begehbare Sandbox in Three.js. Erzeugt traditionelle Ziegeldächer (Giwa) und Reisterrassen aus einem Seed mit Studio-Ghibli-Ästhetik.",
+    "highlights": [
+      "Prozedurale Synthese historischer Siedlungen aus 1 Zufalls-Seed",
+      "First-Person-Geh-Modus, Drohnenflug und Orbitalkamera mit Kollision",
+      "Malerische Fresnel-Lichtkanten, Bokeh-Schärfentiefe & ACES Tonemapping",
+      "Exportiert generierte Dörfer als .glb 3D-Dateien und Kollisions-Meshes"
+    ],
+    "images": [
+      {
+        "path": "screenshots/cheoma/hero.jpg",
+        "caption": "Malerisches Bergdorf zur goldenen Stunde"
+      },
+      {
+        "path": "screenshots/cheoma/house.jpg",
+        "caption": "Traditionelles Holz- und Ziegelhaus im Detail"
+      }
+    ]
+  },
+  {
+    "id": "town-builder",
+    "title": "TownBuilder (Townscaper in Unity)",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "eliemichel/TownBuilder",
+    "author": "Élie Michel",
+    "stars": 32,
+    "license": "MIT",
+    "engine": "Unity (C# / BMeshUnity)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/25_town_builder_townscaper_unity.md",
+    "clone_url": "https://github.com/eliemichel/TownBuilder.git",
+    "description": "Faszinierende technische Nachbildung von Oskar Stålbergs Townscaper in Unity. Klicks auf den Ozean erzeugen automatisch bunte Häuser, Bögen, Dächer und Gassen via Marching Cubes und WFC.",
+    "highlights": [
+      "Modul-basiertes Marching Cubes & Wave Function Collapse (WFC)",
+      "Echtzeit-3D-Mesh-Generierung über C# BMeshUnity-Bibliothek",
+      "Pastellfarbene mediterrane Hafenstadt-Optik mit Terrakotta-Dächern",
+      "Perfekter Lern-Code für prozedurale Gemütlichkeits-Architektur"
+    ],
+    "images": [
+      {
+        "path": "screenshots/town-builder/townscape.png",
+        "caption": "Bunte Townscaper-Hafenstadt auf dem Ozean"
+      },
+      {
+        "path": "screenshots/town-builder/marching_cubes.png",
+        "caption": "Marching Cubes Modulgitter zur Dach- und Bogenbildung"
+      }
+    ]
+  },
+  {
+    "id": "townies",
+    "title": "Townies",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "Brayden/townies",
+    "author": "Brayden Wilmoth",
+    "stars": 53,
+    "license": "Apache-2.0",
+    "engine": "Three.js + React / Vite",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/26_townies_cozy_town_life_mmo.md",
+    "clone_url": "https://github.com/Brayden/townies.git",
+    "description": "Animal Crossing trifft kooperative Stadtverwaltung im Browser! Bis zu 50 Spieler leben gemeinsam in einer Vorstadt, mähen Rasen, liefern Zeitungen per Fahrrad aus und wählen den Bürgermeister.",
+    "highlights": [
+      "9 gemütliche Minijobs (Rasenmähen, Blumenbeet-Pflege, Hochdruckreinigen)",
+      "50 dekorierbare Hausgrundstücke mit Innenraum-Einrichtung",
+      "Demokratisches System mit Bürgermeisterwahlen & Gemeindesteuern",
+      "Flüssiges 3D-Multiplayer-Erlebnis auf Basis moderner WebSockets"
+    ],
+    "images": [
+      {
+        "path": "screenshots/townies/town_welcome.jpg",
+        "caption": "Gemütliche Vorstadt-Siedlung aus der Vogelperspektive"
+      }
+    ]
+  },
+  {
+    "id": "summer-island",
+    "title": "Project Summer Island",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "sunkper/Project-Summer-Island",
+    "author": "sunkper",
+    "stars": 89,
+    "license": "Open Source",
+    "engine": "Godot Engine (GDScript)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/27_summer_island_boku_natsuyasumi.md",
+    "clone_url": "https://github.com/sunkper/Project-Summer-Island.git",
+    "description": "Nostalgisches 3D-Erkundungsspiel an der japanischen Küste, inspiriert von Boku no Natsuyasumi und Animal Crossing. Frei begehbares traditionelles Küstenhaus mit Tatami-Zimmern und Zikadenklang.",
+    "highlights": [
+      "Detailreiches japanisches Küstenhaus mit Schiebetüren und Engawa-Veranda",
+      "Nostalgische Sommerurlaubs-Atmosphäre mit Meeresbrise & Zikadengeräuschen",
+      "Weiche Kamerawinkel wie in klassischen 90er-Jahre-Abenteuern",
+      "Optimiert für Godot Engine mit handgemachten Blender-Modellen"
+    ],
+    "images": [
+      {
+        "path": "screenshots/summer-island/screen_editor.png",
+        "caption": "Küstenhaus und Pier im Godot-Editor"
+      },
+      {
+        "path": "screenshots/summer-island/kitchen.png",
+        "caption": "Küche und Tatami-Wohnraum im traditionellen Haus"
+      }
+    ]
+  },
+  {
+    "id": "ecocity",
+    "title": "EcoCity",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "lemilonkh/EcoCity",
+    "author": "lemilonkh",
+    "stars": 3,
+    "license": "MIT (CC0 Assets)",
+    "engine": "Godot 4.2+ (GDScript)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/28_ecocity_lowpoly_village_godot.md",
+    "clone_url": "https://github.com/lemilonkh/EcoCity.git",
+    "description": "Entspannender Low-Poly Öko-Städtebauer in Godot 4. Nutzt die beliebten Kenney CC0-3D-Assets, um saubere Energiedörfer mit Windrädern, Solarparks und Bio-Farmen zu errichten.",
+    "highlights": [
+      "Ausbalancieren von Energiebedarf und erneuerbaren Energiequellen",
+      "Sauberes 3D GridMap-Bausystem in Godot 4 mit Vorschau-Kacheln",
+      "Coole Spielzeug-Ästhetik mit pastellgrünen Wiesen und animierten Rotoren",
+      "100% quelloffen und frei von proprietären Abhängigkeiten"
+    ],
+    "images": [
+      {
+        "path": "screenshots/ecocity/screenshot.png",
+        "caption": "Buntes Öko-Dorf mit Windrädern und Häuschen"
+      }
+    ]
+  },
+  {
+    "id": "flying-island",
+    "title": "Unity Flying Island",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "barnabasbartha/Unity-Flying-Island",
+    "author": "Barnabas Bartha",
+    "stars": 3,
+    "license": "MIT",
+    "engine": "Unity (URP / C#)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/29_flying_island_windmill_diorama.md",
+    "clone_url": "https://github.com/barnabasbartha/Unity-Flying-Island.git",
+    "description": "Friedvolles schwebendes Windmühlen-Insel-Diorama in Unity URP. Beinhaltet prozedurale Wind-Shader für wehendes Gras, sanft drehende Mühlenflügel und watteweiche Wolken.",
+    "highlights": [
+      "Prozeduraler Vertex-Displacement Wind-Shader für Gras und Nadelbäume",
+      "Mechanisch animierte Windmühle mit physikalischem Drehimpuls",
+      "Stilisierte URP-Lichtstimmung mit cartoonartigen Wolkenschatten",
+      "Kompaktes, sauberes Diorama-Projekt für stilisierte Spielwelten"
+    ],
+    "images": [
+      {
+        "path": "screenshots/flying-island/thumbnail.png",
+        "caption": "Schwebendes Windmühlen-Insel-Diorama mit wehendem Gras"
+      }
+    ]
+  },
+  {
+    "id": "hexagrid-relaxed",
+    "title": "Hexagrid-Relaxed (Townscaper Math)",
+    "category": "cozy",
+    "category_label": "Cozy & Village (Everdale-Stil)",
+    "repo": "megowan/hexagrid-relaxed",
+    "author": "megowan",
+    "stars": 27,
+    "license": "CC0 1.0 Universal",
+    "engine": "Godot 4.3 (GDScript)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/30_hexagrid_relaxed_organic_towns.md",
+    "clone_url": "https://github.com/megowan/hexagrid-relaxed.git",
+    "description": "Godot 4 Portierung von Oskar Stålbergs organischem Gitter-Algorithmus aus Townscaper. Erzeugt unregelmäßige, weich geschwungene Gitter für krumme Gassen und natürliche Kaimauern.",
+    "highlights": [
+      "Laplacian Relaxation Schleife glättet Dreiecke zu organischen Baugrundstücken",
+      "Voronoi-Dual-Gitter-Berechnung für runde Straßenecken und Plätze",
+      "Public Domain (CC0) – ideal als mathematische Basis für eigene Dorf-Spiele",
+      "Performante Vektor-Berechnungen direkt in GDScript"
+    ],
+    "images": [
+      {
+        "path": "screenshots/hexagrid-relaxed/screen2.png",
+        "caption": "Entspanntes organisches Gitter für Townscaper-Welten"
+      },
+      {
+        "path": "screenshots/hexagrid-relaxed/screen3.png",
+        "caption": "Grenz- und Kantenentspannung in Godot 4"
+      }
+    ]
+  },
+  {
+    "id": "zelda-wind-waker",
+    "title": "Zelda Wind Waker (The Great Sea)",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "Robpayot/zelda-project-public",
+    "author": "Robin Payot",
+    "stars": 192,
+    "license": "Open Source",
+    "engine": "Three.js + GLSL + Vite",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/31_zelda_wind_waker_threejs.md",
+    "clone_url": "https://github.com/Robpayot/zelda-project-public.git",
+    "description": "Detailgetreue Nachbildung des Nintendo-GameCube-Klassikers Zelda Wind Waker in Three.js. Man steuert den Roten Leuen über ein stilisiertes Meer mit Toon-Wasser-Shader, Windströmungen und Inseln.",
+    "highlights": [
+      "Stilisierter Wind Waker Wasser-Shader mit abgestuften Wellenkämmen und Schaum",
+      "Echte Segelphysik mit Windrichtungs-Kompass und Segel-Trimm",
+      "Tropische Inseln, Wachtürme und fliegende Möwen-Schwärme",
+      "Läuft flüssig im Browser dank schlankem Vite-Setup"
+    ],
+    "images": [
+      {
+        "path": "screenshots/zelda-wind-waker/sea_screenshot.png",
+        "caption": "Segeln auf dem Großen Meer mit Toon-Wellen in Three.js"
+      }
+    ]
+  },
+  {
+    "id": "odyssey-like",
+    "title": "OdysseyLike (Mario Cappy in Godot 4)",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "kruumy/OdysseyLike",
+    "author": "kruumy",
+    "stars": 4,
+    "license": "Open Source",
+    "engine": "Godot 4.x (.NET / C#)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/32_odyssey_like_mario_cappy_godot.md",
+    "clone_url": "https://github.com/kruumy/OdysseyLike.git",
+    "description": "Verblüffend exakte Nachbildung der akrobatischen Bewegungsphysik aus Super Mario Odyssey in Godot 4 (.NET). Mützenwurf (Cappy), Mützensprung in der Luft, Hechtsprung und Wandsprünge.",
+    "highlights": [
+      "Vollständige Cappy-State-Machine (Throw, Hold, Jump-Trampolin, Pull)",
+      "Akrobatische Ketten-Manöver (Ground Pound Freeze-Frame in Hechtsprung)",
+      "Dynamische 3D-Kamera mit Neigungswinkel bei schnellen Richtungswechseln",
+      "Saubere, moderne C# Architektur für Godot 4"
+    ],
+    "images": [
+      {
+        "path": "screenshots/odyssey-like/showcase.gif",
+        "caption": "Mützenwurf, Hechtsprung und akrobatische Wandsprünge"
+      }
+    ]
+  },
+  {
+    "id": "sakura-crossing",
+    "title": "3D Sakura Crossing",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "danymaniglie-cmyk/3d-sakura-crossing",
+    "author": "Dany Maniglie",
+    "stars": 4,
+    "license": "Open Source",
+    "engine": "Three.js (Zero-Build HTML)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/33_sakura_crossing_ghibli_seaside.md",
+    "clone_url": "https://github.com/danymaniglie-cmyk/3d-sakura-crossing.git",
+    "description": "Studio-Ghibli-inspirierte japanische Küstenstadt in einer einzigen 800 KB HTML-Datei! Charakter kann klettern, schwimmen, einen gelben Kei-Truck fahren und Bahnübergänge mit Zügen beobachten.",
+    "highlights": [
+      "Komplette 3D-Welt in 1 einzigen Datei ohne npm oder Build-Schritt (800 KB)",
+      "Vielseitiger Charakter-Controller (Bordsteinklettern, Rutschen, Schwimmen, Tauchen)",
+      "Fahrbarer japanischer Kei-Car Mini-LKW mit Fahrphysik",
+      "Ghibli-Toon-Ramp Beleuchtung mit Roberts-Cross Tintenkanten"
+    ],
+    "images": [
+      {
+        "path": "screenshots/sakura-crossing/anteprima.gif",
+        "caption": "Ghibli-Küstenviertel mit Bahnübergang und fahrendem Mini-LKW"
+      }
+    ]
+  },
+  {
+    "id": "hello-mario",
+    "title": "Hello Mario Framework (Unity 3D)",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "HelloFangaming/HelloMarioFramework",
+    "author": "Hello Fangaming",
+    "stars": 90,
+    "license": "Open Source",
+    "engine": "Unity 2022.3 LTS (C#)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/34_hello_mario_3d_platformer_framework.md",
+    "clone_url": "https://github.com/HelloFangaming/HelloMarioFramework.git",
+    "description": "Umfassendes Open-Source 3D-Platformer-Framework in Unity im Stil von Mario 64 und Mario 3D World. Dreifachsprung, Tauchen, Rollen, Stampfattacke, Gumbas, Koopas und In-Editor-Levelbau.",
+    "highlights": [
+      "Kompletter akrobatischer 3D Mario-Moveset (Dreifachsprung, Stampfer, Hechtsprung)",
+      "Klassische Gegner-KI (patrouillierende Gumbas, kickbare Koopa-Panzer)",
+      "RealtimeCSG Integration zum direkten Bauen von Leveln im Unity-Editor",
+      "Münzen, Power-Ups, bewegliche Plattformen und Schalter-Rätsel"
+    ],
+    "images": [
+      {
+        "path": "screenshots/mario-framework/framework.png",
+        "caption": "Hello Mario Framework 3D Platforming Core in Unity"
+      }
+    ]
+  },
+  {
+    "id": "botw-toon-shader",
+    "title": "Godot BotW Toon Shader",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "nekotogd/Godot_BoTW_Toon_Shader",
+    "author": "nekotogd",
+    "stars": 165,
+    "license": "CC0 1.0 Universal",
+    "engine": "Godot Engine (GDShader)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/35_botw_toon_shader_godot.md",
+    "clone_url": "https://github.com/nekotogd/Godot_BoTW_Toon_Shader.git",
+    "description": "Präzise Public-Domain-Nachbildung des legendären Cel-Shading-Renderings aus Zelda: Breath of the Wild in Godot. Bietet handgezeichnete Schatten-Vibration, Haarglanz und Silhouette-Lichter.",
+    "highlights": [
+      "Subtiles Shadow-Warble verhindert künstlich harte 3D-Kanten",
+      "Anisotrope Haar-Highlights verschieben sich realistisch mit dem Blickwinkel",
+      "Side-Shines und Backlight-Ränder simulieren weiches Subsurface-Scattering",
+      "Vollständig gemeinfrei (CC0) für eigene stilisierte Spiele nutzbar"
+    ],
+    "images": [
+      {
+        "path": "screenshots/botw-toon-shader/botw_preview.png",
+        "caption": "Authentisches Zelda: Breath of the Wild Cel-Shading in Godot"
+      }
+    ]
+  },
+  {
+    "id": "anime-sdf-shader",
+    "title": "Anime SDF Face Shader (Genshin Look)",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "albanogiovanni/godot-anime-sdf-shader",
+    "author": "Giovanni Albano",
+    "stars": 11,
+    "license": "MIT",
+    "engine": "Godot 4.x (GDShader)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/36_anime_sdf_face_shader_godot.md",
+    "clone_url": "https://github.com/albanogiovanni/godot-anime-sdf-shader.git",
+    "description": "Signed Distance Field (SDF) Gesichtsschatten-Shader für Godot 4 wie in Genshin Impact und Guilty Gear. Garantiert künstlerisch perfekte Gesichtsschatten aus jedem Licht- und Kamerawinkel.",
+    "highlights": [
+      "SDF-UV-Flipping verhindert hässliche Polygon-Schattierungen im Gesicht",
+      "Inverted-Hull Outline-Pass mit entfernungsabhängiger Strichstärken-Skalierung",
+      "Flache XZ-Körperbeleuchtung für stilsichere Anime-Kleidung",
+      "Sauber dokumentiert mit Beispiel-Charakterszene in Godot 4"
+    ],
+    "images": [
+      {
+        "path": "screenshots/anime-sdf-shader/preview_sdf.webp",
+        "caption": "Perfekt weiche Anime-Gesichtsschatten via SDF-Maske"
+      },
+      {
+        "path": "screenshots/anime-sdf-shader/preview_outline.webp",
+        "caption": "Saubere Inverted-Hull Tintenkontur am Charakter"
+      }
+    ]
+  },
+  {
+    "id": "penguin-platformer",
+    "title": "Penguin Platformer",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "wojciech-graj/penguin-platformer",
+    "author": "Wojciech Graj",
+    "stars": 8,
+    "license": "MIT",
+    "engine": "Godot Engine 3.5 (GDScript)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/37_penguin_platformer_psx_cartoon.md",
+    "clone_url": "https://github.com/wojciech-graj/penguin-platformer.git",
+    "description": "Herzerwärmender 3D-Cartoon-Platformer im Stil von Spyro und Crash Bandicoot. Der Pinguin rutscht auf dem Bauch Hänge hinab, springt auf Trampolin-Pilzen und plaudert mit Tier-NPCs.",
+    "highlights": [
+      "Schwung-erhaltendes Bauch-Rutschen für weite Sprünge über Schluchten",
+      "Authentische PSX Retro-Shader mit Vertex-Jitter und Affine Texture Mapping",
+      "Interaktives NPC-Dialogsystem mit animierten Tier-Porträts",
+      "Sehr sauber strukturierter Godot-Code, perfekt zum Lernen"
+    ],
+    "images": [
+      {
+        "path": "screenshots/penguin-platformer/demo.gif",
+        "caption": "Pinguin-Bauchschlitten, Trampolin-Sprünge und Geschenk-Sammlung"
+      }
+    ]
+  },
+  {
+    "id": "stylized-grass",
+    "title": "Godot 4 Stylized Grass",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "bramreth/Godot-4-3D-Stylized-Grass",
+    "author": "bramreth",
+    "stars": 58,
+    "license": "MIT",
+    "engine": "Godot 4.x + Blender",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/38_stylized_grass_ghibli_meadow.md",
+    "clone_url": "https://github.com/bramreth/Godot-4-3D-Stylized-Grass.git",
+    "description": "Komplette Pipeline für wehende, saftig grüne Cartoon-Graswiesen in Godot 4. Repliziert den Look von Studio Ghibli und Zelda: Breath of the Wild bei minimalen GPU-Kosten.",
+    "highlights": [
+      "Simplex-Noise Windwellen streifen synchron über den gesamten Grasteppich",
+      "Wurzel-zu-Spitzen-Farbverlauf (sattes Waldgrün unten zu sonnigem Gold oben)",
+      "Speziell in Blender modellierte Büschel verhindern Pixel-Flimmern in der Distanz",
+      "Einfach per Drag-and-Drop in jede Godot-4-Szene einsetzbar"
+    ],
+    "images": [
+      {
+        "path": "screenshots/stylized-grass/thumbnail.png",
+        "caption": "Wunderschön wehende Ghibli-Graswiese in Godot 4"
+      },
+      {
+        "path": "screenshots/stylized-grass/in_editor.jpg",
+        "caption": "Shader-Parameter & Wiesen-Setup im Godot-Editor"
+      }
+    ]
+  },
+  {
+    "id": "wind-waker-shader",
+    "title": "Wind Waker Shader (GameCube Toon)",
+    "category": "adventure",
+    "category_label": "Stylized Adventure & Toon",
+    "repo": "albertomelladoc/Wind-Waker-Shader",
+    "author": "Alberto Mellado",
+    "stars": 59,
+    "license": "MIT",
+    "engine": "Unity (ShaderLab / Cg)",
+    "ai_tools": "Solo Indie",
+    "demo_url": "",
+    "dossier": "projects/39_wind_waker_water_lighting_shader.md",
+    "clone_url": "https://github.com/albertomelladoc/Wind-Waker-Shader.git",
+    "description": "Originalgetreue technische Nachbildung des 2-Schwellen-Beleuchtungsalgorithmus aus Zelda: The Wind Waker für Unity. Erzeugt weiche Übergangsbänder und echte Handzeichnungs-Umrisse.",
+    "highlights": [
+      "Zweistufige Lichtwert-Funktion für Key-Light, Halbton und Schlagschatten",
+      "Inverted-Hull Silhouette-Pass drückt Backfaces entlang von Normalen nach außen",
+      "Dynamische cartoonartige Glanzlichter, die auf Lichtquellen reagieren",
+      "Funktioniert auf allen 3D-Meshes in Unity"
+    ],
+    "images": [
+      {
+        "path": "screenshots/wind-waker-shader/gamecube_toon.gif",
+        "caption": "Zelda Wind Waker Shading mit invertierten Konturlinien"
+      }
+    ]
+  },
+  {
+    "id": "redrock",
+    "title": "Redrock (Cel-Shaded Downhill Racer)",
+    "category": "toonweb",
+    "category_label": "WebGL & Toon AI",
+    "repo": "StarKnightt/redrock",
+    "author": "StarKnightt",
+    "stars": 8,
+    "license": "ISC",
+    "engine": "Three.js (Pure Procedural)",
+    "ai_tools": "AI Vibe-Coded (Single Prompt)",
+    "demo_url": "https://starknightt.github.io/redrock/",
+    "dossier": "projects/40_redrock_cel_shaded_downhill_racer.md",
+    "clone_url": "https://github.com/StarKnightt/redrock.git",
+    "description": "Downhill-Canyon-Rennspiel im Comic-Buch-Cel-Shading-Look in Three.js. Entstanden durch KI-Vibe-Coding aus 1 Prompt. 100% prozeduraler Code: 0 externe 3D-Modelle, 0 Bildtexturen, 0 Sounddateien!",
+    "highlights": [
+      "100% prozeduraler Code: Komplette Welt & Audio live im Code synthetisiert",
+      "Screen-Space Outline-Pass mit Tiefen-, Normalen- und Klassen-Kantenerkennung",
+      "Staubwolken verdecken Outlines physikalisch korrekt",
+      "Synthetisierter FM-Motorsound über Web Audio API in Echtzeit"
+    ],
+    "images": [
+      {
+        "path": "screenshots/redrock/social.png",
+        "caption": "Comic-Cel-Shading Downhill-Rennen im Wüstencanyon"
+      }
+    ]
+  },
+  {
+    "id": "super-kart-3djs",
+    "title": "Super Kart 3D.js",
+    "category": "toonweb",
+    "category_label": "WebGL & Toon AI",
+    "repo": "fecolinhares/super-kart-3djs",
+    "author": "Feco Linhares",
+    "stars": 0,
+    "license": "MIT",
+    "engine": "Three.js + Vite",
+    "ai_tools": "Solo Indie",
+    "demo_url": "https://fecolinhares.github.io/super-kart-3djs/",
+    "dossier": "projects/41_super_kart_3djs_cartoon_arcade.md",
+    "clone_url": "https://github.com/fecolinhares/super-kart-3djs.git",
+    "description": "Knallbunter Cartoon-Arcade-Kart-Racer in Three.js. Bietet stilisierte Toon-Materialien mit Rim-Lighting, Post-Processing Bloom, Kamera-Ruckeln bei Kollisionen und Squash & Stretch Kart-Verformung.",
+    "highlights": [
+      "Saftige Cartoon-Physik mit Driften, Sprungschanzen & Landungs-Squash",
+      "Post-Processing-Pipeline mit sattem Bloom für Turbopads und Sterne",
+      "Mehrere Strecken inklusive 48-Wolkenkratzer Neon-Metropole bei Nacht",
+      "Läuft butterweich im Desktop- und mobilen Browser"
+    ],
+    "images": [
+      {
+        "path": "screenshots/super-kart-3djs/gameplay-desktop.png",
+        "caption": "Buntes Cartoon-Rennen auf der Strandpiste"
+      },
+      {
+        "path": "screenshots/super-kart-3djs/gameplay-mobile.png",
+        "caption": "Mobil optimierte Touch-Steuerung im Rennen"
+      }
+    ]
+  },
+  {
+    "id": "hook-a-fish",
+    "title": "Hook-A-Fish & Drysland",
+    "category": "toonweb",
+    "category_label": "WebGL & Toon AI",
+    "repo": "dammafra/hook-a-fish",
+    "author": "Francesco Dammacco",
+    "stars": 43,
+    "license": "GNU AGPL-3.0",
+    "engine": "React Three Fiber + Rapier",
+    "ai_tools": "Solo Indie",
+    "demo_url": "https://hook-a-fish.dammafra.dev",
+    "dossier": "projects/42_hook_a_fish_tactile_toy_r3f.md",
+    "clone_url": "https://github.com/dammafra/hook-a-fish.git",
+    "description": "Zwei preisgekrönte Three.js-Kunstwerke (1. Platz Three.js Journey): Ein haptisches Spielzeug-Angelspiel mit Rapier-Physik und Drysland, ein hexagonales Inseldiorama mit fließendem Wasser.",
+    "highlights": [
+      "Haptische Plastik- und Spielzeug-Shader, die wie echtes Spielzeug aussehen",
+      "Rapier3D-Physik für Leinen-Zugspannung, Pendelhaken und schnappende Fische",
+      "Drysland erzeugt prozedurale hexagonale Labyrinthe mit Wasserströmen",
+      "Gewinner von zwei offiziellen Three.js Journey Community Challenges"
+    ],
+    "images": [
+      {
+        "path": "screenshots/hook-a-fish/cover.png",
+        "caption": "Haptisches Spielzeug-Angelspiel in React Three Fiber"
+      },
+      {
+        "path": "screenshots/drysland/cover.png",
+        "caption": "Hexagonales Insel-Diorama-Rätsel mit Wasserkanälen"
+      }
+    ]
+  }
+,
+  {
+    "id": "townbuilder-eliemichel",
+    "title": "TownBuilder (Townscaper Clone)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "eliemichel/TownBuilder",
+    "author": "Elie Michel",
+    "stars": 32,
+    "license": "MIT",
+    "engine": "Unity",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/43-townbuilder-eliemichel.md",
+    "clone_url": "https://github.com/eliemichel/TownBuilder.git",
+    "description": "Educational Townscaper reproduction: procedural hex grid, marching cubes, WFC module placement. Pastel Mediterranean buildings emerge from clicks.",
+    "highlights": [
+      "Faithful Townscaper reproduction with educational Twitter threads",
+      "Hex grid + Marching Cubes + Wave Function Collapse",
+      "Pastel Mediterranean house generation",
+      "MIT licensed, clean Unity project"
+    ],
+    "images": [
+      {"path": "screenshots/43-townbuilder-eliemichel/townscape.png", "caption": "Townscaper-Clone mit mediterranen Pastellhaeusern"},
+      {"path": "screenshots/43-townbuilder-eliemichel/marching_cubes.png", "caption": "Marching Cubes Modul-Generierung"}
+    ]
+  },
+  {
+    "id": "ozymandias-fantasy-town",
+    "title": "Fantasy Town Regional Manager",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "CapsCollective/ozymandias",
+    "author": "Caps Collective",
+    "stars": 19,
+    "license": "Custom",
+    "engine": "Unity",
+    "ai_tools": "",
+    "demo_url": "https://store.steampowered.com/app/1524530/Fantasy_Town_Regional_Manager/",
+    "dossier": "projects/44-ozymandias-capscollective.md",
+    "clone_url": "https://github.com/CapsCollective/ozymandias.git",
+    "description": "Roguelite Fantasy Town Builder + Kartenspiel. Baue Tavernen, locke Abenteurer an, wehre Monster ab. Open-Source mit Steam-Release.",
+    "highlights": [
+      "Roguelite town builder with card game mechanics",
+      "Open-source with Steam release",
+      "Fantasy buildings + adventurer AI",
+      "Turn-based strategic gameplay"
+    ],
+    "images": [
+      {"path": "screenshots/44-ozymandias-capscollective/banner.png", "caption": "Fantasy Town Regional Manager - Roguelite Stadtbau"}
+    ]
+  },
+  {
+    "id": "town-collab-multiplayer",
+    "title": "Town Collab (Multiplayer Builder)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "MartinSStewart/town-collab",
+    "author": "Martin Stewart",
+    "stars": 20,
+    "license": "MIT",
+    "engine": "Elm + WebGL",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/45-town-collab-martinstewart.md",
+    "clone_url": "https://github.com/MartinSStewart/town-collab.git",
+    "description": "Multiplayer isometrischer Town Builder in Elm. Platziere Strassen, Gebaeude und Baeume gemeinsam in einer niedlichen Pixel-Art-Welt.",
+    "highlights": [
+      "Real multiplayer town building",
+      "Isometric pixel-art tiles",
+      "Written in Elm with WebGL",
+      "Collaborative building in browser"
+    ],
+    "images": []
+  },
+  {
+    "id": "voxel-island-game",
+    "title": "Voxel Island Game",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "rsamwilson2323-cloud/voxel-island-game",
+    "author": "rsamwilson2323",
+    "stars": 5,
+    "license": "MIT",
+    "engine": "React + Three.js",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/46-voxel-island-game.md",
+    "clone_url": "https://github.com/rsamwilson2323-cloud/voxel-island-game.git",
+    "description": "Browser-basierter 3D Voxel Island Sandbox: Terrain-, Gebaeude- und Naturblöcke. Echtzeit-HUD, Auto-Save, Performance-Tracking.",
+    "highlights": [
+      "Browser-based voxel sandbox",
+      "React + Three.js architecture",
+      "Auto-save with localStorage",
+      "Multiple block types: terrain, buildings, nature"
+    ],
+    "images": []
+  },
+  {
+    "id": "kaykit-city-builder-bits",
+    "title": "KayKit City Builder Bits (CC0)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0",
+    "author": "KayKit / Kay Lousberg",
+    "stars": 39,
+    "license": "CC0",
+    "engine": "Universal (OBJ/FBX/GLTF)",
+    "ai_tools": "",
+    "demo_url": "https://kaylousberg.itch.io/city-builder-bits",
+    "dossier": "projects/47-kaykit-city-builder-bits.md",
+    "clone_url": "https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0.git",
+    "description": "32+ freie CC0 Low-Poly City Assets: Strassen, Gebaeude, Fahrzeuge. Perfekte Basis fuer jeden City Builder. Unity, Godot, Unreal kompatibel.",
+    "highlights": [
+      "32+ professional low-poly city models",
+      "CC0 license - completely free",
+      "OBJ, FBX, GLTF formats included",
+      "Single gradient atlas texture, mobile-ready"
+    ],
+    "images": [
+      {"path": "screenshots/47-kaykit-city-builder-bits/kaykit_banner.png", "caption": "KayKit City Builder Bits - CC0 Low-Poly Assets"},
+      {"path": "screenshots/47-kaykit-city-builder-bits/kaykit_contents.png", "caption": "32+ Modelle: Strassen, Gebaeude, Fahrzeuge"}
+    ]
+  },
+  {
+    "id": "city-builder-prototype",
+    "title": "CityBuilder Base Prototype",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "matieme/CityBuilderBasePrototype",
+    "author": "matieme",
+    "stars": 12,
+    "license": "None",
+    "engine": "Unity",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/48-city-builder-base-prototype.md",
+    "clone_url": "https://github.com/matieme/CityBuilderBasePrototype.git",
+    "description": "Einfacher Unity City Builder Prototyp: Strassenplatzierung, Grid-System, prozedurale Strassenmesh-Generierung. Sauberer Code zum Lernen.",
+    "highlights": [
+      "Clean road placement system",
+      "Procedural road mesh generation",
+      "Grid-based building placement",
+      "Great learning resource for city builders"
+    ],
+    "images": []
+  },
+  {
+    "id": "idle-restaurant-tycoon",
+    "title": "Idle Restaurant Tycoon",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "eminkarakaya/Idle-Restaurant",
+    "author": "Emin Karakaya",
+    "stars": 22,
+    "license": "None",
+    "engine": "Unity",
+    "ai_tools": "",
+    "demo_url": "https://play.google.com/store/apps/details?id=com.eminkarakaya.RestaurantTycoon",
+    "dossier": "projects/49-idle-restaurant.md",
+    "clone_url": "https://github.com/eminkarakaya/Idle-Restaurant.git",
+    "description": "3D Restaurant Tycoon mit DOTween-Animationen, AI State Machines, Unity NavMesh. Im Google Play Store veroeffentlicht.",
+    "highlights": [
+      "Published on Google Play Store",
+      "DOTween animation system",
+      "AI state machine for customer/chef behavior",
+      "Unity NavMesh pathfinding"
+    ],
+    "images": [
+      {"path": "screenshots/49-idle-restaurant/restaurant_demo.gif", "caption": "Idle Restaurant Tycoon - Animiertes Gameplay"}
+    ]
+  },
+  {
+    "id": "building-block-townscaper-life",
+    "title": "Building Block (Townscaper + GoL)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "zzhhdaaa/building-block",
+    "author": "zzhhdaaa",
+    "stars": 4,
+    "license": "MIT",
+    "engine": "Unity",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/50-building-block-townscaper-life.md",
+    "clone_url": "https://github.com/zzhhdaaa/building-block.git",
+    "description": "Kreative Mischung: Townscaper-Bauen trifft Conway's Game of Life. Bunte Bloecke die sich nach Zellautomaten-Regeln entwickeln.",
+    "highlights": [
+      "Unique Townscaper + Game of Life mashup",
+      "Cellular automata building evolution",
+      "Colorful evolving block structures",
+      "MIT licensed, clean Unity code"
+    ],
+    "images": []
+  },
+  {
+    "id": "yaoyao-townscaper-demo",
+    "title": "TownScaper Demo (WFC Chinese)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "YaoYao-Pig/TownScaper",
+    "author": "YaoYao-Pig",
+    "stars": 7,
+    "license": "None",
+    "engine": "Unity",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/51-yaoyao-townscaper-demo.md",
+    "clone_url": "https://github.com/YaoYao-Pig/TownScaper.git",
+    "description": "Detaillierte Townscaper-Reproduktion mit Hex-Grid, Marching Cubes und Wave Function Collapse. Exzellente technische Dokumentation.",
+    "highlights": [
+      "Complete Townscaper reproduction",
+      "Hex grid + Marching Cubes + WFC pipeline",
+      "Click to build/destroy mechanics",
+      "Detailed Chinese technical documentation"
+    ],
+    "images": [
+      {"path": "screenshots/51-yaoyao-townscaper-demo/townscaper_build.png", "caption": "Townscaper Bausystem mit Hex-Grid"},
+      {"path": "screenshots/51-yaoyao-townscaper-demo/hex_grid.png", "caption": "Hexagonale Gitter-Generierung"}
+    ]
+  },
+  {
+    "id": "open-city-pharaoh",
+    "title": "Open City Prototype (Pharaoh-like)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "game-prototypes/open-city-prototype",
+    "author": "angrykoala",
+    "stars": 9,
+    "license": "None",
+    "engine": "Godot 3",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/52-open-city-prototype.md",
+    "clone_url": "https://github.com/game-prototypes/open-city-prototype.git",
+    "description": "Pharaoh-inspirierter City Builder in Godot. Grid-basierte Gebaeudeplatzierung mit antiker Aesthetik. Sauberer GDScript-Code mit Unit Tests.",
+    "highlights": [
+      "Pharaoh-inspired ancient city builder",
+      "Clean Godot prototype with unit tests",
+      "Grid-based building placement",
+      "Isometric ancient Egyptian aesthetic"
+    ],
+    "images": [
+      {"path": "screenshots/52-open-city-prototype/open_city.png", "caption": "Open City - Pharaoh-artiger City Builder in Godot"}
+    ]
+  },
+  {
+    "id": "city-tycoon-cubzh",
+    "title": "City Tycoon (Cubzh Voxel)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "TekMath/CityTycoon",
+    "author": "TekMath",
+    "stars": 6,
+    "license": "None",
+    "engine": "Cubzh (Lua)",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/53-city-tycoon-cubzh.md",
+    "clone_url": "https://github.com/TekMath/CityTycoon.git",
+    "description": "3D Voxel City Tycoon in Cubzh. Bevoelkerung wachsen lassen, Strassen und Haeuser bauen, Geld durch zufriedene Buerger verdienen.",
+    "highlights": [
+      "Cubzh voxel engine (Lua scripting)",
+      "Population happiness mechanics",
+      "Colorful blocky city building",
+      "Economy and growth simulation"
+    ],
+    "images": []
+  },
+  {
+    "id": "pentafarm-3d",
+    "title": "Pentafarm (3D Farming Sim)",
+    "category": "citybuilder",
+    "category_label": "Cozy City & Town Builder",
+    "repo": "u1974750/Pentafarm",
+    "author": "u1974750 (5-member team)",
+    "stars": 3,
+    "license": "None",
+    "engine": "Unity",
+    "ai_tools": "",
+    "demo_url": "",
+    "dossier": "projects/54-pentafarm-3d.md",
+    "clone_url": "https://github.com/u1974750/Pentafarm.git",
+    "description": "3D Farming Simulation: Moebel anbauen und ernten um den Bauernhof zu dekorieren. Kreatives Uni-Projekt eines 5-koepfigen Teams.",
+    "highlights": [
+      "Unique farming + furniture decoration concept",
+      "Unity 3D farming mechanics",
+      "5-member university team project",
+      "Creative twist on traditional farming sims"
+    ],
+    "images": []
+  }
+];
+
+let currentFilter = 'all';
+let currentSearch = '';
+let currentSort = 'recommended';
+
+const grid = document.getElementById('projectsGrid');
+const searchInput = document.getElementById('searchInput');
+const sortSelect = document.getElementById('sortSelect');
+const filterBtns = document.querySelectorAll('.filter-btn');
+
+const modal = document.getElementById('imageModal');
+const modalImg = document.getElementById('modalImg');
+const modalCaption = document.getElementById('modalCaption');
+const modalClose = document.getElementById('modalClose');
+
+const toast = document.getElementById('toast');
+const toastText = document.getElementById('toastText');
+
+function showToast(text) {
+  toastText.textContent = text;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+function copyClone(url) {
+  const cmd = `git clone ${url}`;
+  navigator.clipboard.writeText(cmd).then(() => {
+    showToast(`Kopiert: ${cmd}`);
+  }).catch(() => {
+    prompt("Kopiere den Befehl:", cmd);
+  });
+}
+
+function openImage(src, caption) {
+  modalImg.src = src;
+  modalCaption.textContent = caption || '';
+  modal.classList.add('open');
+}
+
+modalClose.addEventListener('click', () => modal.classList.remove('open'));
+modal.addEventListener('click', (e) => {
+  if (e.target === modal) modal.classList.remove('open');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') modal.classList.remove('open');
+});
+
+function renderProjects() {
+  let filtered = PROJECTS.filter(p => {
+    // Filter
+    if (currentFilter === 'civ' && p.category !== 'civ') return false;
+    if (currentFilter === 'pirates' && p.category !== 'pirates') return false;
+    if (currentFilter === 'ai' && p.category !== 'ai') return false;
+    if (currentFilter === 'web' && !p.engine.toLowerCase().includes('three') && !p.engine.toLowerCase().includes('webgl') && !p.engine.toLowerCase().includes('canvas')) return false;
+    if (currentFilter === 'engine' && !p.engine.toLowerCase().includes('godot') && !p.engine.toLowerCase().includes('unity') && !p.engine.toLowerCase().includes('rust')) return false;
+
+    // Search
+    if (currentSearch) {
+      const q = currentSearch.toLowerCase();
+      const matchTitle = p.title.toLowerCase().includes(q);
+      const matchDesc = p.description.toLowerCase().includes(q);
+      const matchRepo = p.repo.toLowerCase().includes(q);
+      const matchEngine = p.engine.toLowerCase().includes(q);
+      const matchAI = p.ai_tools.toLowerCase().includes(q);
+      const matchAuthor = p.author.toLowerCase().includes(q);
+      return matchTitle || matchDesc || matchRepo || matchEngine || matchAI || matchAuthor;
+    }
+    return true;
+  });
+
+  // Sort
+  if (currentSort === 'stars-asc') {
+    filtered.sort((a, b) => a.stars - b.stars);
+  } else if (currentSort === 'stars-desc') {
+    filtered.sort((a, b) => b.stars - a.stars);
+  } else if (currentSort === 'name') {
+    filtered.sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  grid.innerHTML = '';
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-muted);">
+        <h3>Keine Projekte gefunden</h3>
+        <p>Passe deine Filterkriterien oder den Suchbegriff an.</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const activeImg = p.images[0] || { path: '', caption: '' };
+    const badgeClass = p.category === 'civ' ? 'badge-civ' : p.category === 'pirates' ? 'badge-pirates' : (p.category === 'cozy' || p.category === 'adventure') ? 'badge-civ' : 'badge-ai';
+
+    let thumbsHtml = '';
+    if (p.images.length > 1) {
+      thumbsHtml = `
+        <div class="thumbnails-strip">
+          ${p.images.map((img, idx) => `
+            <div class="thumb-btn ${idx === 0 ? 'active' : ''}" onclick="switchCardImage(event, '${p.id}', '${img.path}', '${img.caption.replace(/'/g, "\'")}')">
+              <img src="${img.path}" alt="Thumb">
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    card.innerHTML = `
+      <div class="card-media" id="media-${p.id}" onclick="openImage(document.getElementById('img-${p.id}').src, document.getElementById('img-${p.id}').alt)">
+        <div class="media-badge-group">
+          <span class="media-badge ${badgeClass}">${p.category_label}</span>
+        </div>
+        <div class="stars-badge">
+          <span>★</span> <span>${p.stars}</span>
+        </div>
+        <img src="${activeImg.path}" alt="${activeImg.caption}" class="card-img" id="img-${p.id}">
+      </div>
+
+      ${thumbsHtml}
+
+      <div class="card-body">
+        <h3 class="card-title">${p.title}</h3>
+        <a href="https://github.com/${p.repo}" target="_blank" class="card-repo">${p.repo}</a>
+
+        <div class="tags-container">
+          <span class="tag-chip engine-chip">🎮 ${p.engine}</span>
+          ${p.ai_tools && p.ai_tools !== 'Solo Indie' ? `<span class="tag-chip ai-chip">🤖 ${p.ai_tools}</span>` : ''}
+          <span class="tag-chip">📜 ${p.license}</span>
+        </div>
+
+        <p class="card-desc">${p.description}</p>
+
+        <ul class="card-highlights">
+          ${p.highlights.map(h => `<li>${h}</li>`).join('')}
+        </ul>
+
+        <div class="card-footer">
+          <button class="btn btn-clone" onclick="copyClone('${p.clone_url}')">
+            <span>📋</span> Clone
+          </button>
+          <a href="${p.dossier}" class="btn btn-dossier" title="Lokales Dossier ansehen">
+            <span>📖</span> Dossier
+          </a>
+          <a href="https://github.com/${p.repo}" target="_blank" class="btn btn-github" title="Auf GitHub öffnen">
+            <span>⭐</span> GitHub
+          </a>
+          ${p.demo_url ? `<a href="${p.demo_url}" target="_blank" class="btn btn-demo" title="Live im Browser spielen"><span>▶</span> Demo</a>` : ''}
+        </div>
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+}
+
+window.switchCardImage = function(e, cardId, newSrc, newCaption) {
+  e.stopPropagation();
+  const img = document.getElementById('img-' + cardId);
+  if (img) {
+    img.src = newSrc;
+    img.alt = newCaption;
+  }
+  const parentStrip = e.currentTarget.parentElement;
+  parentStrip.querySelectorAll('.thumb-btn').forEach(b => b.classList.remove('active'));
+  e.currentTarget.classList.add('active');
+};
+
+// Event Listeners
+searchInput.addEventListener('input', (e) => {
+  currentSearch = e.target.value.trim();
+  renderProjects();
+});
+
+sortSelect.addEventListener('change', (e) => {
+  currentSort = e.target.value;
+  renderProjects();
+});
+
+filterBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    filterBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    renderProjects();
+  });
+});
+
+renderProjects();
+</script>
+
+</body>
+</html>

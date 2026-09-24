@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gravity & Neon Fluid Engine</title>
+  <style>
+    :root {
+      --bg-color: #06070d;
+      --panel-bg: rgba(15, 18, 28, 0.65);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --panel-glow: rgba(0, 240, 255, 0.15);
+      --accent-cyan: #00f0ff;
+      --accent-magenta: #ff0055;
+      --accent-purple: #9d00ff;
+      --accent-gold: #ffcc00;
+      --text-main: #f0f4f8;
+      --text-muted: #8a99ad;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-color);
+      font-family: var(--font-family);
+      color: var(--text-main);
+    }
+
+    canvas#fluidCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+      cursor: crosshair;
+    }
+
+    /* Glassmorphism Control Panel */
+    .ui-container {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      width: 320px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px var(--panel-glow);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+    }
+
+    .ui-container.collapsed {
+      transform: translateX(-360px);
+      opacity: 0.2;
+    }
+
+    .ui-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .ui-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ui-toggle-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 9;
+      width: 44px;
+      height: 44px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      color: var(--accent-cyan);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      transition: all 0.2s ease;
+    }
+
+    .ui-toggle-btn:hover {
+      transform: scale(1.05);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+    }
+
+    .control-group {
+      margin-bottom: 16px;
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .control-value {
+      color: var(--accent-cyan);
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      cursor: pointer;
+      box-shadow: 0 0 10px var(--accent-cyan);
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: rgba(0, 240, 255, 0.15);
+      border-color: var(--accent-cyan);
+      color: #fff;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+    }
+
+    .btn.active {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.3), rgba(255, 0, 85, 0.3));
+      border-color: var(--accent-cyan);
+      color: #fff;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
+    }
+
+    .btn-full {
+      grid-column: span 2;
+    }
+
+    /* Preset Selectors */
+    .preset-selector {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .preset-chip {
+      flex: 1;
+      padding: 6px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--panel-border);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+    }
+
+    .preset-chip.active, .preset-chip:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 240, 255, 0.2);
+      color: #fff;
+    }
+
+    /* Stats HUD Overlay */
+    .stats-hud {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 12px 18px;
+      display: flex;
+      gap: 20px;
+      font-family: monospace;
+      font-size: 13px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      pointer-events: none;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      color: var(--accent-cyan);
+      font-weight: bold;
+    }
+
+    /* Footer Instructions */
+    .instructions-hud {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 30px;
+      padding: 10px 24px;
+      display: flex;
+      gap: 20px;
+      font-size: 12px;
+      color: var(--text-muted);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .instruction-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .instruction-key {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 10px;
+    }
+
+    /* Custom scrollbar for panel */
+    .ui-container::-webkit-scrollbar {
+      width: 4px;
+    }
+    .ui-container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+    }
+
+    @media (max-width: 768px) {
+      .instructions-hud {
+        display: none;
+      }
+      .ui-container {
+        width: calc(100vw - 40px);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background Simulation Canvas -->
+  <canvas id="fluidCanvas"></canvas>
+
+  <!-- Toggle Sidebar Button -->
+  <button class="ui-toggle-btn" id="togglePanelBtn" title="Toggle Controls Menu">
+    ⚙️
+  </button>
+
+  <!-- Glassmorphism Controls Panel -->
+  <div class="ui-container" id="uiPanel">
+    <div class="ui-header">
+      <div class="ui-title">
+        <span>⚡</span> Neon Fluid Engine
+      </div>
+    </div>
+
+    <!-- Theme Presets -->
+    <div class="control-group">
+      <div class="control-label">Color Spectrum</div>
+      <div class="preset-selector">
+        <div class="preset-chip active" data-palette="cyber">Cyber</div>
+        <div class="preset-chip" data-palette="plasma">Plasma</div>
+        <div class="preset-chip" data-palette="emerald">Emerald</div>
+        <div class="preset-chip" data-palette="cosmic">Cosmic</div>
+      </div>
+    </div>
+
+    <!-- Sliders -->
+    <div class="control-group">
+      <div class="control-label">
+        <span>Particle Count</span>
+        <span class="control-value" id="valParticleCount">750</span>
+      </div>
+      <input type="range" id="sliderParticleCount" min="200" max="1500" step="50" value="750" />
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Fluid Viscosity</span>
+        <span class="control-value" id="valViscosity">0.96</span>
+      </div>
+      <input type="range" id="sliderViscosity" min="0.85" max="0.99" step="0.01" value="0.96" />
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Repulsion Force</span>
+        <span class="control-value" id="valRepulsion">1.2</span>
+      </div>
+      <input type="range" id="sliderRepulsion" min="0.2" max="3.0" step="0.1" value="1.2" />
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Gravity Vortex Strength</span>
+        <span class="control-value" id="valVortex">2.5</span>
+      </div>
+      <input type="range" id="sliderVortex" min="0.5" max="6.0" step="0.1" value="2.5" />
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Motion Blur / Trails</span>
+        <span class="control-value" id="valBlur">0.25</span>
+      </div>
+      <input type="range" id="sliderBlur" min="0.05" max="0.6" step="0.05" value="0.25" />
+    </div>
+
+    <!-- Toggles & Action Buttons -->
+    <div class="button-grid">
+      <button class="btn" id="btnToggleVortex">
+        🌪️ Gravity Vortex
+      </button>
+      <button class="btn active" id="btnToggleGlow">
+        ✨ Neon Glow
+      </button>
+      <button class="btn active" id="btnToggleLines">
+        🕸️ Metaball Fluid
+      </button>
+      <button class="btn" id="btnShockwave">
+        💥 Shockwave
+      </button>
+      <button class="btn btn-full" id="btnReset">
+        🔄 Reset Simulation
+      </button>
+    </div>
+  </div>
+
+  <!-- Realtime HUD Stats -->
+  <div class="stats-hud">
+    <div class="stat-item">
+      <span class="stat-label">FPS</span>
+      <span class="stat-value" id="hudFps">60</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Particles</span>
+      <span class="stat-value" id="hudParticles">750</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">State</span>
+      <span class="stat-value" id="hudState">Fluid</span>
+    </div>
+  </div>
+
+  <!-- Footer Instructions -->
+  <div class="instructions-hud">
+    <div class="instruction-item">
+      <span class="instruction-key">Move</span> Repel Fluid
+    </div>
+    <div class="instruction-item">
+      <span class="instruction-key">Left Click / Drag</span> Gravity Attractor
+    </div>
+    <div class="instruction-item">
+      <span class="instruction-key">Hold / Toggle</span> Vortex Black Hole
+    </div>
+    <div class="instruction-item">
+      <span class="instruction-key">Right Click</span> Blast Shockwave
+    </div>
+  </div>
+
+  <!-- High-Performance Engine Script -->
+  <script>
+    (function () {
+      'use strict';
+
+      // --- Canvas Setup & State ---
+      const canvas = document.getElementById('fluidCanvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      let width = 0;
+      let height = 0;
+      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.scale(dpr, dpr);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+
+      // --- Engine Parameters ---
+      const config = {
+        particleCount: 750,
+        viscosity: 0.96,
+        repulsionStrength: 1.2,
+        vortexStrength: 2.5,
+        blurAlpha: 0.25,
+        enableVortex: false,
+        enableGlow: true,
+        enableLines: true,
+        particleRadius: 3.5,
+        interactionRadius: 130,
+        palette: 'cyber'
+      };
+
+      // Color Palettes (RGB/HSL functions)
+      const colorPalettes = {
+        cyber: (ratio) => `hsl(${180 + ratio * 140}, 100%, 60%)`,
+        plasma: (ratio) => `hsl(${320 + ratio * 100}, 100%, 55%)`,
+        emerald: (ratio) => `hsl(${120 + ratio * 120}, 100%, 55%)`,
+        cosmic: (ratio) => `hsl(${260 + ratio * 120}, 100%, 65%)`
+      };
+
+      // Particle Data Structure
+      class Particle {
+        constructor(x, y) {
+          this.x = x;
+          this.y = y;
+          this.vx = (Math.random() - 0.5) * 2;
+          this.vy = (Math.random() - 0.5) * 2;
+          this.ax = 0;
+          this.ay = 0;
+          this.mass = 0.8 + Math.random() * 0.4;
+          this.ratio = Math.random();
+          this.speed = 0;
+        }
+
+        update() {
+          this.vx += this.ax;
+          this.vy += this.ay;
+
+          // Apply Viscosity Damping
+          this.vx *= config.viscosity;
+          this.vy *= config.viscosity;
+
+          // Terminal speed cap
+          const maxSpeed = 16;
+          this.speed = Math.hypot(this.vx, this.vy);
+          if (this.speed > maxSpeed) {
+            this.vx = (this.vx / this.speed) * maxSpeed;
+            this.vy = (this.vy / this.speed) * maxSpeed;
+            this.speed = maxSpeed;
+          }
+
+          this.x += this.vx;
+          this.y += this.vy;
+
+          // Reset accelerations
+          this.ax = 0;
+          this.ay = 0;
+
+          // Wall Boundary Bounce with Soft Restitution
+          const pad = config.particleRadius;
+          const bounce = -0.7;
+
+          if (this.x < pad) {
+            this.x = pad;
+            this.vx *= bounce;
+          } else if (this.x > width - pad) {
+            this.x = width - pad;
+            this.vx *= bounce;
+          }
+
+          if (this.y < pad) {
+            this.y = pad;
+            this.vy *= bounce;
+          } else if (this.y > height - pad) {
+            this.y = height - pad;
+            this.vy *= bounce;
+          }
+        }
+      }
+
+      // --- Spatial Hashing for Efficient Physics O(N) ---
+      class SpatialGrid {
+        constructor(cellSize) {
+          this.cellSize = cellSize;
+          this.grid = new Map();
+        }
+
+        clear() {
+          this.grid.clear();
+        }
+
+        getKey(cellX, cellY) {
+          return `${cellX},${cellY}`;
+        }
+
+        insert(particle) {
+          const cellX = Math.floor(particle.x / this.cellSize);
+          const cellY = Math.floor(particle.y / this.cellSize);
+          const key = this.getKey(cellX, cellY);
+          if (!this.grid.has(key)) {
+            this.grid.set(key, []);
+          }
+          this.grid.get(key).push(particle);
+        }
+
+        getNeighbors(particle, searchRadius) {
+          const neighbors = [];
+          const minX = Math.floor((particle.x - searchRadius) / this.cellSize);
+          const maxX = Math.floor((particle.x + searchRadius) / this.cellSize);
+          const minY = Math.floor((particle.y - searchRadius) / this.cellSize);
+          const maxY = Math.floor((particle.y + searchRadius) / this.cellSize);
+
+          for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+              const cell = this.grid.get(this.getKey(x, y));
+              if (cell) {
+                for (let i = 0; i < cell.length; i++) {
+                  if (cell[i] !== particle) {
+                    neighbors.push(cell[i]);
+                  }
+                }
+              }
+            }
+          }
+          return neighbors;
+        }
+      }
+
+      // Initialize System
+      let particles = [];
+      const spatialGrid = new SpatialGrid(40);
+
+      function spawnParticles(count) {
+        particles = [];
+        const centerX = width / 2;
+        const centerY = height / 2;
+
+        for (let i = 0; i < count; i++) {
+          // Spawn in a fluid cluster near center
+          const angle = Math.random() * Math.PI * 2;
+          const dist = Math.random() * Math.min(width, height) * 0.35;
+          const px = centerX + Math.cos(angle) * dist;
+          const py = centerY + Math.sin(angle) * dist;
+          particles.push(new Particle(px, py));
+        }
+
+        const hudParticles = document.getElementById('hudParticles');
+        if (hudParticles) hudParticles.textContent = count;
+      }
+
+      spawnParticles(config.particleCount);
+
+      // --- Interactive Controls & Mouse Physics ---
+      const mouse = {
+        x: width / 2,
+        y: height / 2,
+        isDown: false,
+        isRightDown: false,
+        active: false,
+        vortexCenter: { x: width / 2, y: height / 2 }
+      };
+
+      window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.active = true;
+      });
+
+      window.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.ui-container') || e.target.closest('.ui-toggle-btn')) return;
+        if (e.button === 0) {
+          mouse.isDown = true;
+        } else if (e.button === 2) {
+          mouse.isRightDown = true;
+          triggerShockwave(e.clientX, e.clientY);
+        }
+      });
+
+      window.addEventListener('mouseup', (e) => {
+        if (e.button === 0) mouse.isDown = false;
+        if (e.button === 2) mouse.isRightDown = false;
+      });
+
+      window.addEventListener('contextmenu', (e) => {
+        if (!e.target.closest('.ui-container')) {
+          e.preventDefault();
+        }
+      });
+
+      // Touch screen support
+      window.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0 && !e.target.closest('.ui-container')) {
+          mouse.x = e.touches[0].clientX;
+          mouse.y = e.touches[0].clientY;
+          mouse.isDown = true;
+          mouse.active = true;
+        }
+      });
+
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0 && !e.target.closest('.ui-container')) {
+          mouse.x = e.touches[0].clientX;
+          mouse.y = e.touches[0].clientY;
+        }
+      });
+
+      window.addEventListener('touchend', () => {
+        mouse.isDown = false;
+      });
+
+      function triggerShockwave(cx, cy) {
+        const radius = 250;
+        const force = 18;
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          const dx = p.x - cx;
+          const dy = p.y - cy;
+          const dist = Math.hypot(dx, dy);
+          if (dist < radius && dist > 0) {
+            const factor = (1 - dist / radius) * force;
+            p.vx += (dx / dist) * factor;
+            p.vy += (dy / dist) * factor;
+          }
+        }
+      }
+
+      // --- Physics Update Loop ---
+      function updatePhysics() {
+        spatialGrid.clear();
+        for (let i = 0; i < particles.length; i++) {
+          spatialGrid.insert(particles[i]);
+        }
+
+        const interRadius = 32;
+        const interRadiusSq = interRadius * interRadius;
+
+        // Particle-Particle Short-Range Fluid Repulsion (Viscous Surface Tension)
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          const neighbors = spatialGrid.getNeighbors(p, interRadius);
+
+          for (let j = 0; j < neighbors.length; j++) {
+            const n = neighbors[j];
+            const dx = n.x - p.x;
+            const dy = n.y - p.y;
+            const distSq = dx * dx + dy * dy;
+
+            if (distSq < interRadiusSq && distSq > 0) {
+              const dist = Math.sqrt(distSq);
+              const force = (interRadius - dist) / interRadius;
+              const fx = (dx / dist) * force * 0.4 * config.repulsionStrength;
+              const fy = (dy / dist) * force * 0.4 * config.repulsionStrength;
+
+              p.ax -= fx / p.mass;
+              p.ay -= fy / p.mass;
+            }
+          }
+
+          // Mouse Physics Dynamics
+          if (mouse.active) {
+            const mdx = mouse.x - p.x;
+            const mdy = mouse.y - p.y;
+            const mDist = Math.hypot(mdx, mdy);
+            const mRadius = config.interactionRadius;
+
+            if (mDist < mRadius && mDist > 0) {
+              const mFactor = 1 - mDist / mRadius;
+
+              if (mouse.isDown || config.enableVortex) {
+                // Gravity Vortex: Swirl + Gravitational Suction
+                const vortexX = config.enableVortex ? width / 2 : mouse.x;
+                const vortexY = config.enableVortex ? height / 2 : mouse.y;
+
+                const vdx = vortexX - p.x;
+                const vdy = vortexY - p.y;
+                const vDist = Math.hypot(vdx, vdy);
+
+                if (vDist > 5) {
+                  // Radial gravity pull
+                  const pull = (1 - Math.min(vDist, 400) / 400) * 0.6 * config.vortexStrength;
+                  p.ax += (vdx / vDist) * pull;
+                  p.ay += (vdy / vDist) * pull;
+
+                  // Tangential swirling vector (Black hole effect)
+                  const swirlFactor = 0.8 * config.vortexStrength;
+                  p.ax += (-vdy / vDist) * swirlFactor;
+                  p.ay += (vdx / vDist) * swirlFactor;
+                }
+              } else {
+                // Cursor Repulsion Force (Deflect fluid away smoothly)
+                const repel = mFactor * mFactor * 2.2 * config.repulsionStrength;
+                p.ax -= (mdx / mDist) * repel;
+                p.ay -= (mdy / mDist) * repel;
+              }
+            }
+          }
+
+          // Global Center Gravitational Vortex when Vortex Mode explicitly enabled
+          if (config.enableVortex) {
+            const vdx = width / 2 - p.x;
+            const vdy = height / 2 - p.y;
+            const vDist = Math.hypot(vdx, vdy);
+            if (vDist > 10) {
+              const pull = 0.25 * config.vortexStrength;
+              const swirl = 0.5 * config.vortexStrength;
+              p.ax += (vdx / vDist) * pull + (-vdy / vDist) * swirl;
+              p.ay += (vdy / vDist) * pull + (vdx / vDist) * swirl;
+            }
+          }
+
+          p.update();
+        }
+      }
+
+      // --- Rendering Loop & Effects ---
+      let frameCount = 0;
+      let lastTime = performance.now();
+      let currentFps = 60;
+
+      function render() {
+        // Motion Blur Trail Effect
+        ctx.fillStyle = `rgba(6, 7, 13, ${config.blurAlpha})`;
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.save();
+        if (config.enableGlow) {
+          ctx.globalCompositeOperation = 'lighter';
+        }
+
+        const colorFn = colorPalettes[config.palette] || colorPalettes.cyber;
+
+        // Render Fluid Connection Lines (Metaball network effect)
+        if (config.enableLines) {
+          ctx.lineWidth = 0.75;
+          const lineDistLimit = 36;
+          const lineDistLimitSq = lineDistLimit * lineDistLimit;
+
+          for (let i = 0; i < particles.length; i += 2) {
+            const p = particles[i];
+            const neighbors = spatialGrid.getNeighbors(p, lineDistLimit);
+
+            for (let j = 0; j < neighbors.length; j++) {
+              const n = neighbors[j];
+              const dx = n.x - p.x;
+              const dy = n.y - p.y;
+              const dSq = dx * dx + dy * dy;
+
+              if (dSq < lineDistLimitSq) {
+                const alpha = (1 - dSq / lineDistLimitSq) * 0.35;
+                ctx.strokeStyle = `rgba(0, 240, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(n.x, n.y);
+                ctx.stroke();
+              }
+            }
+          }
+        }
+
+        // Render Glowing Particles
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          const speedRatio = Math.min(p.speed / 12, 1);
+          const colorStr = colorFn(p.ratio + speedRatio * 0.3);
+
+          ctx.fillStyle = colorStr;
+          ctx.beginPath();
+          const r = config.particleRadius + speedRatio * 1.5;
+          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Subtle Outer Neon Aura
+          if (config.enableGlow && i % 3 === 0) {
+            ctx.fillStyle = colorStr;
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r * 2.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+          }
+        }
+
+        // Render Vortex Black Hole Center Indicator
+        if (config.enableVortex || (mouse.isDown && mouse.active)) {
+          const vx = config.enableVortex ? width / 2 : mouse.x;
+          const vy = config.enableVortex ? height / 2 : mouse.y;
+
+          const time = Date.now() * 0.003;
+          ctx.strokeStyle = 'rgba(255, 0, 128, 0.6)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(vx, vy, 24 + Math.sin(time * 4) * 6, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+          ctx.beginPath();
+          ctx.arc(vx, vy, 40 + Math.cos(time * 3) * 8, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+
+        // FPS & Stats update
+        frameCount++;
+        const now = performance.now();
+        if (now - lastTime >= 500) {
+          currentFps = Math.round((frameCount * 1000) / (now - lastTime));
+          frameCount = 0;
+          lastTime = now;
+          const hudFps = document.getElementById('hudFps');
+          if (hudFps) hudFps.textContent = currentFps;
+        }
+
+        updatePhysics();
+        requestAnimationFrame(render);
+      }
+
+      requestAnimationFrame(render);
+
+      // --- UI & Event Listeners Binding ---
+      const uiPanel = document.getElementById('uiPanel');
+      const togglePanelBtn = document.getElementById('togglePanelBtn');
+
+      togglePanelBtn.addEventListener('click', () => {
+        uiPanel.classList.toggle('collapsed');
+      });
+
+      // Preset Chips
+      const chips = document.querySelectorAll('.preset-chip');
+      chips.forEach((chip) => {
+        chip.addEventListener('click', (e) => {
+          chips.forEach((c) => c.classList.remove('active'));
+          chip.classList.add('active');
+          config.palette = chip.getAttribute('data-palette');
+        });
+      });
+
+      // Sliders
+      const bindSlider = (sliderId, valId, configKey, formatter = (v) => v) => {
+        const slider = document.getElementById(sliderId);
+        const valElem = document.getElementById(valId);
+        if (!slider || !valElem) return;
+
+        slider.addEventListener('input', (e) => {
+          const val = parseFloat(e.target.value);
+          config[configKey] = val;
+          valElem.textContent = formatter(val);
+
+          if (configKey === 'particleCount') {
+            spawnParticles(val);
+          }
+        });
+      };
+
+      bindSlider('sliderParticleCount', 'valParticleCount', 'particleCount', (v) => v);
+      bindSlider('sliderViscosity', 'valViscosity', 'viscosity', (v) => v.toFixed(2));
+      bindSlider('sliderRepulsion', 'valRepulsion', 'repulsionStrength', (v) => v.toFixed(1));
+      bindSlider('sliderVortex', 'valVortex', 'vortexStrength', (v) => v.toFixed(1));
+      bindSlider('sliderBlur', 'valBlur', 'blurAlpha', (v) => v.toFixed(2));
+
+      // Buttons
+      const btnToggleVortex = document.getElementById('btnToggleVortex');
+      btnToggleVortex.addEventListener('click', () => {
+        config.enableVortex = !config.enableVortex;
+        btnToggleVortex.classList.toggle('active', config.enableVortex);
+        document.getElementById('hudState').textContent = config.enableVortex ? 'Vortex' : 'Fluid';
+      });
+
+      const btnToggleGlow = document.getElementById('btnToggleGlow');
+      btnToggleGlow.addEventListener('click', () => {
+        config.enableGlow = !config.enableGlow;
+        btnToggleGlow.classList.toggle('active', config.enableGlow);
+      });
+
+      const btnToggleLines = document.getElementById('btnToggleLines');
+      btnToggleLines.addEventListener('click', () => {
+        config.enableLines = !config.enableLines;
+        btnToggleLines.classList.toggle('active', config.enableLines);
+      });
+
+      const btnShockwave = document.getElementById('btnShockwave');
+      btnShockwave.addEventListener('click', () => {
+        triggerShockwave(width / 2, height / 2);
+      });
+
+      const btnReset = document.getElementById('btnReset');
+      btnReset.addEventListener('click', () => {
+        spawnParticles(config.particleCount);
+      });
+
+    })();
+  </script>
+</body>
+</html>

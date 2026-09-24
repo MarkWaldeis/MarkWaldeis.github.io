@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PANZER-GEFECHT</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',Verdana,sans-serif;color:#e8e6df}
+#app{position:fixed;inset:0}
+canvas{display:block}
+.layer{position:absolute;inset:0}
+.hidden{display:none!important}
+
+#menu{background:radial-gradient(ellipse at 50% 30%,rgba(40,48,34,.55),rgba(5,7,4,.94) 75%);z-index:20;display:flex;flex-direction:column;padding:22px 34px}
+#menu h1{font-size:52px;font-weight:900;letter-spacing:10px;text-align:center;color:#d9c98a;text-shadow:0 2px 18px rgba(0,0,0,.9)}
+#menu .subtitle{text-align:center;letter-spacing:4px;font-size:13px;color:#9aa38a;margin-top:-4px;margin-bottom:16px}
+#menuCols{flex:1;display:flex;gap:22px;min-height:0}
+.mcol{width:300px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding-right:6px}
+.mcol::-webkit-scrollbar{width:6px}.mcol::-webkit-scrollbar-thumb{background:#4a5540}
+.mcol h3{font-size:14px;letter-spacing:3px;color:#b7ab77;border-bottom:1px solid #3a4232;padding-bottom:5px}
+.card{border:1px solid #454f39;background:rgba(16,20,12,.82);padding:11px 13px;cursor:pointer;transition:border-color .15s, background .15s}
+.card:hover{border-color:#8a8a66}
+.card.sel{border-color:#d9c98a;background:rgba(46,50,28,.85);box-shadow:0 0 14px rgba(217,201,138,.25) inset}
+.card .cname{font-weight:700;font-size:16px;letter-spacing:1px}
+.card .cnation{font-size:11px;color:#a8a58c;letter-spacing:2px}
+.card .crole{font-size:11px;color:#7d8672;margin-bottom:6px}
+.statrow{display:flex;align-items:center;gap:7px;font-size:10px;color:#9aa38a;margin-top:3px}
+.statrow span{width:64px;letter-spacing:1px}
+.sbar{height:5px;background:#23281c;flex:1}
+.sbar i{display:block;height:100%;background:#b7ab77}
+#showcaseWrap{flex:1;position:relative;border:1px solid #3a4232;background:rgba(8,10,6,.35);min-width:200px}
+#mapCards .card{padding:9px 12px}
+#mapCards .cname{font-size:15px}
+.btn{display:inline-block;border:1px solid #d9c98a;background:linear-gradient(180deg,#3d4429,#262c17);color:#efe6bd;padding:12px 26px;font-size:17px;font-weight:800;letter-spacing:4px;cursor:pointer;text-transform:uppercase}
+.btn:hover{background:linear-gradient(180deg,#59632f,#333b1c);box-shadow:0 0 16px rgba(217,201,138,.35)}
+#startBtn{align-self:center;margin-top:12px;font-size:21px;padding:14px 60px}
+#controlsBox{border:1px solid #3a4232;background:rgba(12,15,9,.8);padding:10px 13px;font-size:12.5px;line-height:1.85;color:#b8bfab}
+#controlsBox b{color:#d9c98a;display:inline-block;width:118px;font-weight:600}
+
+#hud{z-index:10;pointer-events:none}
+#crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px}
+#reloadRing{position:absolute;inset:0;border-radius:50%}
+.chDot{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px;background:#fff;border-radius:50%;box-shadow:0 0 4px #000}
+.tick{position:absolute;background:#ffffffcc;box-shadow:0 0 3px #000}
+.tN{left:50%;top:-6px;width:2px;height:9px;margin-left:-1px}
+.tS{left:50%;bottom:-6px;width:2px;height:9px;margin-left:-1px}
+.tW{top:50%;left:-6px;height:2px;width:9px;margin-top:-1px}
+.tE{top:50%;right:-6px;height:2px;width:9px;margin-top:-1px}
+#hitmarker{position:absolute;left:50%;top:50%;width:34px;height:34px;transform:translate(-50%,-50%) rotate(45deg);opacity:0}
+#hitmarker div{position:absolute;background:#fff;box-shadow:0 0 4px #000}
+.hm1{left:50%;top:0;width:2px;height:10px;margin-left:-1px}
+.hm2{left:50%;bottom:0;width:2px;height:10px;margin-left:-1px}
+.hm3{top:50%;left:0;height:2px;width:10px;margin-top:-1px}
+.hm4{top:50%;right:0;height:2px;width:10px;margin-top:-1px}
+#hitmarker.kill div{background:#ff5533}
+
+.hudPanel{position:absolute;background:rgba(8,10,6,.62);border:1px solid rgba(150,150,110,.35);padding:9px 13px;backdrop-filter:blur(2px)}
+#statusPanel{left:16px;bottom:16px;width:290px}
+#hpBar{height:14px;background:#241a14;border:1px solid #000;margin-top:5px}
+#hpFill{height:100%;width:100%;background:linear-gradient(90deg,#7fae3f,#a8cf60);transition:width .2s}
+#hpText{font-size:12px;color:#cfd6bd;letter-spacing:1px;margin-top:4px}
+.lbl{font-size:11px;letter-spacing:2px;color:#a8ad93}
+#ammoPanel{right:16px;bottom:16px;min-width:210px;text-align:right}
+.shellRow{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.shell{border:1px solid #55503a;padding:4px 12px;font-size:13px;letter-spacing:1px;color:#8f8a70;background:rgba(0,0,0,.3)}
+.shell.active{border-color:#d9c98a;color:#efe6bd;background:rgba(80,74,36,.5)}
+.shell small{opacity:.7;font-size:10px}
+#reloadTxt{font-size:12px;color:#cfd6bd;margin-top:5px;letter-spacing:1px}
+#wavePanel{left:16px;top:16px;font-size:14px;line-height:1.75;letter-spacing:1px}
+#wavePanel b{color:#d9c98a;font-size:17px}
+#minimapWrap{position:absolute;right:16px;top:16px;border:1px solid rgba(150,150,110,.45);background:rgba(8,10,6,.7)}
+#minimap{display:block}
+#killfeed{position:absolute;right:16px;top:196px;width:270px;text-align:right;font-size:12.5px;line-height:1.7}
+#killfeed div{background:rgba(8,10,6,.55);padding:2px 9px;margin-top:3px;border-right:2px solid #d9c98a;transition:opacity .6s}
+#bannerWrap{position:absolute;left:0;right:0;top:16%;text-align:center;pointer-events:none}
+#bannerText{font-size:44px;font-weight:900;letter-spacing:12px;color:#efe6bd;text-shadow:0 3px 22px #000;opacity:0;transition:opacity .35s}
+#bannerSub{font-size:16px;letter-spacing:5px;color:#c9c49a;text-shadow:0 2px 10px #000;opacity:0;transition:opacity .35s;margin-top:4px}
+#vignette{z-index:11;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 42%,rgba(190,20,10,.55) 100%);transition:opacity .5s}
+#floats{position:absolute;inset:0;overflow:hidden;z-index:9;pointer-events:none}
+.ft{position:absolute;font-weight:800;font-size:15px;text-shadow:0 1px 4px #000;white-space:nowrap;transform:translate(-50%,-50%)}
+.ft.big{font-size:19px}
+#hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:11.5px;letter-spacing:2px;color:rgba(220,220,200,.55)}
+
+.overlay{z-index:30;background:rgba(4,6,3,.78);display:flex;align-items:center;justify-content:center}
+.panel{background:rgba(14,17,10,.95);border:1px solid #565f41;padding:38px 54px;text-align:center;min-width:420px}
+.panel h2{font-size:34px;letter-spacing:8px;color:#d9c98a;margin-bottom:20px}
+.panel h2.bad{color:#c96a5a}
+.stats{margin:0 auto 24px;text-align:left;font-size:15px;line-height:2.05;width:280px}
+.stats span{float:right;color:#efe6bd;font-weight:700}
+.btnRow{display:flex;gap:14px;justify-content:center}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="hud" class="layer hidden">
+  <div class="hudPanel" id="wavePanel">
+    <div><span class="lbl">WELLE</span> <b id="waveVal">1</b></div>
+    <div><span class="lbl">FEINDE</span> <b id="enemyVal">0</b></div>
+    <div><span class="lbl">ABSCHÜSSE</span> <b id="killVal">0</b></div>
+    <div><span class="lbl">PUNKTE</span> <b id="scoreVal">0</b></div>
+  </div>
+  <div id="minimapWrap"><canvas id="minimap" width="170" height="170"></canvas></div>
+  <div id="killfeed"></div>
+  <div class="hudPanel" id="statusPanel">
+    <span class="lbl">ZUSTAND</span>
+    <div id="hpBar"><div id="hpFill"></div></div>
+    <div id="hpText">800 / 800</div>
+  </div>
+  <div class="hudPanel" id="ammoPanel">
+    <span class="lbl">MUNITION</span>
+    <div class="shellRow">
+      <div class="shell active" id="shellAP">AP <small>[1]</small> <span id="cntAP">30</span></div>
+      <div class="shell" id="shellHE">HE <small>[2]</small> <span id="cntHE">15</span></div>
+    </div>
+    <div id="reloadTxt">BEREIT</div>
+  </div>
+  <div id="crosshair">
+    <div id="reloadRing"></div>
+    <div class="chDot"></div>
+    <div class="tick tN"></div><div class="tick tS"></div><div class="tick tW"></div><div class="tick tE"></div>
+  </div>
+  <div id="hitmarker"><div class="hm1"></div><div class="hm2"></div><div class="hm3"></div><div class="hm4"></div></div>
+  <div id="hint">WASD FAHREN &nbsp;·&nbsp; MAUS ZIELEN &nbsp;·&nbsp; LINKSKLICK FEUER &nbsp;·&nbsp; 1/2 MUNITION &nbsp;·&nbsp; MAUSRAD ZOOM &nbsp;·&nbsp; ESC PAUSE</div>
+  <div id="bannerWrap"><div id="bannerText"></div><div id="bannerSub"></div></div>
+</div>
+
+<div id="vignette" class="layer"></div>
+<div id="floats" class="layer"></div>
+
+<div id="menu" class="layer">
+  <h1>PANZER-GEFECHT</h1>
+  <div class="subtitle">EIN WAR-THUNDER-INSPIRIERTES PANZERGEFECHT · ÜBERLEBE DEN ANSTURM</div>
+  <div id="menuCols">
+    <div class="mcol"><h3>PANZER WÄHLEN</h3><div id="tankCards"></div></div>
+    <div id="showcaseWrap"></div>
+    <div class="mcol">
+      <h3>GEFECHTSFELD</h3>
+      <div id="mapCards"></div>
+      <h3 style="margin-top:8px">STEUERUNG</h3>
+      <div id="controlsBox">
+        <b>W / S</b> Vorwärts / Rückwärts<br>
+        <b>A / D</b> Drehen<br>
+        <b>Maus</b> Geschützturm zielen<br>
+        <b>Linksklick</b> Feuern<br>
+        <b>1 / 2</b> AP-/HE-Munition<br>
+        <b>Leertaste</b> Bremsen<br>
+        <b>Mausrad</b> Zoom<br>
+        <b>ESC</b> Pause
+      </div>
+      <button class="btn" id="startBtn">In die Schlacht</button>
+    </div>
+  </div>
+</div>
+
+<div id="gameover" class="layer overlay hidden">
+  <div class="panel">
+    <h2 class="bad">GEFALLEN</h2>
+    <div class="stats" id="goStats"></div>
+    <div class="btnRow">
+      <button class="btn" id="goAgain">Nochmal</button>
+      <button class="btn" id="goMenu">Hauptmenü</button>
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="layer overlay hidden">
+  <div class="panel">
+    <h2>PAUSE</h2>
+    <div class="btnRow">
+      <button class="btn" id="pauseResume">Weiter</button>
+      <button class="btn" id="pauseMenu">Aufgeben</button>
+    </div>
+  </div>
+</div>
+
+<script src="three.min.js"></script>
+<script>if(typeof THREE==='undefined'){document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');}</script>
+<script src="game.js"></script>
+</body>
+</html>

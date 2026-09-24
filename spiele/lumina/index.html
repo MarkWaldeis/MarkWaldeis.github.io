@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#070913">
+  <meta name="description" content="Lumina: Chronicles of Aether – Ein hochdynamisches 2D-Jump-'n'-Run Abenteuer mit Wall-Jumps, Air-Dash, 3 Biomen und epischen Bosskämpfen.">
+  <title>Lumina: Chronicles of Aether</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="Lumina: Chronicles of Aether Game Window">
+    <!-- Main High-Performance Canvas -->
+    <canvas id="game-canvas" width="1280" height="720" aria-label="Spielfeld"></canvas>
+
+    <!-- Dynamic In-Game Toast -->
+    <div id="toast-container" role="status" aria-live="polite">
+      <span id="toast-icon">✨</span>
+      <span id="toast-text">Willkommen in Aetheris!</span>
+    </div>
+
+    <!-- Top Action Buttons (Audio, Fullscreen, Achievements) -->
+    <div class="top-actions">
+      <button id="achieve-btn" class="icon-btn" aria-label="Erfolge ansehen" title="Erfolge">🏆</button>
+      <button id="sound-btn" class="icon-btn" aria-label="Ton an/aus" title="Ton">♪</button>
+      <button id="fullscreen-btn" class="icon-btn" aria-label="Vollbild" title="Vollbild">⛶</button>
+    </div>
+
+    <!-- 1. TITLE SCREEN -->
+    <section id="title-screen" class="screen active" aria-modal="true">
+      <div class="glass-panel title-card">
+        <div class="eyebrow">✨ Neo-Fantasy Platformer</div>
+        <h1 class="title-logo">LUMINA<br><span style="font-size: 0.6em; font-weight: 600; letter-spacing: 0.08em;">Chronicles of Aether</span></h1>
+        <p class="title-subtitle">
+          Reise durch den <strong>Biolumineszenten Hain</strong>, die <strong>Kristallhöhlen</strong> und die <strong>Himmels-Zitadelle</strong>. Sammle alle 5 Aether-Kerne und besiege den Himmels-Oberherrn.
+        </p>
+
+        <div class="feature-row">
+          <div class="feature-pill">⚡ Wall-Jump & Slide</div>
+          <div class="feature-pill">💨 Phantom Air-Dash</div>
+          <div class="feature-pill">🪽 Lichtflügel-Doppelsprung</div>
+          <div class="feature-pill">⚔️ 3-Phasen Boss</div>
+        </div>
+
+        <div class="btn-group">
+          <button id="start-btn" class="primary">
+            <span>Abenteuer beginnen</span>
+            <span>➔</span>
+          </button>
+        </div>
+
+        <div class="controls-card">
+          <div class="control-item"><kbd>A</kbd><kbd>D</kbd> / <kbd>◀</kbd><kbd>▶</kbd> Laufen</div>
+          <div class="control-item"><kbd>W</kbd> / <kbd>Space</kbd> Sprung / 2x Sprung</div>
+          <div class="control-item"><kbd>Shift</kbd> / <kbd>J</kbd> Air-Dash</div>
+          <div class="control-item"><kbd>S</kbd> / <kbd>K</kbd> Ground-Pound</div>
+          <div class="control-item"><kbd>Esc</kbd> / <kbd>P</kbd> Pause</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. PAUSE SCREEN -->
+    <section id="pause-screen" class="screen" aria-hidden="true">
+      <div class="glass-panel">
+        <div class="eyebrow">⏸️ Spiel pausiert</div>
+        <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 12px;">Verschnaufpause</h2>
+        <p style="color: var(--color-text-dim); margin-bottom: 24px;">Dein Fortschritt im aktuellen Biom bleibt gesichert.</p>
+        
+        <div class="btn-group">
+          <button id="resume-btn" class="primary">Weiterspielen</button>
+          <button id="restart-btn" class="secondary">Neu starten</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. GAME OVER SCREEN -->
+    <section id="gameover-screen" class="screen" aria-hidden="true">
+      <div class="glass-panel">
+        <div class="eyebrow danger">💀 Licht erloschen</div>
+        <h2 style="font-size: 2.4rem; font-weight: 800; margin-bottom: 8px;">Reise unterbrochen</h2>
+        <p style="color: var(--color-text-dim);">Die Schatten von Aetheris haben dich überwältigt.</p>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">Gesammelte Kerne</div>
+            <div id="go-cores" class="stat-value highlight">0 / 5</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Chrono-Shards</div>
+            <div id="go-shards" class="stat-value">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Überlebenszeit</div>
+            <div id="go-time" class="stat-value">00:00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Erreichter Score</div>
+            <div id="go-score" class="stat-value">0</div>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button id="retry-btn" class="primary">Erneut versuchen</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. VICTORY SCREEN -->
+    <section id="victory-screen" class="screen" aria-hidden="true">
+      <div class="glass-panel">
+        <div class="eyebrow gold">👑 Das Licht ist siegreich!</div>
+        <h2 style="font-size: 2.5rem; font-weight: 900; margin-bottom: 8px; background: linear-gradient(135deg, #ffd200, #fff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Zitadelle befreit!</h2>
+        <p style="color: var(--color-text-dim);">Aetheris wurde bezwungen und alle 5 Chrono-Kerne leuchten wieder.</p>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-label">Rang / Bewertung</div>
+            <div id="vic-rank" class="stat-value highlight">S-RANG</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Gesamtpunkte</div>
+            <div id="vic-score" class="stat-value highlight">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Speedrun-Zeit</div>
+            <div id="vic-time" class="stat-value">00:00</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Shards & Boni</div>
+            <div id="vic-shards" class="stat-value">0</div>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button id="again-btn" class="primary">Neues Abenteuer</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. ACHIEVEMENTS SCREEN -->
+    <section id="achievements-screen" class="screen" aria-hidden="true">
+      <div class="glass-panel">
+        <div class="eyebrow gold">🏆 Errungenschaften</div>
+        <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 12px;">Deine Trophäen</h2>
+        
+        <div id="achievement-container" class="achievement-list">
+          <!-- Dynamically populated -->
+        </div>
+
+        <button id="close-achieve-btn" class="secondary" style="width: 100%; margin-top: 10px;">Schließen</button>
+      </div>
+    </section>
+
+    <!-- Mobile Touch Controls Layer -->
+    <div id="touch-layer">
+      <div class="touch-dpad">
+        <button class="touch-btn" data-action="left" aria-label="Links">◀</button>
+        <button class="touch-btn" data-action="right" aria-label="Rechts">▶</button>
+        <button class="touch-btn" data-action="down" aria-label="Unten / Ground Pound">▼</button>
+      </div>
+      <div class="touch-actions">
+        <button class="touch-btn dash-btn" data-action="dash" aria-label="Air-Dash">💨</button>
+        <button class="touch-btn jump-btn" data-action="jump" aria-label="Sprung">▲</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modular Scripts Entry Point with Fallback -->
+  <script src="src/core/Audio.js"></script>
+  <script src="src/core/Input.js"></script>
+  <script src="src/entities/Player.js"></script>
+  <script src="src/entities/Enemies.js"></script>
+  <script src="src/entities/Boss.js"></script>
+  <script src="src/world/Level.js"></script>
+  <script src="src/world/Renderer.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>

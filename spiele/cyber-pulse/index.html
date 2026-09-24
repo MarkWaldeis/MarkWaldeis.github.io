@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CYBER PULSE // Particle Tower Defense</title>
+  <style>
+    :root {
+      --bg-dark: #060814;
+      --bg-card: rgba(14, 18, 38, 0.75);
+      --border-neon: rgba(0, 243, 255, 0.3);
+      --cyan: #00f3ff;
+      --magenta: #ff0055;
+      --yellow: #ffcc00;
+      --purple: #a855f7;
+      --green: #00ff66;
+      --text-main: #e2e8f0;
+      --text-dim: #94a3b8;
+      --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(10, 15, 35, 0.8) 0%, rgba(4, 5, 12, 1) 100%),
+        linear-gradient(to bottom, rgba(0, 243, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to right, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+      background-size: 100% 100%, 40px 40px, 40px 40px;
+    }
+
+    /* Game Container */
+    #game-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 1000px;
+      padding: 12px;
+    }
+
+    /* Top Header HUD */
+    #hud-top {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-neon);
+      border-radius: 12px;
+      padding: 10px 20px;
+      margin-bottom: 10px;
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.1), inset 0 0 15px rgba(0, 243, 255, 0.05);
+    }
+
+    .hud-group {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .hud-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .hud-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+    }
+
+    .hud-value {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 8px currentColor;
+    }
+
+    .val-health { color: var(--magenta); }
+    .val-credits { color: var(--yellow); }
+    .val-score { color: var(--cyan); }
+    .val-wave { color: var(--green); }
+
+    /* Canvas Container */
+    #canvas-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: rgba(5, 7, 18, 0.95);
+      border-radius: 12px;
+      border: 1px solid rgba(0, 243, 255, 0.2);
+      box-shadow: 0 0 35px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 243, 255, 0.15);
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Bottom Control Deck */
+    #hud-bottom {
+      width: 100%;
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    #tower-deck {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+
+    .tower-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 8px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tower-card:hover:not(.disabled) {
+      transform: translateY(-3px);
+      border-color: var(--cyan);
+      box-shadow: 0 4px 15px rgba(0, 243, 255, 0.25);
+    }
+
+    .tower-card.selected {
+      border-color: var(--cyan);
+      background: rgba(0, 243, 255, 0.12);
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.4), inset 0 0 10px rgba(0, 243, 255, 0.2);
+    }
+
+    .tower-card.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      filter: grayscale(0.8);
+    }
+
+    .tower-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      margin-bottom: 4px;
+      box-shadow: 0 0 10px currentColor;
+    }
+
+    .tower-name {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #fff;
+      text-align: center;
+      margin-bottom: 2px;
+    }
+
+    .tower-cost {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--yellow);
+    }
+
+    .tower-key {
+      position: absolute;
+      top: 3px;
+      right: 5px;
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: var(--text-dim);
+    }
+
+    /* Side Actions */
+    #actions-deck {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 140px;
+    }
+
+    .btn-action {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border-neon);
+      border-radius: 8px;
+      color: #fff;
+      font-family: var(--font-family);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px;
+    }
+
+    .btn-action:hover:not(:disabled) {
+      background: rgba(0, 243, 255, 0.2);
+      box-shadow: 0 0 12px rgba(0, 243, 255, 0.3);
+      border-color: var(--cyan);
+    }
+
+    .btn-action:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    .btn-action:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-wave {
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .btn-wave:hover:not(:disabled) {
+      background: rgba(0, 255, 102, 0.2);
+      box-shadow: 0 0 12px rgba(0, 255, 102, 0.4);
+      border-color: var(--green);
+    }
+
+    /* Modal / Overlay Screens */
+    .overlay-screen {
+      position: absolute;
+      inset: 0;
+      background: rgba(6, 8, 20, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+      z-index: 10;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    .overlay-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .screen-title {
+      font-size: 2.8rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--cyan), var(--magenta));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+      filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.5));
+      text-align: center;
+    }
+
+    .screen-subtitle {
+      font-size: 1rem;
+      color: var(--text-dim);
+      margin-bottom: 30px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .stats-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-neon);
+      border-radius: 12px;
+      padding: 20px 30px;
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 30px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.95rem;
+    }
+
+    .stat-row:last-child {
+      border-bottom: none;
+    }
+
+    .stat-val {
+      font-weight: 800;
+      color: var(--cyan);
+    }
+
+    .btn-main {
+      padding: 14px 36px;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #000;
+      background: var(--cyan);
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(0, 243, 255, 0.6);
+      transition: all 0.2s ease;
+    }
+
+    .btn-main:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(0, 243, 255, 0.9);
+      background: #ffffff;
+    }
+
+    /* Context Tooltip / Tower Upgrade Modal */
+    #tower-panel {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 14, 30, 0.92);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-neon);
+      border-radius: 12px;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 243, 255, 0.2);
+      z-index: 5;
+      transition: all 0.2s ease;
+    }
+
+    #tower-panel.hidden {
+      display: none;
+    }
+
+    .panel-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-name {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--cyan);
+      text-transform: uppercase;
+    }
+
+    .panel-stats {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .panel-btn {
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      border-radius: 6px;
+      border: 1px solid var(--cyan);
+      background: rgba(0, 243, 255, 0.1);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .panel-btn:hover {
+      background: var(--cyan);
+      color: #000;
+    }
+
+    .panel-btn.sell {
+      border-color: var(--magenta);
+      background: rgba(255, 0, 85, 0.1);
+    }
+
+    .panel-btn.sell:hover {
+      background: var(--magenta);
+      color: #fff;
+    }
+
+    /* Sound Toggle Icon */
+    #btn-sound {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      z-index: 12;
+      background: rgba(14, 18, 38, 0.7);
+      border: 1px solid var(--border-neon);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-main);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+    }
+
+    #btn-sound:hover {
+      border-color: var(--cyan);
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.4);
+    }
+
+    @media (max-width: 768px) {
+      #tower-deck {
+        grid-template-columns: repeat(5, 1fr);
+        gap: 4px;
+      }
+      .tower-card {
+        padding: 6px 2px;
+      }
+      .tower-name {
+        font-size: 0.55rem;
+      }
+      .tower-cost {
+        font-size: 0.65rem;
+      }
+      .tower-key {
+        display: none;
+      }
+      #actions-deck {
+        width: 100px;
+      }
+      .btn-action {
+        font-size: 0.65rem;
+      }
+      .hud-value {
+        font-size: 1rem;
+      }
+      .hud-label {
+        font-size: 0.6rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="game-wrapper">
+    <!-- Top HUD -->
+    <div id="hud-top">
+      <div class="hud-group">
+        <div class="hud-item">
+          <span class="hud-label">Core Integrity</span>
+          <span class="hud-value val-health" id="val-health">100 HP</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Energy Credits</span>
+          <span class="hud-value val-credits" id="val-credits">250 ₡</span>
+        </div>
+      </div>
+      <div class="hud-group">
+        <div class="hud-item">
+          <span class="hud-label">Wave</span>
+          <span class="hud-value val-wave" id="val-wave">1 / ∞</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Score</span>
+          <span class="hud-value val-score" id="val-score">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Game Canvas Container -->
+    <div id="canvas-container">
+      <button id="btn-sound" title="Toggle Sound">🔊</button>
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Tower Context Upgrade/Sell Panel -->
+      <div id="tower-panel" class="hidden">
+        <div class="panel-info">
+          <span class="panel-name" id="p-name">Laser Tower</span>
+          <span class="panel-stats" id="p-stats">Lvl 1 | Dmg: 12 | Rng: 140</span>
+        </div>
+        <button class="panel-btn" id="p-upgrade">Upgrade (100 ₡)</button>
+        <button class="panel-btn sell" id="p-sell">Sell (75 ₡)</button>
+      </div>
+
+      <!-- Start Screen Overlay -->
+      <div id="screen-start" class="overlay-screen">
+        <h1 class="screen-title">CYBER PULSE</h1>
+        <p class="screen-subtitle">Particle Defense System</p>
+        <div class="stats-card">
+          <div class="stat-row">
+            <span>Mission Objective:</span>
+            <span class="stat-val">Defend Core Integrity</span>
+          </div>
+          <div class="stat-row">
+            <span>Tower Types:</span>
+            <span class="stat-val">5 Cyber Energy Cannons</span>
+          </div>
+          <div class="stat-row">
+            <span>Controls:</span>
+            <span class="stat-val">Click/Tap to Place & Upgrade</span>
+          </div>
+        </div>
+        <button class="btn-main" id="btn-start">Initialize Defense</button>
+      </div>
+
+      <!-- Game Over Screen Overlay -->
+      <div id="screen-gameover" class="overlay-screen hidden">
+        <h1 class="screen-title" style="background: linear-gradient(135deg, #ff0055, #ffcc00);">CORE BREACHED</h1>
+        <p class="screen-subtitle">Defense Network Compromised</p>
+        <div class="stats-card">
+          <div class="stat-row">
+            <span>Final Score:</span>
+            <span class="stat-val" id="go-score">0</span>
+          </div>
+          <div class="stat-row">
+            <span>Waves Survived:</span>
+            <span class="stat-val" id="go-waves">0</span>
+          </div>
+          <div class="stat-row">
+            <span>Enemies Destroyed:</span>
+            <span class="stat-val" id="go-kills">0</span>
+          </div>
+          <div class="stat-row">
+            <span>All-Time High Score:</span>
+            <span class="stat-val" id="go-highscore">0</span>
+          </div>
+        </div>
+        <button class="btn-main" id="btn-restart">Reboot Core</button>
+      </div>
+    </div>
+
+    <!-- Bottom Controls & Tower Selection Deck -->
+    <div id="hud-bottom">
+      <div id="tower-deck">
+        <!-- Tower Card 1 -->
+        <div class="tower-card selected" data-type="PULSE">
+          <span class="tower-key">1</span>
+          <div class="tower-icon" style="background: #00f3ff; box-shadow: 0 0 10px #00f3ff;"></div>
+          <span class="tower-name">Pulse</span>
+          <span class="tower-cost">100 ₡</span>
+        </div>
+        <!-- Tower Card 2 -->
+        <div class="tower-card" data-type="PLASMA">
+          <span class="tower-key">2</span>
+          <div class="tower-icon" style="background: #ff0055; box-shadow: 0 0 10px #ff0055;"></div>
+          <span class="tower-name">Plasma</span>
+          <span class="tower-cost">175 ₡</span>
+        </div>
+        <!-- Tower Card 3 -->
+        <div class="tower-card" data-type="CRYO">
+          <span class="tower-key">3</span>
+          <div class="tower-icon" style="background: #00aaff; box-shadow: 0 0 10px #00aaff;"></div>
+          <span class="tower-name">Cryo</span>
+          <span class="tower-cost">150 ₡</span>
+        </div>
+        <!-- Tower Card 4 -->
+        <div class="tower-card" data-type="TESLA">
+          <span class="tower-key">4</span>
+          <div class="tower-icon" style="background: #ffcc00; box-shadow: 0 0 10px #ffcc00;"></div>
+          <span class="tower-name">Tesla</span>
+          <span class="tower-cost">220 ₡</span>
+        </div>
+        <!-- Tower Card 5 -->
+        <div class="tower-card" data-type="RAILGUN">
+          <span class="tower-key">5</span>
+          <div class="tower-icon" style="background: #a855f7; box-shadow: 0 0 10px #a855f7;"></div>
+          <span class="tower-name">Railgun</span>
+          <span class="tower-cost">300 ₡</span>
+        </div>
+      </div>
+
+      <div id="actions-deck">
+        <button class="btn-action btn-wave" id="btn-next-wave">⚡ Send Wave</button>
+        <button class="btn-action" id="btn-speed">⏩ 1x Speed</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       CYBER PULSE - SINGLE-FILE CANVAS TOWER DEFENSE GAME ENGINE
+       ========================================================================== */
+
+    // --- SOUND SYNTHESIZER (WEB AUDIO API) ---
+    class AudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playShot(freq = 600, duration = 0.1, type = 'sine') {
+        if (this.muted || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(freq * 0.2, this.ctx.currentTime + duration);
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      }
+      playExplosion(isBoss = false) {
+        if (this.muted || !this.ctx) return;
+        try {
+          const dur = isBoss ? 0.5 : 0.25;
+          const bufferSize = this.ctx.sampleRate * dur;
+          const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+          const noise = this.ctx.createBufferSource();
+          noise.buffer = buffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(isBoss ? 400 : 800, this.ctx.currentTime);
+          filter.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + dur);
+          const gain = this.ctx.createGain();
+          gain.gain.setValueAtTime(isBoss ? 0.3 : 0.2, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+          noise.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+          noise.start();
+        } catch (e) {}
+      }
+      playCoreDamage() {
+        if (this.muted || !this.ctx) return;
+        this.playShot(150, 0.3, 'sawtooth');
+      }
+    }
+
+    const sound = new AudioEngine();
+
+    // --- GAME CONSTANTS & CONFIGURATIONS ---
+    const TOWER_SPECS = {
+      PULSE: { name: 'Pulse Laser', cost: 100, range: 140, damage: 14, fireRate: 0.25, color: '#00f3ff', splash: 0 },
+      PLASMA: { name: 'Plasma Blaster', cost: 175, range: 160, damage: 45, fireRate: 0.85, color: '#ff0055', splash: 65 },
+      CRYO: { name: 'Cryo Emitter', cost: 150, range: 130, damage: 4, fireRate: 0.08, color: '#00aaff', slow: 0.5 },
+      TESLA: { name: 'Tesla Arc', cost: 220, range: 150, damage: 28, fireRate: 0.65, color: '#ffcc00', chain: 3 },
+      RAILGUN: { name: 'Void Railgun', cost: 300, range: 230, damage: 140, fireRate: 1.6, color: '#a855f7', pierce: true }
+    };
+
+    const ENEMY_TYPES = [
+      { type: 'SCOUT', name: 'Neon Scout', hp: 35, speed: 2.8, reward: 12, score: 15, size: 7, color: '#00ff66' },
+      { type: 'DRONE', name: 'Glitch Drone', hp: 65, speed: 2.0, reward: 16, score: 25, size: 9, color: '#00f3ff' },
+      { type: 'TANK', name: 'Cyber Tank', hp: 200, speed: 1.2, reward: 35, score: 50, size: 14, color: '#ff0055' },
+      { type: 'BOSS', name: 'Apex Core Boss', hp: 850, speed: 0.75, reward: 150, score: 250, size: 20, color: '#ffcc00' }
+    ];
+
+    // --- GAME STATE ---
+    const state = {
+      health: 100,
+      credits: 250,
+      score: 0,
+      highScore: parseInt(localStorage.getItem('cyber_pulse_highscore') || '0', 10),
+      wave: 0,
+      kills: 0,
+      gameSpeed: 1,
+      isGameRunning: false,
+      isWaveActive: false,
+      waveTimer: 0,
+      selectedTowerType: 'PULSE',
+      selectedTowerInstance: null,
+      mouse: { x: 0, y: 0, validTile: false, col: 0, row: 0 }
+    };
+
+    // --- CANVAS SETUP ---
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    let width = 0;
+    let height = 0;
+    let gridCols = 16;
+    let gridRows = 9;
+    let cellW = 0;
+    let cellH = 0;
+
+    function resizeCanvas() {
+      const container = document.getElementById('canvas-container');
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      width = rect.width;
+      height = rect.height;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+      cellW = width / gridCols;
+      cellH = height / gridRows;
+      buildWaypoints();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // --- MAP WAYPOINTS & PATHING ---
+    let waypoints = [];
+    let pathGridCells = new Set();
+
+    function buildWaypoints() {
+      // Create a winding path from top to bottom
+      const cols = gridCols;
+      const rows = gridRows;
+      
+      const gridPath = [
+        { col: 3, row: 0 },
+        { col: 3, row: 2 },
+        { col: 12, row: 2 },
+        { col: 12, row: 4 },
+        { col: 4, row: 4 },
+        { col: 4, row: 6 },
+        { col: 13, row: 6 },
+        { col: 13, row: 8 }
+      ];
+
+      waypoints = gridPath.map(p => ({
+        x: (p.col + 0.5) * cellW,
+        y: (p.row + 0.5) * cellH,
+        col: p.col,
+        row: p.row
+      }));
+
+      // Calculate path cells for placement validation
+      pathGridCells.clear();
+      for (let i = 0; i < gridPath.length - 1; i++) {
+        const p1 = gridPath[i];
+        const p2 = gridPath[i + 1];
+        const minC = Math.min(p1.col, p2.col);
+        const maxC = Math.max(p1.col, p2.col);
+        const minR = Math.min(p1.row, p2.row);
+        const maxR = Math.max(p1.row, p2.row);
+
+        for (let c = minC; c <= maxC; c++) {
+          for (let r = minR; r <= maxR; r++) {
+            pathGridCells.add(`${c},${r}`);
+          }
+        }
+      }
+    }
+
+    // --- GAME OBJECT ARRAYS ---
+    let towers = [];
+    let enemies = [];
+    let projectiles = [];
+    let particles = [];
+    let floatingTexts = [];
+
+    // --- PARTICLE SYSTEM ---
+    class Particle {
+      constructor(x, y, color, speed, angle, life, size = 3) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = life;
+        this.maxLife = life;
+        this.size = size;
+        this.friction = 0.96;
+      }
+      update(dt) {
+        this.x += this.vx * dt * 60;
+        this.y += this.vy * dt * 60;
+        this.vx *= this.friction;
+        this.vy *= this.friction;
+        this.life -= dt;
+      }
+      draw(c) {
+        if (this.life <= 0) return;
+        const alpha = Math.max(0, this.life / this.maxLife);
+        c.save();
+        c.globalAlpha = alpha;
+        c.shadowBlur = 10;
+        c.shadowColor = this.color;
+        c.fillStyle = this.color;
+        c.beginPath();
+        c.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+      }
+    }
+
+    function createExplosion(x, y, color, count = 25, isBoss = false) {
+      sound.playExplosion(isBoss);
+      const mult = isBoss ? 2.5 : 1;
+      for (let i = 0; i < count * mult; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = (Math.random() * 4 + 1.5) * mult;
+        const life = Math.random() * 0.4 + 0.3;
+        const size = (Math.random() * 3 + 2) * mult;
+        particles.push(new Particle(x, y, color, speed, angle, life, size));
+      }
+    }
+
+    // --- FLOATING TEXT ---
+    class FloatingText {
+      constructor(x, y, text, color) {
+        this.x = x;
+        this.y = y;
+        this.text = text;
+        this.color = color;
+        this.life = 0.8;
+        this.maxLife = 0.8;
+      }
+      update(dt) {
+        this.y -= 25 * dt;
+        this.life -= dt;
+      }
+      draw(c) {
+        if (this.life <= 0) return;
+        c.save();
+        c.globalAlpha = Math.max(0, this.life / this.maxLife);
+        c.shadowBlur = 8;
+        c.shadowColor = this.color;
+        c.fillStyle = this.color;
+        c.font = '800 13px var(--font-family)';
+        c.fillText(this.text, this.x, this.y);
+        c.restore();
+      }
+    }
+
+    // --- ENEMY CLASS ---
+    class Enemy {
+      constructor(template, waveMultiplier) {
+        this.template = template;
+        this.maxHp = Math.round(template.hp * waveMultiplier);
+        this.hp = this.maxHp;
+        this.baseSpeed = template.speed;
+        this.speed = template.speed;
+        this.reward = template.reward;
+        this.score = template.score;
+        this.size = template.size;
+        this.color = template.color;
+        
+        this.waypointIndex = 0;
+        this.x = waypoints[0].x;
+        this.y = waypoints[0].y;
+        this.slowTimer = 0;
+        this.markedForDeletion = false;
+      }
+
+      update(dt) {
+        // Slow effect status
+        if (this.slowTimer > 0) {
+          this.slowTimer -= dt;
+          this.speed = this.baseSpeed * 0.5;
+        } else {
+          this.speed = this.baseSpeed;
+        }
+
+        // Movement along waypoints
+        if (this.waypointIndex < waypoints.length - 1) {
+          const target = waypoints[this.waypointIndex + 1];
+          const dx = target.x - this.x;
+          const dy = target.y - this.y;
+          const dist = Math.hypot(dx, dy);
+          const moveDist = this.speed * 60 * dt;
+
+          if (dist <= moveDist) {
+            this.x = target.x;
+            this.y = target.y;
+            this.waypointIndex++;
+          } else {
+            this.x += (dx / dist) * moveDist;
+            this.y += (dy / dist) * moveDist;
+          }
+        } else {
+          // Reached Core
+          this.markedForDeletion = true;
+          damageCore(this.template.type === 'BOSS' ? 30 : 10);
+        }
+      }
+
+      takeDamage(amount, color) {
+        this.hp -= amount;
+        floatingTexts.push(new FloatingText(this.x + (Math.random() * 10 - 5), this.y - 10, `-${Math.round(amount)}`, color || '#fff'));
+        if (this.hp <= 0 && !this.markedForDeletion) {
+          this.markedForDeletion = true;
+          state.score += this.score;
+          state.credits += this.reward;
+          state.kills++;
+          createExplosion(this.x, this.y, this.color, 25, this.template.type === 'BOSS');
+          floatingTexts.push(new FloatingText(this.x, this.y - 15, `+${this.reward} ₡`, '#ffcc00'));
+          updateHUD();
+        }
+      }
+
+      draw(c) {
+        c.save();
+        c.shadowBlur = 12;
+        c.shadowColor = this.slowTimer > 0 ? '#00aaff' : this.color;
+        c.fillStyle = this.slowTimer > 0 ? '#00aaff' : this.color;
+        c.strokeStyle = '#ffffff';
+        c.lineWidth = 1.5;
+
+        // Draw diamond / polygonal enemy body
+        c.beginPath();
+        c.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        c.fill();
+        c.stroke();
+
+        // HP Bar
+        if (this.hp < this.maxHp) {
+          const barW = this.size * 2.2;
+          const barH = 4;
+          const hpRatio = Math.max(0, this.hp / this.maxHp);
+          c.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          c.fillRect(this.x - barW / 2, this.y - this.size - 10, barW, barH);
+          c.fillStyle = hpRatio > 0.5 ? '#00ff66' : hpRatio > 0.25 ? '#ffcc00' : '#ff0055';
+          c.fillRect(this.x - barW / 2, this.y - this.size - 10, barW * hpRatio, barH);
+        }
+        c.restore();
+      }
+    }
+
+    // --- TOWER CLASS ---
+    class Tower {
+      constructor(col, row, typeKey) {
+        this.col = col;
+        this.row = row;
+        this.x = (col + 0.5) * cellW;
+        this.y = (row + 0.5) * cellH;
+        this.typeKey = typeKey;
+        this.spec = TOWER_SPECS[typeKey];
+        
+        this.level = 1;
+        this.damage = this.spec.damage;
+        this.range = this.spec.range;
+        this.fireRate = this.spec.fireRate;
+        this.cooldown = 0;
+        this.rotation = 0;
+        this.totalInvested = this.spec.cost;
+      }
+
+      upgrade() {
+        const cost = this.getUpgradeCost();
+        if (state.credits >= cost) {
+          state.credits -= cost;
+          this.totalInvested += cost;
+          this.level++;
+          this.damage = Math.round(this.damage * 1.35);
+          this.range = Math.round(this.range * 1.15);
+          sound.playShot(800, 0.15, 'triangle');
+          updateHUD();
+          return true;
+        }
+        return false;
+      }
+
+      getUpgradeCost() {
+        return Math.round(this.spec.cost * Math.pow(1.3, this.level));
+      }
+
+      getSellValue() {
+        return Math.round(this.totalInvested * 0.75);
+      }
+
+      update(dt) {
+        if (this.cooldown > 0) {
+          this.cooldown -= dt;
+        }
+
+        // Find Target
+        let target = null;
+        let bestProgress = -1;
+
+        for (const enemy of enemies) {
+          const dist = Math.hypot(enemy.x - this.x, enemy.y - this.y);
+          if (dist <= this.range) {
+            // Target furthest along path
+            const progress = enemy.waypointIndex + (1 - dist / 1000);
+            if (progress > bestProgress) {
+              bestProgress = progress;
+              target = enemy;
+            }
+          }
+        }
+
+        if (target) {
+          this.rotation = Math.atan2(target.y - this.y, target.x - this.x);
+
+          if (this.cooldown <= 0) {
+            this.shoot(target);
+            this.cooldown = this.fireRate;
+          }
+        }
+      }
+
+      shoot(target) {
+        sound.playShot(
+          this.typeKey === 'RAILGUN' ? 200 : this.typeKey === 'PLASMA' ? 350 : 650, 
+          0.12, 
+          this.typeKey === 'TESLA' ? 'sawtooth' : 'sine'
+        );
+
+        if (this.typeKey === 'CRYO') {
+          // Beam effect
+          target.slowTimer = 1.2;
+          target.takeDamage(this.damage, this.spec.color);
+          // Visual beam particle
+          particles.push(new Particle(target.x, target.y, this.spec.color, 1, Math.random() * Math.PI * 2, 0.2, 3));
+        } else if (this.typeKey === 'TESLA') {
+          // Chain lightning effect
+          let chainCount = 0;
+          let currentTarget = target;
+          let hitSet = new Set();
+          
+          while (currentTarget && chainCount < (this.spec.chain || 3)) {
+            hitSet.add(currentTarget);
+            currentTarget.takeDamage(this.damage * Math.pow(0.8, chainCount), this.spec.color);
+            createExplosion(currentTarget.x, currentTarget.y, this.spec.color, 6);
+            chainCount++;
+
+            // Find next closest within range
+            let nextTarget = null;
+            let minDist = 120;
+            for (const e of enemies) {
+              if (!hitSet.has(e)) {
+                const d = Math.hypot(e.x - currentTarget.x, e.y - currentTarget.y);
+                if (d < minDist) {
+                  minDist = d;
+                  nextTarget = e;
+                }
+              }
+            }
+            currentTarget = nextTarget;
+          }
+        } else {
+          // Standard / Plasma / Railgun Projectile
+          projectiles.push(new Projectile(this.x, this.y, target, this));
+        }
+      }
+
+      draw(c) {
+        c.save();
+        c.translate(this.x, this.y);
+
+        // Tower Base Ring
+        c.shadowBlur = 10;
+        c.shadowColor = this.spec.color;
+        c.strokeStyle = this.spec.color;
+        c.lineWidth = 2;
+        c.fillStyle = 'rgba(10, 15, 30, 0.9)';
+
+        c.beginPath();
+        c.arc(0, 0, cellW * 0.38, 0, Math.PI * 2);
+        c.fill();
+        c.stroke();
+
+        // Tower Level Badges
+        if (this.level > 1) {
+          c.fillStyle = '#ffffff';
+          c.font = '800 10px var(--font-family)';
+          c.textAlign = 'center';
+          c.fillText(`v${this.level}`, 0, -cellH * 0.45);
+        }
+
+        // Turret Barrel (Rotated)
+        c.rotate(this.rotation);
+        c.fillStyle = this.spec.color;
+        c.fillRect(0, -3, cellW * 0.4, 6);
+
+        // Turret Core Node
+        c.beginPath();
+        c.arc(0, 0, cellW * 0.18, 0, Math.PI * 2);
+        c.fill();
+
+        c.restore();
+      }
+    }
+
+    // --- PROJECTILE CLASS ---
+    class Projectile {
+      constructor(x, y, target, tower) {
+        this.x = x;
+        this.y = y;
+        this.target = target;
+        this.tower = tower;
+        this.color = tower.spec.color;
+        this.speed = tower.typeKey === 'RAILGUN' ? 1200 : 650;
+        this.damage = tower.damage;
+        this.markedForDeletion = false;
+        this.targetX = target.x;
+        this.targetY = target.y;
+      }
+
+      update(dt) {
+        if (this.target && !this.target.markedForDeletion) {
+          this.targetX = this.target.x;
+          this.targetY = this.target.y;
+        }
+
+        const dx = this.targetX - this.x;
+        const dy = this.targetY - this.y;
+        const dist = Math.hypot(dx, dy);
+        const moveDist = this.speed * dt;
+
+        // Trail particles
+        particles.push(new Particle(this.x, this.y, this.color, 0.5, Math.random() * Math.PI * 2, 0.15, 2));
+
+        if (dist <= moveDist) {
+          this.x = this.targetX;
+          this.y = this.targetY;
+          this.onHit();
+        } else {
+          this.x += (dx / dist) * moveDist;
+          this.y += (dy / dist) * moveDist;
+        }
+      }
+
+      onHit() {
+        this.markedForDeletion = true;
+
+        if (this.tower.spec.splash > 0) {
+          // Splash Area Damage
+          createExplosion(this.x, this.y, this.color, 35);
+          for (const e of enemies) {
+            if (Math.hypot(e.x - this.x, e.y - this.y) <= this.tower.spec.splash) {
+              e.takeDamage(this.damage, this.color);
+            }
+          }
+        } else {
+          // Single Target Damage
+          if (this.target && !this.target.markedForDeletion) {
+            this.target.takeDamage(this.damage, this.color);
+            createExplosion(this.x, this.y, this.color, 12);
+          }
+        }
+      }
+
+      draw(c) {
+        c.save();
+        c.shadowBlur = 12;
+        c.shadowColor = this.color;
+        c.fillStyle = this.color;
+        c.beginPath();
+        c.arc(this.x, this.y, this.tower.typeKey === 'RAILGUN' ? 5 : 3.5, 0, Math.PI * 2);
+        c.fill();
+        c.restore();
+      }
+    }
+
+    // --- GAME LOGIC ENGINE ---
+    function damageCore(amount) {
+      state.health -= amount;
+      sound.playCoreDamage();
+      updateHUD();
+      
+      // Screen Shake / Flash
+      const container = document.getElementById('canvas-container');
+      container.style.boxShadow = '0 0 40px rgba(255, 0, 85, 0.8)';
+      setTimeout(() => {
+        container.style.boxShadow = '0 0 35px rgba(0, 0, 0, 0.8), 0 0 15px rgba(0, 243, 255, 0.15)';
+      }, 300);
+
+      if (state.health <= 0) {
+        state.health = 0;
+        endGame();
+      }
+    }
+
+    function updateHUD() {
+      document.getElementById('val-health').textContent = `${state.health} HP`;
+      document.getElementById('val-credits').textContent = `${state.credits} ₡`;
+      document.getElementById('val-score').textContent = state.score.toLocaleString();
+      document.getElementById('val-wave').textContent = `${state.wave} / ∞`;
+
+      // Update tower selector card affordable state
+      document.querySelectorAll('.tower-card').forEach(card => {
+        const type = card.dataset.type;
+        const spec = TOWER_SPECS[type];
+        if (state.credits < spec.cost) {
+          card.classList.add('disabled');
+        } else {
+          card.classList.remove('disabled');
+        }
+      });
+
+      // Update tower panel if open
+      if (state.selectedTowerInstance) {
+        const t = state.selectedTowerInstance;
+        document.getElementById('p-name').textContent = t.spec.name;
+        document.getElementById('p-stats').textContent = `Lvl ${t.level} | Dmg: ${t.damage} | Rng: ${t.range}`;
+        document.getElementById('p-upgrade').textContent = `Upgrade (${t.getUpgradeCost()} ₡)`;
+        document.getElementById('p-sell').textContent = `Sell (${t.getSellValue()} ₡)`;
+      }
+    }
+
+    function startNextWave() {
+      if (state.isWaveActive) return;
+      state.wave++;
+      state.isWaveActive = true;
+      updateHUD();
+
+      const waveMult = Math.pow(1.15, state.wave - 1);
+      const enemyCount = 8 + state.wave * 3;
+      let spawned = 0;
+
+      const spawnInterval = setInterval(() => {
+        if (!state.isGameRunning) {
+          clearInterval(spawnInterval);
+          return;
+        }
+
+        // Determine enemy type based on wave progression
+        let template = ENEMY_TYPES[0]; // SCOUT
+        const rand = Math.random();
+
+        if (state.wave % 5 === 0 && spawned === 0) {
+          template = ENEMY_TYPES[3]; // BOSS every 5 waves
+        } else if (state.wave >= 3 && rand > 0.6) {
+          template = ENEMY_TYPES[2]; // TANK
+        } else if (state.wave >= 2 && rand > 0.3) {
+          template = ENEMY_TYPES[1]; // DRONE
+        }
+
+        enemies.push(new Enemy(template, waveMult));
+        spawned++;
+
+        if (spawned >= enemyCount) {
+          clearInterval(spawnInterval);
+        }
+      }, Math.max(300, 1200 - state.wave * 40));
+    }
+
+    function startGame() {
+      sound.init();
+      state.health = 100;
+      state.credits = 250;
+      state.score = 0;
+      state.wave = 0;
+      state.kills = 0;
+      state.isGameRunning = true;
+      state.isWaveActive = false;
+      state.selectedTowerInstance = null;
+
+      towers = [];
+      enemies = [];
+      projectiles = [];
+      particles = [];
+      floatingTexts = [];
+
+      document.getElementById('screen-start').classList.add('hidden');
+      document.getElementById('screen-gameover').classList.add('hidden');
+      document.getElementById('tower-panel').classList.add('hidden');
+
+      updateHUD();
+      startNextWave();
+    }
+
+    function endGame() {
+      state.isGameRunning = false;
+      if (state.score > state.highScore) {
+        state.highScore = state.score;
+        localStorage.setItem('cyber_pulse_highscore', state.highScore.toString());
+      }
+
+      document.getElementById('go-score').textContent = state.score.toLocaleString();
+      document.getElementById('go-waves').textContent = state.wave.toString();
+      document.getElementById('go-kills').textContent = state.kills.toString();
+      document.getElementById('go-highscore').textContent = state.highScore.toLocaleString();
+      document.getElementById('screen-gameover').classList.remove('hidden');
+    }
+
+    // --- MAIN RENDER & UPDATE LOOP ---
+    let lastTime = performance.now();
+
+    function gameLoop(now) {
+      const dt = Math.min(0.1, (now - lastTime) / 1000) * state.gameSpeed;
+      lastTime = now;
+
+      if (state.isGameRunning) {
+        // Update Game Objects
+        towers.forEach(t => t.update(dt));
+        
+        enemies.forEach(e => e.update(dt));
+        enemies = enemies.filter(e => !e.markedForDeletion);
+
+        projectiles.forEach(p => p.update(dt));
+        projectiles = projectiles.filter(p => !p.markedForDeletion);
+
+        particles.forEach(p => p.update(dt));
+        particles = particles.filter(p => p.life > 0);
+
+        floatingTexts.forEach(ft => ft.update(dt));
+        floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+
+        // Check if Wave Completed
+        if (state.isWaveActive && enemies.length === 0) {
+          state.isWaveActive = false;
+          state.credits += 50 + state.wave * 10; // Wave bonus
+          updateHUD();
+        }
+      }
+
+      // Render Scene
+      drawScene();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function drawScene() {
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. Draw Grid Lines
+      ctx.strokeStyle = 'rgba(0, 243, 255, 0.04)';
+      ctx.lineWidth = 1;
+      for (let c = 0; c <= gridCols; c++) {
+        ctx.beginPath();
+        ctx.moveTo(c * cellW, 0);
+        ctx.lineTo(c * cellW, height);
+        ctx.stroke();
+      }
+      for (let r = 0; r <= gridRows; r++) {
+        ctx.beginPath();
+        ctx.moveTo(0, r * cellH);
+        ctx.lineTo(width, r * cellH);
+        ctx.stroke();
+      }
+
+      // 2. Draw Winding Path Circuit Track
+      if (waypoints.length > 1) {
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00f3ff';
+        ctx.strokeStyle = 'rgba(0, 243, 255, 0.25)';
+        ctx.lineWidth = cellW * 0.65;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.beginPath();
+        ctx.moveTo(waypoints[0].x, waypoints[0].y);
+        for (let i = 1; i < waypoints.length; i++) {
+          ctx.lineTo(waypoints[i].x, waypoints[i].y);
+        }
+        ctx.stroke();
+
+        // Inner glowing core track
+        ctx.strokeStyle = 'rgba(0, 243, 255, 0.6)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 3. Draw Core Platform (Bottom Target)
+      if (waypoints.length > 0) {
+        const lastWp = waypoints[waypoints.length - 1];
+        ctx.save();
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ff0055';
+        ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
+        ctx.strokeStyle = '#ff0055';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(lastWp.x, lastWp.y, cellW * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 4. Draw Game Entities
+      towers.forEach(t => t.draw(ctx));
+      enemies.forEach(e => e.draw(ctx));
+      projectiles.forEach(p => p.draw(ctx));
+      particles.forEach(p => p.draw(ctx));
+      floatingTexts.forEach(ft => ft.draw(ctx));
+
+      // 5. Draw Placement Hover Preview & Range Rings
+      if (state.isGameRunning && state.mouse.col >= 0 && state.mouse.col < gridCols && state.mouse.row >= 0 && state.mouse.row < gridRows) {
+        const cx = (state.mouse.col + 0.5) * cellW;
+        const cy = (state.mouse.row + 0.5) * cellH;
+        const spec = TOWER_SPECS[state.selectedTowerType];
+
+        // Hover Box
+        ctx.save();
+        ctx.fillStyle = state.mouse.validTile ? 'rgba(0, 243, 255, 0.2)' : 'rgba(255, 0, 85, 0.25)';
+        ctx.strokeStyle = state.mouse.validTile ? '#00f3ff' : '#ff0055';
+        ctx.lineWidth = 2;
+        ctx.fillRect(state.mouse.col * cellW, state.mouse.row * cellH, cellW, cellH);
+        ctx.strokeRect(state.mouse.col * cellW, state.mouse.row * cellH, cellW, cellH);
+
+        // Range Circle Preview
+        if (spec) {
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = spec.color;
+          ctx.strokeStyle = spec.color;
+          ctx.setLineDash([6, 6]);
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(cx, cy, spec.range, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // 6. Draw Selected Tower Range Ring
+      if (state.selectedTowerInstance) {
+        const t = state.selectedTowerInstance;
+        ctx.save();
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = t.spec.color;
+        ctx.strokeStyle = t.spec.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // --- EVENT LISTENERS & INPUT HANDLERS ---
+    function setupInput() {
+      // Mouse move & placement check
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        state.mouse.x = e.clientX - rect.left;
+        state.mouse.y = e.clientY - rect.top;
+        state.mouse.col = Math.floor(state.mouse.x / cellW);
+        state.mouse.row = Math.floor(state.mouse.y / cellH);
+
+        const key = `${state.mouse.col},${state.mouse.row}`;
+        const isPath = pathGridCells.has(key);
+        const hasTower = towers.some(t => t.col === state.mouse.col && t.row === state.mouse.row);
+        const canAfford = state.credits >= TOWER_SPECS[state.selectedTowerType].cost;
+
+        state.mouse.validTile = !isPath && !hasTower && canAfford;
+      });
+
+      // Canvas click (Place or Select Tower)
+      canvas.addEventListener('click', () => {
+        if (!state.isGameRunning) return;
+        sound.init();
+
+        const col = state.mouse.col;
+        const row = state.mouse.row;
+
+        // Check if clicked existing tower
+        const existing = towers.find(t => t.col === col && t.row === row);
+        if (existing) {
+          state.selectedTowerInstance = existing;
+          document.getElementById('tower-panel').classList.remove('hidden');
+          updateHUD();
+          return;
+        } else {
+          state.selectedTowerInstance = null;
+          document.getElementById('tower-panel').classList.add('hidden');
+        }
+
+        // Place new tower if valid
+        if (state.mouse.validTile) {
+          const spec = TOWER_SPECS[state.selectedTowerType];
+          state.credits -= spec.cost;
+          towers.push(new Tower(col, row, state.selectedTowerType));
+          sound.playShot(400, 0.1, 'sine');
+          updateHUD();
+
+          // Re-evaluate tile validity
+          state.mouse.validTile = state.credits >= spec.cost;
+        }
+      });
+
+      // Tower Deck Selector Buttons
+      document.querySelectorAll('.tower-card').forEach(card => {
+        card.addEventListener('click', () => {
+          document.querySelectorAll('.tower-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          state.selectedTowerType = card.dataset.type;
+          state.selectedTowerInstance = null;
+          document.getElementById('tower-panel').classList.add('hidden');
+        });
+      });
+
+      // Keyboard Shortcuts (1-5 for towers)
+      window.addEventListener('keydown', (e) => {
+        const types = ['PULSE', 'PLASMA', 'CRYO', 'TESLA', 'RAILGUN'];
+        const num = parseInt(e.key, 10);
+        if (num >= 1 && num <= 5) {
+          const cards = document.querySelectorAll('.tower-card');
+          if (cards[num - 1]) cards[num - 1].click();
+        }
+      });
+
+      // Upgrade / Sell Panel Actions
+      document.getElementById('p-upgrade').addEventListener('click', () => {
+        if (state.selectedTowerInstance) {
+          state.selectedTowerInstance.upgrade();
+        }
+      });
+
+      document.getElementById('p-sell').addEventListener('click', () => {
+        if (state.selectedTowerInstance) {
+          const t = state.selectedTowerInstance;
+          state.credits += t.getSellValue();
+          createExplosion(t.x, t.y, '#ff0055', 15);
+          towers = towers.filter(tower => tower !== t);
+          state.selectedTowerInstance = null;
+          document.getElementById('tower-panel').classList.add('hidden');
+          sound.playShot(250, 0.15, 'sawtooth');
+          updateHUD();
+        }
+      });
+
+      // HUD Action Buttons
+      document.getElementById('btn-next-wave').addEventListener('click', () => {
+        sound.init();
+        startNextWave();
+      });
+
+      const btnSpeed = document.getElementById('btn-speed');
+      btnSpeed.addEventListener('click', () => {
+        if (state.gameSpeed === 1) {
+          state.gameSpeed = 2;
+          btnSpeed.textContent = '⏩ 2x Speed';
+        } else {
+          state.gameSpeed = 1;
+          btnSpeed.textContent = '▶️ 1x Speed';
+        }
+      });
+
+      // Sound Toggle Button
+      const btnSound = document.getElementById('btn-sound');
+      btnSound.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sound.muted = !sound.muted;
+        btnSound.textContent = sound.muted ? '🔇' : '🔊';
+      });
+
+      // Start & Restart Overlay Buttons
+      document.getElementById('btn-start').addEventListener('click', startGame);
+      document.getElementById('btn-restart').addEventListener('click', startGame);
+    }
+
+    // --- INITIALIZATION ---
+    window.addEventListener('DOMContentLoaded', () => {
+      resizeCanvas();
+      setupInput();
+      requestAnimationFrame(gameLoop);
+    });
+  </script>
+</body>
+</html>

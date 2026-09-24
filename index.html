@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kabinett — Mark Waldeis</title>
+  <meta name="description" content="Alle spielbaren Spiele, Szenen und Websites von Mark Waldeis an einem Ort.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Commissioner:wght@500..750&family=Fraunces:ital,opsz,wght@0,9..144,560;1,9..144,560;1,9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%231c1914'/%3E%3Ccircle cx='32' cy='32' r='18' fill='none' stroke='%23a33b28' stroke-width='3'/%3E%3Ctext x='32' y='38' text-anchor='middle' font-family='Georgia' font-size='16' fill='%23f4ead7'%3EMW%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <a class="skip" href="#wand">Zur Wand</a>
+
+  <header class="mast">
+    <div class="mast-copy">
+      <p class="kicker">Persönliches Arbeitsarchiv</p>
+      <h1 class="wordmark">Kabinett</h1>
+      <p class="lede">Spiele, Szenen und Websites, die fertig geworden sind. Ein Klick öffnet sie hier. Neue kommen unten dazu, ohne dass die alten verschwinden.</p>
+    </div>
+    <div class="seal" aria-hidden="true">
+      <span>MW</span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="filters" role="tablist" aria-label="Art filtern">
+      <button type="button" class="chip is-on" data-kind="alle" role="tab" aria-selected="true">Alle <em id="count-alle">0</em></button>
+      <button type="button" class="chip" data-kind="Spiel" role="tab" aria-selected="false">Spiele <em id="count-Spiel">0</em></button>
+      <button type="button" class="chip" data-kind="Szene" role="tab" aria-selected="false">Szenen <em id="count-Szene">0</em></button>
+      <button type="button" class="chip" data-kind="Website" role="tab" aria-selected="false">Websites <em id="count-Website">0</em></button>
+    </div>
+    <label class="search">
+      <span class="sr">Suchen</span>
+      <input id="search" type="search" placeholder="Suchen, zum Beispiel Jet, Fabrik, 3D" autocomplete="off">
+    </label>
+  </div>
+
+  <main>
+    <p id="status" class="status" role="status"></p>
+    <div id="wand" class="wall"></div>
+
+    <section class="adder" id="hinzufuegen" aria-labelledby="add-title">
+      <div class="adder-copy">
+        <p class="kicker">Für später</p>
+        <h2 id="add-title">Neues Projekt an die Wand</h2>
+        <p>Ein Link bleibt in diesem Browser gespeichert. Damit er auf jedem Gerät erscheint, kommt der Eintrag in <code>projects.json</code> und ein statischer Ordner nach <code>spiele/dein-name/</code>. Die Schritte stehen in der README des Repos.</p>
+      </div>
+      <form id="add-form">
+        <label>Titel
+          <input name="title" required maxlength="80" placeholder="Name des Projekts">
+        </label>
+        <label>Art
+          <select name="kind">
+            <option>Spiel</option>
+            <option>Szene</option>
+            <option>Website</option>
+          </select>
+        </label>
+        <label>Adresse
+          <input name="href" required placeholder="https://… oder spiele/mein-spiel/index.html">
+        </label>
+        <label>Kurztext
+          <input name="blurb" maxlength="180" placeholder="Ein Satz, was man dort tut">
+        </label>
+        <label class="check">
+          <input name="external" type="checkbox">
+          Nur als Link öffnen, nicht einbetten
+        </label>
+        <div class="form-row">
+          <button type="submit" class="btn btn-ink">An die Wand hängen</button>
+          <button type="button" class="btn btn-ghost" id="export">Eigene Einträge als JSON</button>
+        </div>
+        <p id="form-msg" class="form-msg" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="colophon">
+    <p>Mark Waldeis · Kabinett · Die Wand liest <code>projects.json</code>.</p>
+  </footer>
+
+  <div id="stage" class="stage" hidden>
+    <div class="stage-bar">
+      <button type="button" id="stage-close" class="btn btn-paper">Zurück ins Kabinett</button>
+      <p id="stage-title"></p>
+      <a id="stage-open" class="btn btn-ghost" target="_blank" rel="noopener">Eigenes Fenster</a>
+    </div>
+    <iframe id="stage-frame" title="Geöffnetes Projekt" allow="fullscreen; gamepad; autoplay" allowfullscreen></iframe>
+    <div id="stage-note" class="stage-note" hidden></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

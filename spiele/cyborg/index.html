@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Futuristic Cyborg — Reine Three.js Code-Version</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0e13; overflow: hidden; font-family: system-ui, sans-serif; }
+  #app { width: 100vw; height: 100vh; }
+  #hud {
+    position: fixed; top: 14px; left: 14px; color: #cfe9ff;
+    background: rgba(10,16,24,.72); border: 1px solid rgba(53,240,255,.35);
+    border-radius: 10px; padding: 10px 14px; font-size: 13px; line-height: 1.5;
+    backdrop-filter: blur(6px); user-select: none; pointer-events: none;
+  }
+  #hud b { color: #35f0ff; }
+  #hud span { color: #8fa3b5; }
+  #err {
+    display: none; position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+    max-width: 560px; color: #ffd7d7; background: rgba(40,8,12,.92);
+    border: 1px solid rgba(255,90,90,.6); border-radius: 10px;
+    padding: 16px 20px; font-size: 14px; line-height: 1.6; white-space: pre-wrap;
+  }
+  #loading {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    color: #35f0ff; font-size: 15px; letter-spacing: 1px; pointer-events: none;
+  }
+  #dbg {
+    position: fixed; bottom: 10px; left: 14px; color: #5f7a8f;
+    font-size: 11px; font-family: monospace; pointer-events: none;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/addons/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="loading">CYBORG WIRD GELADEN …</div>
+<div id="dbg"></div>
+<div id="err"></div>
+<script>
+  // Diagnose-Overlay: läuft auch dann, wenn Module/CDN scheitern
+  window.__cyborgStarted = false;
+  function showErr(msg) {
+    var el = document.getElementById('err');
+    el.style.display = 'block';
+    el.textContent = msg;
+    var l = document.getElementById('loading');
+    if (l) l.style.display = 'none';
+  }
+  window.addEventListener('error', function (e) {
+    if (window.__cyborgStarted) return;
+    showErr('FEHLER: ' + (e.message || e.type) + '\nDatei: ' + (e.filename || '?') + ' Zeile: ' + (e.lineno || '?'));
+  }, true);
+  setTimeout(function () {
+    if (!window.__cyborgStarted && document.getElementById('err').style.display !== 'block') {
+      showErr('TIMEOUT: Three.js wurde nicht geladen.\nMögliche Ursachen:\n1. Seite per file:// geöffnet statt über http://127.0.0.1:8000/index.html\n2. Browser zu alt (Import-Maps brauchen Chrome 89+, Edge 89+, Firefox 108+, Safari 16.4+)\n\nTipp: F12-Konsole öffnen und mir die rote Meldung schicken.');
+    }
+  }, 10000);
+</script>
+<div id="hud">
+  <b>FUTURISTIC CYBORG</b> <span>— 100% Code, kein GLB</span><br>
+  43 Nodes (41 Joints + Armature + Mesh) &nbsp;·&nbsp; PBR-Maps + Bloom &nbsp;·&nbsp; Idle-Animation<br>
+  <span>Ziehen: Orbit · Scroll: Zoom · Rechtsklick: Pan · Start via lokalem Server (z. B. npx serve)</span>
+</div>
+<script type="module">
+  try {
+    const { createCyborgScene } = await import('./cyborg-character.js');
+    const mount = document.getElementById('app');
+    // WebGL-Verfügbarkeit prüfen
+    const testCanvas = document.createElement('canvas');
+    if (!window.WebGL2RenderingContext && !testCanvas.getContext('webgl')) {
+      throw new Error('WebGL wird von diesem Browser nicht unterstützt.');
+    }
+    const handle = createCyborgScene(mount);
+    window.__cyborgHandle = handle;
+    window.__cyborgStarted = true;
+    document.getElementById('loading').style.display = 'none';
+    setInterval(function () {
+      try { document.getElementById('dbg').textContent = handle.debugStatus(); }
+      catch (e) { /* ignore */ }
+    }, 500);
+  } catch (err) {
+    showErr('START-FEHLER: ' + (err && err.message ? err.message : err) +
+      '\n\nSTACK:\n' + (err && err.stack ? err.stack.split('\n').slice(0, 6).join('\n') : 'n/a'));
+    console.error(err);
+  }
+</script>
+</body>
+</html>

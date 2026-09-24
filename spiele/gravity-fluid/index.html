@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gravity &amp; Neon Fluid Engine</title>
+<style>
+  :root {
+    --bg: #04060d;
+    --ink: #c9d4ea;
+    --dim: #7d8db0;
+    --accent: #6cf;
+    --line: rgba(140, 165, 220, 0.14);
+    --panel: rgba(9, 13, 24, 0.62);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    overscroll-behavior: none;
+  }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  #fluid { position: fixed; inset: 0; display: block; touch-action: none; cursor: crosshair; }
+  .panel {
+    position: fixed; top: 16px; left: 16px; z-index: 10;
+    min-width: 238px;
+    padding: 16px 18px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    user-select: none;
+  }
+  .brand { font-size: 13px; font-weight: 700; letter-spacing: 3.5px; color: #eaf2ff; }
+  .brand span { color: var(--accent); }
+  .sub { margin-top: 3px; font-size: 9.5px; letter-spacing: 2.2px; color: var(--dim); text-transform: uppercase; }
+  .divider { height: 1px; margin: 12px 0; background: var(--line); }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .row:last-child { margin-bottom: 0; }
+  button {
+    flex: 1; padding: 8px 10px;
+    font-family: inherit; font-size: 10px; letter-spacing: 1.8px; font-weight: 600;
+    text-transform: uppercase;
+    color: var(--dim); background: rgba(255, 255, 255, 0.045);
+    border: 1px solid var(--line); border-radius: 9px; cursor: pointer;
+    transition: color 0.18s, border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  }
+  button:hover { color: var(--ink); border-color: rgba(160, 190, 255, 0.35); }
+  button:active { transform: translateY(1px); }
+  button.toggle.on {
+    color: var(--accent);
+    border-color: rgba(102, 204, 255, 0.55);
+    box-shadow: 0 0 14px rgba(102, 204, 255, 0.22), inset 0 0 12px rgba(102, 204, 255, 0.08);
+    background: rgba(102, 204, 255, 0.07);
+  }
+  #btnGravity.on {
+    color: #8ef;
+    border-color: rgba(150, 220, 170, 0.5);
+    box-shadow: 0 0 14px rgba(140, 230, 160, 0.2), inset 0 0 12px rgba(140, 230, 160, 0.07);
+    background: rgba(140, 230, 160, 0.06);
+  }
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .slider-row label { font-size: 9.5px; letter-spacing: 1.8px; color: var(--dim); white-space: nowrap; }
+  input[type="range"] { flex: 1; accent-color: var(--accent); height: 18px; cursor: pointer; }
+  .slider-row output { font-size: 11px; color: var(--accent); font-weight: 700; min-width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
+  .stats {
+    display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 9.5px; letter-spacing: 1.6px; color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .hint {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 10;
+    padding: 9px 18px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    font-size: 10.5px; letter-spacing: 1.1px; color: var(--dim);
+    white-space: nowrap; user-select: none;
+  }
+  .hint b { color: var(--accent); font-weight: 700; }
+  .hint .sep { margin: 0 8px; opacity: 0.4; }
+  @media (max-width: 560px) {
+    .panel { top: 10px; left: 10px; right: 10px; min-width: 0; }
+    .hint { bottom: 10px; font-size: 9px; white-space: normal; text-align: center; width: calc(100% - 20px); }
+  }
+</style>
+</head>
+<body>
+<canvas id="fluid"></canvas>
+
+<div class="panel" id="panel">
+  <div class="brand">NEON <span>FLUID</span> ENGINE</div>
+  <div class="sub">Verlet metaball simulation</div>
+  <div class="divider"></div>
+  <div class="row">
+    <button id="btnReset" title="Randomize all particle positions">Reset</button>
+  </div>
+  <div class="row">
+    <button id="btnGravity" class="toggle on" title="Toggle the downward gravity field">Gravity</button>
+    <button id="btnVortex" class="toggle" title="Keep the black-hole vortex active at the center">Vortex</button>
+  </div>
+  <div class="row slider-row">
+    <label for="countSlider">Particles</label>
+    <input id="countSlider" type="range" min="300" max="1500" step="50" value="700" />
+    <output id="countVal">700</output>
+  </div>
+  <div class="stats">
+    <span id="statFps">60 FPS</span>
+    <span id="statCount">700 p</span>
+  </div>
+</div>
+
+<div class="hint" id="hint">
+  <b>Move</b> repel<span class="sep">·</span><b>Click</b> attract<span class="sep">·</span><b>Hold</b> black-hole vortex
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   GRAVITY & NEON FLUID ENGINE
+   Self-contained particle-fluid simulation.
+   - Verlet-style liquid physics (pressure + cohesion + viscosity)
+   - 500+ glowing neon particles, additive metaball rendering
+   - Cursor repels, quick click attracts, hold creates a
+     swirling black-hole vortex at the center
+   ============================================================ */
+
+/* ----------------------------- Config ----------------------------- */
+const CFG = {
+  step: 1 / 60,           // fixed simulation step (s)
+  subSteps: 2,            // physics sub-steps per frame
+  damping: 0.98,          // velocity damping per sub-step
+  maxSpeed: 2400,         // px/s safety clamp
+  gravity: 950,           // downward acceleration px/s^2
+  pressRadius: 13,        // px incompressible particle core
+  interRadius: 30,        // px cohesion range
+  pressure: 2000,         // repulsion strength
+  cohesion: 800,          // attraction strength
+  viscosity: 12,          // neighbor velocity matching
+  jitter: 10,             // tiny noise to prevent lattices
+  repelRadius: 120,       // cursor field radius (px)
+  repelForce: 9000,       // cursor repulsion strength
+  attractRadius: 270,     // click pull radius (px)
+  attractForce: 8000,     // click pull strength
+  attractTime: 0.55,      // seconds the click-pull lasts
+  holdDelay: 170,         // ms of press before vortex activates
+  vortexRadiusFrac: 0.42, // vortex radius as fraction of max(w,h)
+  swirl: 2400,            // tangential vortex acceleration
+  pull: 2100,             // inward vortex acceleration
+  horizon: 15,            // px inside this radius particles get re-emitted
+  maxHueDrift: 14         // max hue drift (deg/s)
+};
+/* ----------------------------- DOM refs ----------------------------- */
+const canvas = document.getElementById('fluid');
+const ctx = canvas.getContext('2d', { alpha: false });
+const elFps = document.getElementById('statFps');
+const elStatCount = document.getElementById('statCount');
+const slider = document.getElementById('countSlider');
+const countVal = document.getElementById('countVal');
+const btnGravity = document.getElementById('btnGravity');
+const btnVortex = document.getElementById('btnVortex');
+const btnReset = document.getElementById('btnReset');
+
+/* ----------------------------- State ----------------------------- */
+let W = 0, H = 0, DPR = 1, CX = 0, CY = 0;
+let count = 0;
+let PX, PY, PVX, PVY, PHUE, PDRIFT, PSIZE, AX, AY;
+let gravityOn = true;
+let vortexPersistent = false;
+let vortexIntensity = 0;
+let pulse = null;         // active click-pull {x, y, t}
+let time = 0;
+let vignette = null;
+const pointer = {
+  x: -1e4, y: -1e4, active: false, id: -1,
+  down: false, downX: 0, downY: 0, downT: 0,
+  holdTimer: 0, holding: false
+};
+
+/* ----------------------------- Glow sprite atlas ----------------------------- */
+const SPR = 64;
+const HUE_STEPS = 120;    // one sprite per 3° of hue
+const atlas = [];
+
+function buildAtlas() {
+  for (let h = 0; h < HUE_STEPS; h++) {
+    const c = document.createElement('canvas');
+    c.width = SPR;
+    c.height = SPR;
+    const g = c.getContext('2d');
+    const hue = Math.round((h * 360) / HUE_STEPS);
+    const grad = g.createRadialGradient(SPR / 2, SPR / 2, 0, SPR / 2, SPR / 2, SPR / 2);
+    grad.addColorStop(0, 'hsla(' + hue + ',100%,80%,1)');
+    grad.addColorStop(0.18, 'hsla(' + hue + ',100%,64%,0.85)');
+    grad.addColorStop(0.45, 'hsla(' + hue + ',95%,56%,0.28)');
+    grad.addColorStop(1, 'hsla(' + hue + ',90%,50%,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, SPR, SPR);
+    atlas.push(c);
+  }
+}
+
+/* ----------------------------- Particles ----------------------------- */
+function alloc(n) {
+  PX = new Float32Array(n);   PY = new Float32Array(n);
+  PVX = new Float32Array(n);  PVY = new Float32Array(n);
+  PHUE = new Float32Array(n); PDRIFT = new Float32Array(n);
+  PSIZE = new Float32Array(n);
+  AX = new Float32Array(n);   AY = new Float32Array(n);
+}
+
+function spawn(i) {
+  PX[i] = Math.random() * W;
+  PY[i] = Math.random() * H;
+  PVX[i] = (Math.random() - 0.5) * 80;
+  PVY[i] = (Math.random() - 0.5) * 80;
+  PHUE[i] = Math.random() * 360;
+  PDRIFT[i] = (Math.random() - 0.5) * 2 * CFG.maxHueDrift;
+  PSIZE[i] = 1.5 + Math.random() * 1.2;
+}
+
+function setCount(n) {
+  n = Math.max(300, Math.min(1500, n | 0));
+  const old = PX ? PX.length : 0;
+  const ox = PX, oy = PY, ovx = PVX, ovy = PVY;
+  const oh = PHUE, od = PDRIFT, os = PSIZE;
+  alloc(n);
+  const m = Math.min(old, n);
+  for (let i = 0; i < m; i++) {
+    PX[i] = ox[i];   PY[i] = oy[i];
+    PVX[i] = ovx[i]; PVY[i] = ovy[i];
+    PHUE[i] = oh[i]; PDRIFT[i] = od[i];
+    PSIZE[i] = os[i];
+  }
+  for (let i = m; i < n; i++) spawn(i);
+  count = n;
+  countVal.textContent = String(n);
+  elStatCount.textContent = n + ' p';
+}
+
+function reset() {
+  for (let i = 0; i < count; i++) spawn(i);
+  pulse = null;
+  vortexIntensity = 0;
+}
+/* ----------------------------- Spatial grid ----------------------------- */
+const GRID_OFFSET = 2048;
+let grid = new Map();
+
+function buildGrid() {
+  grid.clear();
+  const cell = CFG.interRadius;
+  for (let i = 0; i < count; i++) {
+    const k = (Math.floor(PX[i] / cell) + GRID_OFFSET) * 65536 +
+              (Math.floor(PY[i] / cell) + GRID_OFFSET);
+    let arr = grid.get(k);
+    if (!arr) { arr = []; grid.set(k, arr); }
+    arr.push(i);
+  }
+}
+
+/* ----------------------------- Physics ----------------------------- */
+function physicsStep(dt) {
+  buildGrid();
+  const N = count;
+  const pr = CFG.pressRadius, ir = CFG.interRadius;
+  const ir2 = ir * ir;
+  const cell = ir;
+  AX.fill(0); AY.fill(0);
+
+  // -- pairwise liquid forces (pressure + cohesion + viscosity) --
+  for (let i = 0; i < N; i++) {
+    const xi = PX[i], yi = PY[i];
+    const ci = Math.floor(xi / cell) + GRID_OFFSET;
+    const cj = Math.floor(yi / cell) + GRID_OFFSET;
+    for (let ox = -1; ox <= 1; ox++) {
+      const row = (ci + ox) * 65536;
+      for (let oy = -1; oy <= 1; oy++) {
+        const arr = grid.get(row + cj + oy);
+        if (!arr) continue;
+        for (let t = 0; t < arr.length; t++) {
+          const j = arr[t];
+          if (j <= i) continue;
+          const dx = PX[j] - xi, dy = PY[j] - yi;
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= ir2 || d2 < 1e-6) continue;
+          const d = Math.sqrt(d2);
+          const nx = dx / d, ny = dy / d;
+          let f;
+          if (d < pr) f = ((pr - d) / pr) * CFG.pressure;
+          else f = -((d - pr) / (ir - pr)) * CFG.cohesion;
+          AX[i] += nx * f; AY[i] += ny * f;
+          AX[j] -= nx * f; AY[j] -= ny * f;
+          const dvx = PVX[j] - PVX[i], dvy = PVY[j] - PVY[i];
+          const vf = CFG.viscosity * dt * 0.5;
+          PVX[i] += dvx * vf;  PVY[i] += dvy * vf;
+          PVX[j] -= dvx * vf;  PVY[j] -= dvy * vf;
+        }
+      }
+    }
+  }
+
+  // -- cursor repulsion --
+  if (pointer.active) {
+    const rr = CFG.repelRadius, rr2 = rr * rr;
+    const mx = pointer.x, my = pointer.y;
+    for (let i = 0; i < N; i++) {
+      const dx = PX[i] - mx, dy = PY[i] - my;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < rr2 && d2 > 1e-6) {
+        const d = Math.sqrt(d2);
+        const f = 1 - d / rr;
+        const a = f * f * CFG.repelForce;
+        AX[i] += (dx / d) * a;
+        AY[i] += (dy / d) * a;
+      }
+    }
+  }
+
+  // -- click attraction pulse --
+  if (pulse) {
+    const ra = CFG.attractRadius, ra2 = ra * ra;
+    const px = pulse.x, py = pulse.y;
+    for (let i = 0; i < N; i++) {
+      const dx = PX[i] - px, dy = PY[i] - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < ra2 && d2 > 1e-6) {
+        const d = Math.sqrt(d2);
+        const a = (1 - d / ra) * CFG.attractForce;
+        AX[i] -= (dx / d) * a;
+        AY[i] -= (dy / d) * a;
+      }
+    }
+  }
+
+  // -- black-hole vortex (swirl + pull, re-emit at the horizon) --
+  if (vortexIntensity > 0.004) {
+    const R = Math.max(W, H) * CFG.vortexRadiusFrac;
+    const R2 = R * R;
+    const hz = CFG.horizon;
+    const sw = CFG.swirl * vortexIntensity;
+    const pu = CFG.pull * vortexIntensity;
+    for (let i = 0; i < N; i++) {
+      const dx = PX[i] - CX, dy = PY[i] - CY;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= R2 || d2 < 1e-6) continue;
+      const d = Math.sqrt(d2);
+      if (d < hz) {  // absorbed -> colorful ejection
+        const a = Math.random() * Math.PI * 2;
+        const rr = R * 0.88;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        PX[i] = CX + ca * rr;
+        PY[i] = CY + sa * rr;
+        PVX[i] = ca * 140 + sa * 210;
+        PVY[i] = sa * 140 - ca * 210;
+        PHUE[i] = Math.random() * 360;
+        PSIZE[i] = 1.5 + Math.random() * 1.2;
+        continue;
+      }
+      const fall = 1 - d / R;
+      const tx = -dy / d, ty = dx / d;
+      const sf = sw * fall * (0.35 + 0.65 * fall);
+      const pf = pu * fall * fall;
+      AX[i] += tx * sf - (dx / d) * pf;
+      AY[i] += ty * sf - (dy / d) * pf;
+    }
+  }
+
+  // -- integrate (gravity, damping, jitter, walls, hue drift) --
+  const damp = CFG.damping;
+  const g = gravityOn ? CFG.gravity : 0;
+  const vmax = CFG.maxSpeed;   // px/s — velocities are stored in px/s
+  for (let i = 0; i < N; i++) {
+    PVX[i] = (PVX[i] + AX[i] * dt + (Math.random() * 2 - 1) * CFG.jitter) * damp;
+    PVY[i] = (PVY[i] + AY[i] * dt + g * dt + (Math.random() * 2 - 1) * CFG.jitter) * damp;
+    const sp2 = PVX[i] * PVX[i] + PVY[i] * PVY[i];
+    if (sp2 > vmax * vmax) {
+      const s = vmax / Math.sqrt(sp2);
+      PVX[i] *= s; PVY[i] *= s;
+    }
+    PX[i] += PVX[i] * dt;
+    PY[i] += PVY[i] * dt;
+    const R = 2;
+    if (PX[i] < R)          { PX[i] = R;         if (PVX[i] < 0) PVX[i] *= -0.45; }
+    else if (PX[i] > W - R) { PX[i] = W - R;     if (PVX[i] > 0) PVX[i] *= -0.45; }
+    if (PY[i] < R)          { PY[i] = R;         if (PVY[i] < 0) PVY[i] *= -0.45; }
+    else if (PY[i] > H - R) { PY[i] = H - R;     if (PVY[i] > 0) PVY[i] *= -0.45; }
+    PHUE[i] += PDRIFT[i] * dt;
+    if (PHUE[i] > 360) PHUE[i] -= 360;
+    else if (PHUE[i] < 0) PHUE[i] += 360;
+  }
+}
+
+function update(dt) {
+  time += dt;
+  const sub = dt / CFG.subSteps;
+  for (let s = 0; s < CFG.subSteps; s++) physicsStep(sub);
+  if (pulse) {
+    pulse.t -= dt;
+    if (pulse.t <= 0) pulse = null;
+  }
+  const target = Math.max(vortexPersistent ? 0.55 : 0, pointer.holding ? 1 : 0);
+  vortexIntensity += (target - vortexIntensity) * Math.min(1, dt * 3.2);
+  if (vortexIntensity < 0.004) vortexIntensity = 0;
+}
+
+/* ----------------------------- Input ----------------------------- */
+function onPointerDown(e) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+  pointer.id = e.pointerId;
+  pointer.active = true;
+  pointer.down = true;
+  pointer.downX = e.clientX; pointer.downY = e.clientY;
+  pointer.downT = performance.now();
+  pointer.x = e.clientX; pointer.y = e.clientY;
+  pointer.holding = false;
+  clearTimeout(pointer.holdTimer);
+  pointer.holdTimer = setTimeout(function () { pointer.holding = true; }, CFG.holdDelay);
+}
+
+function onPointerMove(e) {
+  if (pointer.id !== -1 && e.pointerId !== pointer.id) return;
+  pointer.id = e.pointerId;
+  pointer.x = e.clientX;
+  pointer.y = e.clientY;
+  pointer.active = true;
+}
+
+function onPointerUp(e) {
+  if (e.pointerId !== pointer.id) return;
+  clearTimeout(pointer.holdTimer);
+  const dur = performance.now() - pointer.downT;
+  const dist = Math.hypot(e.clientX - pointer.downX, e.clientY - pointer.downY);
+  if (!pointer.holding && dur < CFG.holdDelay + 40 && dist < 10) {
+    pulse = { x: e.clientX, y: e.clientY, t: CFG.attractTime };
+  }
+  pointer.down = false;
+  pointer.holding = false;
+  pointer.id = -1;
+}
+
+function onPointerCancel(e) {
+  if (e.pointerId !== pointer.id) return;
+  clearTimeout(pointer.holdTimer);
+  pointer.down = false;
+  pointer.holding = false;
+  pointer.id = -1;
+  pointer.active = false;
+}
+
+function onPageLeave() {
+  pointer.active = false;
+}
+
+canvas.addEventListener('pointerdown', onPointerDown);
+canvas.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointerup', onPointerUp);
+window.addEventListener('pointercancel', onPointerCancel);
+document.documentElement.addEventListener('pointerleave', onPageLeave);
+window.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+/* ----------------------------- Resize ----------------------------- */
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  CX = W / 2;
+  CY = H / 2;
+  const v = document.createElement('canvas');
+  v.width = Math.max(2, Math.round(W / 2));
+  v.height = Math.max(2, Math.round(H / 2));
+  const g = v.getContext('2d');
+  const grad = g.createRadialGradient(
+    v.width / 2, v.height / 2, Math.min(W, H) * 0.28,
+    v.width / 2, v.height / 2, Math.max(W, H) * 0.72
+  );
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, v.width, v.height);
+  vignette = v;
+  if (PX) {
+    for (let i = 0; i < count; i++) {
+      if (PX[i] < 2) PX[i] = 2; else if (PX[i] > W - 2) PX[i] = W - 2;
+      if (PY[i] < 2) PY[i] = 2; else if (PY[i] > H - 2) PY[i] = H - 2;
+    }
+  }
+}
+window.addEventListener('resize', resize);
+
+/* ----------------------------- Rendering ----------------------------- */
+function renderVortex() {
+  const R = Math.max(W, H) * CFG.vortexRadiusFrac;
+  const hue = (time * 70) % 360;
+
+  ctx.globalCompositeOperation = 'source-over';
+  const core = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 0.6);
+  core.addColorStop(0, 'rgba(0,0,0,0.94)');
+  core.addColorStop(0.5, 'rgba(5,4,12,0.5)');
+  core.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 3; k++) {
+    const dir = k % 2 ? -1 : 1;
+    const r = R * (0.3 + 0.14 * k);
+    const a0 = time * (1.1 + 0.55 * k) * dir;
+    ctx.strokeStyle = 'hsla(' + ((hue + k * 130) % 360) + ',100%,62%,' + (0.12 + 0.05 * k).toFixed(2) + ')';
+    ctx.lineWidth = 2.5 + k;
+    ctx.beginPath();
+    ctx.arc(CX, CY, r, a0, a0 + Math.PI * 1.5);
+    ctx.stroke();
+  }
+
+  const glow = ctx.createRadialGradient(CX, CY, 0, CX, CY, CFG.horizon * 3.5);
+  glow.addColorStop(0, 'hsla(' + hue + ',100%,72%,0.95)');
+  glow.addColorStop(0.35, 'hsla(' + ((hue + 110) % 360) + ',100%,60%,0.4)');
+  glow.addColorStop(1, 'hsla(0,0%,0%,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(CX, CY, CFG.horizon * 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'hsla(' + hue + ',100%,65%,0.14)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(CX, CY, R, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function render() {
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#04060d';
+  ctx.fillRect(0, 0, W, H);
+  if (vignette) ctx.drawImage(vignette, 0, 0, W, H);
+  if (vortexIntensity > 0.01) renderVortex();
+
+  // -- glowing particles (additive metaball look) --
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < count; i++) {
+    const s = PSIZE[i] * 4;
+    ctx.globalAlpha = 0.62 + 0.3 * Math.sin(time * 5 + i * 1.7);
+    ctx.drawImage(atlas[(PHUE[i] / 360 * HUE_STEPS) | 0], PX[i] - s, PY[i] - s, s * 2, s * 2);
+  }
+  ctx.globalAlpha = 1;
+
+  // -- cursor field indicator --
+  if (pointer.active) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(140,200,255,0.10)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(pointer.x, pointer.y, CFG.repelRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(200,228,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(pointer.x, pointer.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // -- click pull shockwave --
+  if (pulse) {
+    const p = 1 - pulse.t / CFG.attractTime;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'hsla(200,100%,75%,' + (0.5 * (1 - p)).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pulse.x, pulse.y, 12 + p * 240, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+/* ----------------------------- UI wiring ----------------------------- */
+function setGravityUI() { btnGravity.classList.toggle('on', gravityOn); }
+function setVortexUI()  { btnVortex.classList.toggle('on', vortexPersistent); }
+
+btnGravity.addEventListener('click', function () { gravityOn = !gravityOn; setGravityUI(); });
+btnVortex.addEventListener('click', function () { vortexPersistent = !vortexPersistent; setVortexUI(); });
+btnReset.addEventListener('click', reset);
+slider.addEventListener('input', function () { setCount(parseInt(slider.value, 10)); });
+
+/* ----------------------------- Main loop ----------------------------- */
+let last = performance.now();
+let acc = 0;
+let fpsFrames = 0, fpsWindow = 0, fps = 60;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = (now - last) / 1000;
+  last = now;
+  if (dt > 0.25) dt = 0.25;   // guard against tab-switch spikes
+  if (dt < 0) dt = 0;
+  acc += dt;
+  const STEP = CFG.step;
+  let guard = 0;
+  while (acc >= STEP && guard < 4) {
+    update(STEP);
+    acc -= STEP;
+    guard++;
+  }
+  if (guard >= 4) acc = 0;
+  render();
+  fpsFrames++;
+  const t = performance.now();
+  if (t - fpsWindow >= 500) {
+    fps = Math.round((fpsFrames * 1000) / (t - fpsWindow));
+    fpsFrames = 0;
+    fpsWindow = t;
+    elFps.textContent = fps + ' FPS';
+  }
+}
+
+document.addEventListener('visibilitychange', function () { last = performance.now(); });
+
+/* ----------------------------- Init ----------------------------- */
+function init() {
+  buildAtlas();
+  resize();
+  setCount(700);
+  setGravityUI();
+  setVortexUI();
+  requestAnimationFrame(frame);
+}
+init();
+
+/* Headless test hook (used by the smoke test, harmless in the browser) */
+if (typeof window !== 'undefined') {
+  window.NeonFluidEngine = {
+    setCount: setCount,
+    reset: reset,
+    triggerClick: function (x, y) { pulse = { x: x, y: y, t: CFG.attractTime }; },
+    triggerHold: function (v) { pointer.holding = v; },
+    debug: function (n) {
+      const out = [];
+      for (let i = 0; i < Math.min(n || 5, count); i++) {
+        out.push({
+          x: Math.round(PX[i] * 10) / 10, y: Math.round(PY[i] * 10) / 10,
+          vx: Math.round(PVX[i] * 100) / 100, vy: Math.round(PVY[i] * 100) / 100
+        });
+      }
+      return out;
+    },
+    getStats: function () {
+      let nan = 0, v2max = 0, vsum = 0;
+      const bins = [0, 0, 0, 0, 0];
+      for (let i = 0; i < count; i++) {
+        if (!isFinite(PX[i] + PY[i] + PVX[i] + PVY[i] + PHUE[i])) nan++;
+        const v2 = PVX[i] * PVX[i] + PVY[i] * PVY[i];
+        if (v2 > v2max) v2max = v2;
+        vsum += Math.sqrt(v2);
+        const v = Math.sqrt(v2);  // already px/s
+        if (v < 100) bins[0]++;
+        else if (v < 500) bins[1]++;
+        else if (v < 1200) bins[2]++;
+        else if (v < 2400) bins[3]++;
+        else bins[4]++;
+      }
+      return { count: count, nan: nan, maxSpeed: Math.sqrt(v2max), avgSpeed: vsum / count, bins: bins, vortex: vortexIntensity, time: time };
+    }
+  };
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Forgefront 3D – Fabrik-Automation</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Three.js & Loaders -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <!-- 3D WebGL Canvas Layer -->
+        <div id="canvas-wrapper">
+            <canvas id="game-canvas"></canvas>
+        </div>
+
+        <!-- 2D Particle & Floating Number FX Overlay -->
+        <div id="fx-overlay"></div>
+
+        <!-- TOP GLASS HEADER HUD -->
+        <header id="hud-topbar" class="glass-panel">
+            <div class="hud-left">
+                <div class="game-logo">
+                    <div class="logo-gem">⚙️</div>
+                    <div class="logo-title">
+                        <h2>FORGEFRONT <span>3D</span></</span>h2>
+                        <span class="version-tag">Automation Campaign</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Central Economy Stats -->
+            <div class="hud-center economy-bar">
+                <div class="stat-pill gold" id="pill-gold" title="Gesamtes Goldvermögen">
+                    <span class="pill-icon">🪙</span>
+                    <span class="pill-value" id="stat-gold">250</span>
+                    <span class="pill-label">Gold</span>
+                </div>
+                <div class="stat-pill rate" id="pill-rate" title="Erwirtschaftetes Gold pro Minute">
+                    <span class="pill-icon">📈</span>
+                    <span class="pill-value" id="stat-gpm">0</span>
+                    <span class="pill-label">Gold/Min</span>
+                </div>
+                <div class="stat-pill throughput" id="pill-throughput" title="Gelieferte Items pro Minute">
+                    <span class="pill-icon">📦</span>
+                    <span class="pill-value" id="stat-ipm">0</span>
+                    <span class="pill-label">Items/Min</span>
+                </div>
+            </div>
+
+            <!-- Right Controls: Audio, Camera, Tech Tree, Stats -->
+            <div class="hud-right">
+                <button class="icon-btn" id="btn-camera-iso" title="Kamera-Perspektive wechseln (C)">📐</button>
+                <button class="icon-btn" id="btn-camera-center" title="Auf Gold-Zitadelle zentrieren (Space)">🎯</button>
+                <button class="icon-btn" id="btn-tech-tree" title="Forschungsbaum öffnen (T)">🔬</button>
+                <button class="icon-btn" id="btn-codex" title="Produktions-Kodex öffnen (K)">📚</button>
+                <button class="icon-btn" id="btn-stats" title="Produktionsstatistik öffnen (S)">📊</button>
+                <button class="icon-btn" id="btn-audio" title="Sound umschalten (M)">🔊</button>
+                <button class="icon-btn" id="btn-settings" title="Einstellungen & Speichern">⚙️</button>
+            </div>
+        </header>
+
+        <!-- TOP-LEFT STATUS / NOTIFICATIONS -->
+        <div id="toast-container"></div>
+
+        <!-- QUICK BUILD CONTROLS INFO (Top-Left under topbar) -->
+        <div id="campaign-objective" class="glass-card">
+            <span class="objective-kicker">AKTUELLE MISSION</span>
+            <strong id="objective-title">Versorge den Orbitalhafen</strong>
+            <span id="objective-detail">Baue einen Extraktor und liefere 10 Rohstoffe.</span>
+            <div class="objective-progress"><i id="objective-progress-fill"></i></div>
+        </div>
+
+        <div id="quick-controls-hint" class="glass-card">
+            <div class="hint-row"><span>🖱️ Ziehen:</span> <strong>Förderbänder verlegen</strong></div>
+            <div class="hint-row"><span>🔄 [R]:</span> <strong>Richtung drehen (<span id="hud-dir-name">OST →</span>)</strong></div>
+            <div class="hint-row"><span>🗑️ [X]:</span> <strong>Abreißen & Rückerstatten</strong></div>
+        </div>
+
+        <!-- BOTTOM DOCKING TOOLBAR (APPLE GLASS STYLE) -->
+        <div id="dock-container">
+            <div class="dock-wrapper glass-panel">
+                <!-- Group 1: Logistics & Extractors -->
+                <div class="dock-group">
+                    <span class="dock-group-label">LOGISTIK & MINING</span>
+                    <div class="dock-buttons">
+                        <button class="tool-card active" data-tool="belt" data-cost="1" id="tool-belt" title="Förderband (1)">
+                            <div class="tool-icon-wrap">➡️</div>
+                            <span class="tool-title">Förderband</span>
+                            <span class="tool-badge">🪙 1</span>
+                        </button>
+                        <button class="tool-card" data-tool="underground" data-cost="15" id="tool-underground" title="Untergrund-Tunnel (2)">
+                            <div class="tool-icon-wrap">🚇</div>
+                            <span class="tool-title">Tunnel</span>
+                            <span class="tool-badge">🪙 15</span>
+                        </button>
+                        <button class="tool-card" data-tool="splitter" data-cost="25" id="tool-splitter" title="Verteiler">
+                            <div class="tool-icon-wrap">🔀</div>
+                            <span class="tool-title">Verteiler</span>
+                            <span class="tool-badge">🪙 25</span>
+                        </button>
+                        <button class="tool-card" data-tool="extractor" data-cost="10" id="tool-extractor" title="Industriebohrer auf Erzader (3)">
+                            <div class="tool-icon-wrap">⛏️</div>
+                            <span class="tool-title">Bohrer</span>
+                            <span class="tool-badge">🪙 10</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dock-divider"></div>
+
+                <!-- Group 2: Crafting & Processing -->
+                <div class="dock-group">
+                    <span class="dock-group-label">VERARBEITUNG</span>
+                    <div class="dock-buttons">
+                        <button class="tool-card" data-tool="furnace" data-cost="20" id="tool-furnace" title="Schmelzofen für Barren (4)">
+                            <div class="tool-icon-wrap">🔥</div>
+                            <span class="tool-title">Schmelzofen</span>
+                            <span class="tool-badge">🪙 20</span>
+                        </button>
+                        <button class="tool-card" data-tool="workshop" data-cost="20" id="tool-workshop" title="Werkstatt für Zahnräder & Planken (5)">
+                            <div class="tool-icon-wrap">🔨</div>
+                            <span class="tool-title">Werkstatt</span>
+                            <span class="tool-badge">🪙 20</span>
+                        </button>
+                        <button class="tool-card" data-tool="forge" data-cost="150" id="tool-forge" title="Stahlschmiede (6)">
+                            <div class="tool-icon-wrap">🔩</div>
+                            <span class="tool-title">Schmiede</span>
+                            <span class="tool-badge">🪙 150</span>
+                        </button>
+                        <button class="tool-card" data-tool="machine_shop" data-cost="100" id="tool-machine_shop" title="Maschinenhalle für Motoren (7)">
+                            <div class="tool-icon-wrap">⚙️</div>
+                            <span class="tool-title">Maschinen</span>
+                            <span class="tool-badge">🪙 100</span>
+                        </button>
+                        <button class="tool-card" data-tool="industrial_factory" data-cost="500" id="tool-industrial_factory" title="Industriefabrik (8)">
+                            <div class="tool-icon-wrap">🏭</div>
+                            <span class="tool-title">Fabrik</span>
+                            <span class="tool-badge">🪙 500</span>
+                        </button>
+                        <button class="tool-card" data-tool="manufacturer" data-cost="2000" id="tool-manufacturer" title="Hersteller für High-Tech-Komponenten (9)">
+                            <div class="tool-icon-wrap">🔮</div>
+                            <span class="tool-title">Hersteller</span>
+                            <span class="tool-badge">🪙 2k</span>
+                        </button>
+                        <button class="tool-card" data-tool="earth_teleporter" data-cost="5000" id="tool-earth_teleporter" title="Orbitaler Materie-Hafen">
+                            <div class="tool-icon-wrap">🌐</div>
+                            <span class="tool-title">Orbitalhafen</span>
+                            <span class="tool-badge">🪙 5k</span>
+                        </button>
+                        <button class="tool-card" data-tool="gem_tree" data-cost="10000" id="tool-gem_tree" title="Synthetischer Kristallbaum">
+                            <div class="tool-icon-wrap">💎</div>
+                            <span class="tool-title">Kristallbaum</span>
+                            <span class="tool-badge">🪙 10k</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="dock-divider"></div>
+
+                <!-- Group 3: Utility & Modifiers -->
+                <div class="dock-group">
+                    <span class="dock-group-label">STEUERUNG</span>
+                    <div class="dock-buttons">
+                        <button class="tool-card rotate-action" id="action-rotate" title="Richtung um 90° drehen (R)">
+                            <div class="tool-icon-wrap">🔄</div>
+                            <span class="tool-title">Drehen</span>
+                            <span class="tool-badge" id="hud-dir-badge">OST →</span>
+                        </button>
+                        <button class="tool-card demolish-action" data-tool="demolish" id="action-demolish" title="Gebäude abreißen (X)">
+                            <div class="tool-icon-wrap">🗑️</div>
+                            <span class="tool-title">Abreißen</span>
+                            <span class="tool-badge">100% Refund</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL 1: BUILDING INSPECTOR DRAWER -->
+        <div id="inspector-modal" class="glass-modal">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-icon" id="inspect-icon">🏭</span>
+                    <div>
+                        <h3 id="inspect-title">Maschinen-Inspektor</h3>
+                        <span class="modal-subtitle" id="inspect-coords">Position: (0, 0)</span>
+                    </div>
+                </div>
+                <button class="close-modal-btn" id="close-inspector">✕</button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Live Production Status -->
+                <div class="inspect-section">
+                    <div class="section-label">PRODUKTIONS-STATUS</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="inspect-progress-fill"></div>
+                    </div>
+                    <div class="progress-meta">
+                        <span id="inspect-rate-text">15 Items/Min</span>
+                        <span id="inspect-status-badge" class="status-badge active">Läuft</span>
+                    </div>
+                </div>
+
+                <!-- Active Recipe Picker -->
+                <div class="inspect-section">
+                    <div class="section-label">AKTIVES REZEPT</div>
+                    <div class="recipe-selector-card" id="inspect-recipe-card">
+                        <div class="recipe-flow-row" id="inspect-recipe-flow">
+                            <span class="rec-in">1x Eisenerz</span>
+                            <span class="rec-arrow">➔</span>
+                            <span class="rec-out">1x Eisenbarren</span>
+                        </div>
+                    </div>
+                    <div class="recipe-options-list" id="inspect-recipe-options">
+                        <!-- Options generated by JS -->
+                    </div>
+                </div>
+
+                <!-- Input & Output Buffers -->
+                <div class="inspect-section">
+                    <div class="section-label">LAGERPUFFER</div>
+                    <div class="inventory-slots" id="inspect-inventory-slots">
+                        <div class="inv-slot"><span class="inv-name">Eingang:</span> <strong id="inspect-in-count">0</strong></div>
+                        <div class="inv-slot"><span class="inv-name">Ausgang:</span> <strong id="inspect-out-count">0</strong></div>
+                    </div>
+                </div>
+
+                <!-- Upgrades & Actions -->
+                <div class="inspect-actions">
+                    <button class="action-btn upgrade-btn" id="inspect-upgrade-btn">
+                        <span>⚡ Geschwindigkeit upgraden (+50%)</span>
+                        <strong id="inspect-upgrade-cost">🪙 50</strong>
+                    </button>
+                    <button class="action-btn delete-btn" id="inspect-delete-btn">
+                        <span>🗑️ Gebäude abreißen</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL 2: TECH TREE / FORSCHUNG -->
+        <div id="tech-modal" class="glass-modal large-modal">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-icon">🔬</span>
+                    <div>
+                        <h3>Forschungsbaum & Technologien</h3>
+                        <span class="modal-subtitle">Schalte schnellere Bänder, stärkere Bohrer & High-Tech Rezepte frei</span>
+                    </div>
+                </div>
+                <button class="close-modal-btn" id="close-tech">✕</button>
+            </div>
+            
+            <div class="modal-body tech-body">
+                <div class="tech-tree-grid" id="tech-tree-grid">
+                    <!-- Tech nodes populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL 3: PRODUCTION CODEX -->
+                <div id="codex-modal" class="glass-modal large-modal">
+                    <div class="modal-header">
+                        <div class="modal-title-wrap">
+                            <span class="modal-icon">📚</span>
+                            <div>
+</div>                                <h3>Produkt</h3>ions-Kodex</h3>
+                                <span class="modal-subtitle">Alle 54 Ressourcen, Rezepte und Produktionswege</span>
+                            </div>
+                        </div>
+                        <button class="close-modal-btn">✕</button>
+                    </div>
+                    <div class="codex-toolbar">
+                        <input id="codex-search" type="search" placeholder="Ressource oder Maschine suchen …" autocomplete="off">
+                        <div id="codex-count"></div>
+                    </div>
+                    <div class="modal-body codex-body" id="codex-list"></div>
+                </div>
+
+                <!-- MODAL 4: PRODUCTION STATISTICS & CHARTS -->
+        <div id="stats-modal" class="glass-modal medium-modal">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-icon">📊</span>
+                    <div>
+                        <h3>Fabrik-Statistik & Analyse</h3>
+                        <span class="modal-subtitle">Echtzeit-Durchsatz und Produktions-Kennzahlen</span>
+                    </div>
+                </div>
+                <button class="close-modal-btn" id="close-stats">✕</button>
+            </div>
+            
+            <div class="modal-body stats-body">
+                <div class="stats-overview-cards">
+                    <div class="overview-stat-card">
+                        <span class="sc-label">Gesamt gelieferte Güter</span>
+                        <strong class="sc-val" id="stat-total-delivered">0</strong>
+                    </div>
+                    <div class="overview-stat-card">
+                        <span class="sc-label">Gesamtes Einkommen</span>
+                        <strong class="sc-val gold" id="stat-total-gold-earned">🪙 0</strong>
+                    </div>
+                    <div class="overview-stat-card">
+                        <span class="sc-label">Aktive Gebäude</span>
+                        <strong class="sc-val" id="stat-active-buildings">0</strong>
+                    </div>
+                    <div class="overview-stat-card">
+                        <span class="sc-label">Items auf Bändern</span>
+                        <strong class="sc-val" id="stat-items-on-belts">0</strong>
+                    </div>
+                </div>
+
+                <div class="stats-section-title">PRODUKTION NACH RESSOURCEN</div>
+                <div class="resource-breakdown-list" id="resource-breakdown-list">
+                    <!-- Resource rates dynamically populated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL 5: SETTINGS & PERSISTENCE -->
+        <div id="settings-modal" class="glass-modal small-modal">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-icon">⚙️</span>
+                    <div>
+                        <h3>Einstellungen & Spielstand</h3>
+                    </div>
+                </div>
+                <button class="close-modal-btn" id="close-settings">✕</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="settings-row">
+                    <span>Automatisches Speichern (Auto-Save)</span>
+                    <strong class="text-emerald">Aktiv (localStorage)</strong>
+                </div>
+                <div class="settings-row">
+                    <span>Sound-Effekte</span>
+                    <button class="toggle-btn active" id="setting-sound-toggle">An</button>
+                </div>
+                <div class="settings-row">
+                    <span>Partikeleffekte (Rauch, Funken, Gold)</span>
+                    <button class="toggle-btn active" id="setting-particles-toggle">An</button>
+                </div>
+
+                <div class="settings-actions">
+                    <button class="action-btn" id="btn-export-save">💾 Spielstand als JSON exportieren</button>
+                    <button class="action-btn danger" id="btn-reset-game">⚠️ Fabrik zurücksetzen (Neustart)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modular Game Scripts -->
+    <script src="js/content.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/world.js"></script>
+    <script src="js/simulation.js"></script>
+    <script src="js/tech_tree.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

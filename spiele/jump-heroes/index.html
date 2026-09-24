@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0b0e1a">
+<title>Jump Heroes</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23ffd34d'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="in-menu">
+<div id="app">
+  <canvas id="game" width="960" height="540"></canvas>
+
+  <div id="touch">
+    <div class="touch-btn" id="touch-left">◀</div>
+    <div class="touch-btn" id="touch-right">▶</div>
+    <div class="touch-btn" id="touch-jump">▲</div>
+    <div class="touch-btn" id="touch-dash">DASH</div>
+  </div>
+
+  <div id="ui">
+
+    <div class="screen active" id="screen-main">
+      <h1 class="game-title">JUMP HEROES</h1>
+      <div class="subtitle">Ein 2D-Jump-'n'-Run-Abenteuer · 12 Level · 6 Helden</div>
+      <nav class="menu-stack">
+        <button class="btn btn-primary" data-nav="levels">Spielen</button>
+        <button class="btn" data-nav="chars">Charaktere</button>
+        <button class="btn" data-nav="shop">Shop</button>
+        <button class="btn" data-nav="settings">Einstellungen</button>
+        <button class="btn" data-nav="credits">Credits</button>
+      </nav>
+      <div class="version">Jump Heroes v1.0</div>
+    </div>
+
+    <div class="screen" id="screen-levels">
+      <div class="panel-header">
+        <h2>Level wählen</h2>
+        <div class="header-right">
+          <span id="levels-wallet"></span>
+          <button class="btn btn-small" data-nav="main">Zurück</button>
+        </div>
+      </div>
+      <div class="card-scroll"><div class="card-grid" id="level-grid"></div></div>
+    </div>
+
+    <div class="screen" id="screen-chars">
+      <div class="panel-header">
+        <h2>Charaktere</h2>
+        <div class="header-right">
+          <span id="chars-wallet"></span>
+          <button class="btn btn-small" data-nav="main">Zurück</button>
+        </div>
+      </div>
+      <div class="card-scroll"><div class="card-grid" id="char-grid"></div></div>
+    </div>
+
+    <div class="screen" id="screen-shop">
+      <div class="panel-header">
+        <h2>Shop</h2>
+        <div class="header-right">
+          <span id="shop-wallet"></span>
+          <button class="btn btn-small" data-nav="main">Zurück</button>
+        </div>
+      </div>
+      <div class="card-scroll">
+        <div class="world-header">Permanente Upgrades</div>
+        <div class="card-grid" id="shop-upgrades"></div>
+        <div class="world-header" style="margin-top:22px;">Charakter-Spuren</div>
+        <div class="card-grid" id="shop-trails"></div>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-settings">
+      <div class="panel-header"><h2>Einstellungen</h2><button class="btn btn-small" data-nav="main">Zurück</button></div>
+      <div class="settings-panel">
+        <div class="setting-row">
+          <label>Gesamtlautstärke</label>
+          <input type="range" id="set-master" min="0" max="1" step="0.05">
+        </div>
+        <div class="setting-row">
+          <label>Musik</label>
+          <input type="range" id="set-music" min="0" max="1" step="0.05">
+        </div>
+        <div class="setting-row">
+          <label>Soundeffekte</label>
+          <input type="range" id="set-sfx" min="0" max="1" step="0.05">
+        </div>
+        <button class="btn btn-danger" id="btn-reset">Fortschritt zurücksetzen</button>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-credits">
+      <div class="panel-header"><h2>Credits</h2><button class="btn btn-small" data-nav="main">Zurück</button></div>
+      <div class="credits-panel">
+        <b>Jump Heroes</b> – ein komplettes 2D-Jump-'n'-Run-Abenteuer.
+        <h3>Spielen</h3>
+        Laufen: <b>Pfeiltasten / A D</b> · Springen: <b>Leertaste / W / ↑</b> · Dash (Ninja Kira): <b>Shift / X</b> · Pause: <b>Esc / P</b><br>
+        Auf Touch-Geräten erscheinen automatisch Bildschirm-Tasten.
+        <h3>Ziel</h3>
+        Sammelt Münzen, erreicht die Fahne und holt in allen 12 Leveln 3 Sterne:
+        ★ geschafft · ★ mind. 80 % der Münzen · ★ max. 2 Tode.
+        Mit Münzen schaltet ihr im Shop neue Helden und Upgrades frei.
+        <h3>Team</h3>
+        Design, Code, Grafik &amp; Sound: prozedural im Browser erzeugt – ganz ohne externe Assets.
+      </div>
+    </div>
+
+    <div class="screen" id="screen-game"></div>
+
+    <div id="hud" class="hidden">
+      <div class="hud-left">
+        <div class="hud-box" id="hud-hearts-box"><span id="hud-hearts"></span><span id="hud-shield" style="display:none;margin-left:8px;"></span></div>
+        <div class="hud-box"><span class="coin-dot"></span> <span id="hud-coins">0</span></div>
+      </div>
+      <div class="hud-right">
+        <div class="hud-box" id="hud-level">Level</div>
+        <div class="hud-box" id="hud-time">0:00</div>
+        <button class="btn btn-small" id="btn-hud-pause">II</button>
+      </div>
+    </div>
+
+    <div id="bossbar" class="hidden">
+      <div id="bossname">BOSS</div>
+      <div class="bossbar-track"><div id="bossbar-fill"></div></div>
+    </div>
+
+    <div class="overlay hidden" id="overlay-pause">
+      <div class="overlay-panel">
+        <h2>Pause</h2>
+        <div class="menu-stack">
+          <button class="btn btn-primary" id="btn-resume">Fortsetzen</button>
+          <button class="btn" id="btn-restart">Level neu starten</button>
+          <button class="btn" id="btn-pause-levels">Levelauswahl</button>
+          <button class="btn" id="btn-pause-main">Hauptmenü</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="overlay-win">
+      <div class="overlay-panel">
+        <h2 id="win-title">Level geschafft!</h2>
+        <div id="win-stars"></div>
+        <div id="win-stats"></div>
+        <div class="menu-stack">
+          <button class="btn btn-primary" id="btn-win-next">Nächstes Level ▸</button>
+          <button class="btn" id="btn-win-retry">Nochmal spielen</button>
+          <button class="btn" id="btn-win-levels">Levelauswahl</button>
+          <button class="btn" id="btn-win-main">Hauptmenü</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal" class="hidden">
+      <div class="overlay-panel">
+        <p id="modal-msg"></p>
+        <div class="modal-buttons">
+          <button class="btn btn-danger" id="modal-yes">Ja</button>
+          <button class="btn" id="modal-no">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/save.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/autotest.js"></script>
+<script>
+'use strict';
+window.addEventListener('load', () => {
+  Game.init();
+  UI.bind();
+  const params = new URLSearchParams(location.search);
+  if (params.has('autotest')) {
+    window.__runAutotest();
+  } else if (params.has('botdebug')) {
+    const opts = {};
+    (params.get('botdebug') || '').split(';').forEach(kv => { const p = kv.split('='); opts[p[0]] = p[1]; });
+    const lvl = parseInt(opts.botlevel || '0', 10);
+    const N = parseInt(opts.frames || '240', 10);
+    Game.startLevel(lvl, { silent: true });
+    const L = Game.level, P = Game.player;
+    const trace = [];
+      let holdT = 0;
+      for (let f = 0; f < N; f++) {
+        Input.left = false; Input.right = false; Input.jump = false;
+        holdT -= DT; if (holdT > 0) Input.jump = true;
+        Input.right = true;
+      const fc = Math.floor((P.x + P.w + 14) / TILE), farc = Math.floor((P.x + P.w + 84) / TILE), hazc = Math.floor((P.x + P.w + 40) / TILE);
+      const hr = Math.floor((P.y + 4) / TILE), br = Math.floor((P.y + P.h - 4) / TILE), sr = Math.floor((P.y + P.h + 3) / TILE);
+      const isSup = (c, r) => '#-B'.includes(L.tileChar(c, r));
+      const wall = P.grounded && (L.solidAt(farc, hr) || L.solidAt(farc, br));
+      const haz = '^~'.includes(L.tileChar(hazc, br)) || '^~'.includes(L.tileChar(hazc, sr));
+      const sN = [isSup(fc, sr), isSup(fc, sr - 1), isSup(fc, sr - 2), isSup(fc, sr - 3)];
+      const sF = [isSup(farc, sr), isSup(farc, sr - 1), isSup(farc, sr - 2), isSup(farc, sr - 3)];
+      let gap = false;
+      if (P.grounded && !sN[0] && !sN[1] && !sN[2]) {
+        gap = true;
+        for (let rr = sr + 1; rr <= sr + 4; rr++) { if (isSup(fc, rr)) { gap = false; break; } }
+      }
+      const upNear = sN[1] || sN[2] || sN[3];
+      const upFar = sF[1] || sF[2] || sF[3];
+        let jumped = '';
+        if (P.grounded && (wall || haz || gap)) { Input.jumpP = true; holdT = 0.34; jumped = wall ? 'W' : haz ? 'H' : 'G'; }
+        else if (P.grounded && !haz && (upNear || upFar)) { Input.jumpP = true; holdT = (sN[2] || sN[3] || sF[2] || sF[3]) ? 0.34 : 0.12; jumped = 'U'; }
+        trace.push(f + ':' + (P.x / 32).toFixed(1) + (P.grounded ? 'G' : 'a') + (gap ? '!' : '.') + 'v' + P.vx.toFixed(0) + (jumped ? 'J' + jumped : '-'));
+        if (trace.length > 22) trace.shift();
+        Game.step(DT);
+      }
+    Game.render();
+    const c2 = document.getElementById('game').getContext('2d');
+    c2.fillStyle = 'rgba(0,0,0,0.7)';
+    c2.fillRect(10, 10, 460, 96);
+    c2.fillStyle = '#0f0';
+    c2.font = '16px monospace';
+    c2.fillText('P x=' + P.x.toFixed(0) + ' y=' + P.y.toFixed(0) + ' col=' + (P.x / 32).toFixed(1), 20, 34);
+    c2.fillText('grounded=' + P.grounded + ' dead=' + P.dead + ' dT=' + P.deadT.toFixed(2) + ' hp=' + P.hp, 20, 56);
+    c2.fillText('deaths=' + Game.deaths + ' time=' + Game.time.toFixed(1) + ' state=' + Game.state + ' vx=' + P.vx.toFixed(0) + ' vy=' + P.vy.toFixed(0), 20, 78);
+    c2.fillText('TRACE: ' + trace.join(' '), 20, 100);
+    c2.fillStyle = '#ff0';
+    c2.fillRect(P.x - Game.cam.x - 3, P.y - Game.cam.y - 3, P.w + 6, P.h + 6);
+  } else if (params.has('shot')) {
+    const shot = params.get('shot');
+    const lvlMatch = shot.match(/^game(\d+)$/);
+    if (lvlMatch) {
+      Game.startLevel(parseInt(lvlMatch[1], 10) - 1, { silent: true });
+      Game.step(1 / 60);
+      Game.render();
+    } else {
+      UI.show(shot);
+    }
+  }
+});
+</script>
+</body>
+</html>

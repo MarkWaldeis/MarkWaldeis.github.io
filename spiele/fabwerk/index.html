@@ -1,0 +1,500 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FABWERK - Fabrik-Aufbau 3D</title>
+<style>
+  :root{
+    --bg:#10151c;
+    --panel:rgba(13,18,26,0.92);
+    --panel2:rgba(22,29,38,0.97);
+    --field:#202a36;
+    --line:rgba(255,255,255,0.08);
+    --text:#e8edf3;
+    --dim:#93a0ae;
+    --accent:#ffb84d;
+    --teal:#35d0ba;
+    --red:#e05656;
+    --radius:12px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    scrollbar-width:thin;scrollbar-color:#33414f transparent;}
+  *::-webkit-scrollbar{width:8px;height:8px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+  *::-webkit-scrollbar-thumb{background:#33414f;border-radius:99px;}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
+  body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);font-size:14px;}
+  #app{position:fixed;inset:0;}
+  #app canvas{display:block;touch-action:none;}
+  .hidden{display:none !important;}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  button{
+    font-family:inherit;color:var(--text);cursor:pointer;
+    background:#232d3a;border:1px solid var(--line);
+    border-radius:9px;padding:6px 12px;font-size:13px;
+    transition:transform .15s ease,background .15s ease,border-color .15s ease,filter .15s ease;
+  }
+  button:hover:not(:disabled){background:#2c3846;}
+  button:active:not(:disabled){transform:scale(0.96);}
+  button:disabled{opacity:0.42;cursor:default;}
+  button.primary{
+    background:var(--accent);border-color:rgba(255,184,77,0.6);
+    color:#241a06;font-weight:700;
+  }
+  button.primary:hover:not(:disabled){background:var(--accent);filter:brightness(1.08);}
+
+  #topbar{
+    position:fixed;top:10px;left:50%;transform:translateX(-50%);
+    display:flex;align-items:center;gap:10px;
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:999px;padding:7px 16px;z-index:20;
+    backdrop-filter:blur(10px);white-space:nowrap;
+    box-shadow:0 8px 24px rgba(0,0,0,0.35);
+  }
+  .logo{font-weight:800;letter-spacing:0.16em;font-size:13.5px;color:var(--accent);}
+  .stat{display:flex;align-items:center;gap:6px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:0 0 auto;}
+  .dot.gold{background:radial-gradient(circle at 35% 30%,#ffe08a,#f6c453 60%,#c99b32);}
+  .dot.rp{background:radial-gradient(circle at 35% 30%,#8ef2e4,#35d0ba 60%,#1f9c8b);}
+  .dot.sm{width:8px;height:8px;}
+  .sep{width:1px;height:18px;background:var(--line);flex:0 0 auto;}
+  #speedGrp{display:flex;gap:3px;background:#1a222c;padding:3px;border-radius:9px;}
+  #speedGrp button{border:none;background:transparent;padding:4px 9px;border-radius:6px;font-size:12.5px;}
+  #speedGrp button:hover:not(:disabled){background:rgba(255,255,255,0.06);}
+  #speedGrp button.active{background:var(--accent);color:#20180a;font-weight:700;}
+  #topbar > button{padding:6px 11px;font-size:12.5px;}
+
+  #buildMenu{
+    position:fixed;bottom:12px;left:50%;transform:translateX(-50%);
+    width:min(92vw,980px);z-index:15;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    backdrop-filter:blur(12px);padding:5px 10px 8px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.4);
+  }
+  #buildTabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:7px;}
+  #buildTabs button{
+    position:relative;background:transparent;border:none;border-radius:8px 8px 0 0;
+    color:var(--dim);padding:8px 14px 7px;font-weight:600;font-size:12.5px;letter-spacing:0.04em;
+  }
+  #buildTabs button:hover:not(:disabled){background:rgba(255,255,255,0.04);color:var(--text);}
+  #buildTabs button.active{color:var(--accent);background:rgba(255,184,77,0.09);}
+  #buildTabs button.active::after{
+    content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;
+    background:var(--accent);border-radius:2px;
+  }
+  #buildChips{
+    display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;
+    padding:1px 1px 3px;
+  }
+  #buildChips::-webkit-scrollbar{height:6px;}
+  .chip{
+    position:relative;scroll-snap-align:start;flex:0 0 auto;
+    display:flex;align-items:center;gap:9px;text-align:left;
+    height:64px;min-width:148px;padding:0 14px 0 8px;
+    background:rgba(32,42,54,0.85);border:1px solid var(--line);border-radius:11px;
+  }
+  .chip:hover:not(:disabled){transform:translateY(-2px);background:#2a3644;}
+  .chip.active{
+    border-color:rgba(255,184,77,0.75);
+    box-shadow:inset 0 0 0 1px rgba(255,184,77,0.75),0 0 14px rgba(255,184,77,0.15);
+    background:#313e4d;
+  }
+  .chip.locked{opacity:0.5;filter:grayscale(0.85);}
+  .chip.poor .cost{color:var(--red);}
+  .chipIcon{
+    width:34px;height:34px;border-radius:9px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:13px;color:#0d1218;letter-spacing:0.02em;
+  }
+  .cat-logistics .chipIcon{background:linear-gradient(135deg,#41cfe4,#2f7fd6);}
+  .cat-production .chipIcon{background:linear-gradient(135deg,#ffc46a,#ef7f2e);}
+  .cat-economy .chipIcon{background:linear-gradient(135deg,#ffd76a,#63b95f);}
+  .chipBody{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .chipName{
+    font-size:11px;font-weight:600;line-height:1.25;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .cost{
+    display:inline-flex;align-items:center;gap:5px;color:var(--accent);
+    font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;
+  }
+  .cost i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%,#ffe08a,#f6c453 60%,#c99b32);}
+  .lockTag{
+    position:absolute;top:3px;right:4px;display:none;
+    font-size:9px;font-weight:700;letter-spacing:0.03em;color:#e0a056;
+    background:#1a222c;border:1px solid rgba(224,160,86,0.4);
+    border-radius:99px;padding:1px 7px;white-space:nowrap;
+  }
+
+  #leftStack{
+    position:fixed;left:12px;bottom:134px;z-index:14;
+    display:flex;flex-direction:column;gap:8px;max-width:300px;
+  }
+  #hintBar{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:8px 11px;font-size:11.5px;color:var(--dim);line-height:1.55;
+    backdrop-filter:blur(8px);
+  }
+  #hintBar b{color:var(--text);}
+
+  #inspector{
+    position:fixed;right:12px;top:64px;width:290px;z-index:16;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;backdrop-filter:blur(10px);
+    box-shadow:0 12px 32px rgba(0,0,0,0.4);
+  }
+  .inspHead{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:16px;font-weight:700;}
+  .inspTitle{display:flex;align-items:center;gap:8px;min-width:0;}
+  .lvBadge{
+    font-size:10.5px;font-weight:800;letter-spacing:0.08em;flex:0 0 auto;
+    color:var(--accent);background:rgba(255,184,77,0.13);
+    border:1px solid rgba(255,184,77,0.35);border-radius:99px;padding:2px 8px;
+  }
+  .inspHead button{padding:2px 9px;font-size:12px;flex:0 0 auto;}
+  .inspSub{color:var(--dim);font-size:12px;margin:3px 0 12px;font-variant-numeric:tabular-nums;}
+  .upBox{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:#1a222c;border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;margin-bottom:10px;font-size:12.5px;
+  }
+  .upBox .lvl{font-weight:700;font-variant-numeric:tabular-nums;}
+  .upBtn{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;font-size:12.5px;}
+  .upBtn.poorNum{color:var(--red);}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;font-size:13px;}
+  .row.col{flex-direction:column;align-items:stretch;gap:5px;}
+  .row > span:first-child{color:var(--dim);flex:0 0 auto;}
+  select{
+    width:100%;font-family:inherit;font-size:13px;color:var(--text);
+    background:var(--field);border:1px solid var(--line);border-radius:8px;padding:7px;
+  }
+  .bar{flex:1;height:8px;background:#161d26;border-radius:99px;overflow:hidden;min-width:90px;}
+  .bar div{height:100%;width:0%;background:linear-gradient(90deg,var(--teal),#7ce8d9);transition:width .15s linear;}
+  .itemChips{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;text-align:right;}
+  .ichip{display:inline-flex;align-items:center;gap:5px;background:#1d2733;border:1px solid var(--line);border-radius:99px;padding:3px 9px;font-size:12px;}
+  .ichip i{width:9px;height:9px;border-radius:3px;display:inline-block;}
+  .dim{color:var(--dim);}
+  .hint{
+    font-size:12px;color:var(--dim);line-height:1.55;
+    background:#1a222c;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:10px;
+  }
+  .inspBtns{display:flex;gap:8px;margin-top:14px;}
+  .inspBtns button{flex:1;}
+  .danger{background:#47262a;border-color:#6b3036;}
+  .danger:hover:not(:disabled){background:#582e34;}
+
+  .modalBack{
+    position:fixed;inset:0;background:rgba(5,8,12,0.72);z-index:40;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    backdrop-filter:blur(4px);
+  }
+  .modal{
+    background:var(--panel2);border:1px solid var(--line);border-radius:16px;
+    max-width:1060px;width:100%;max-height:88vh;display:flex;flex-direction:column;
+    box-shadow:0 30px 80px rgba(0,0,0,0.55);
+  }
+  .modalHead{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:15px 22px;border-bottom:1px solid var(--line);
+  }
+  .modalHead h2{font-size:19px;letter-spacing:0.02em;}
+  .headRight{display:flex;align-items:center;gap:10px;}
+  .fpChip{
+    display:inline-flex;align-items:center;gap:7px;font-variant-numeric:tabular-nums;
+    background:rgba(53,208,186,0.1);border:1px solid rgba(53,208,186,0.3);
+    color:var(--teal);border-radius:99px;padding:4px 12px;font-weight:700;font-size:13px;
+  }
+
+  #techList{display:flex;gap:14px;padding:18px 22px;overflow:auto;align-items:stretch;}
+  .tierCol{min-width:238px;flex:1;display:flex;flex-direction:column;gap:10px;}
+  .tierHead{
+    font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--dim);
+    text-align:center;padding:5px;border-bottom:1px dashed var(--line);margin-bottom:3px;
+  }
+  .techCard{
+    background:#202a36;border:1px solid var(--line);border-radius:12px;padding:13px;
+    transition:transform .15s ease,border-color .15s ease;
+  }
+  .techCard:hover{transform:translateY(-2px);}
+  .techCard.can{border-color:rgba(53,208,186,0.65);box-shadow:0 0 16px rgba(53,208,186,0.12);}
+  .techCard.owned{opacity:0.78;border-color:rgba(53,208,186,0.35);}
+  .techCard.locked{opacity:0.55;}
+  .techName{font-weight:700;margin-bottom:4px;}
+  .techDesc{font-size:12px;color:var(--dim);line-height:1.5;}
+  .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px;}
+  .tag{
+    font-size:10.5px;font-weight:600;border-radius:99px;padding:2px 9px;
+    color:var(--teal);background:rgba(53,208,186,0.1);border:1px solid rgba(53,208,186,0.28);
+  }
+  .tag.new{color:var(--accent);background:rgba(255,184,77,0.1);border-color:rgba(255,184,77,0.3);}
+  .techFoot{display:flex;justify-content:space-between;align-items:center;margin-top:11px;gap:8px;}
+  .rpCost{
+    display:inline-flex;align-items:center;gap:6px;color:var(--teal);font-weight:700;font-size:12px;
+    background:rgba(53,208,186,0.08);border:1px solid rgba(53,208,186,0.25);
+    border-radius:99px;padding:3px 10px;font-variant-numeric:tabular-nums;
+  }
+  .techMissing{font-size:11px;color:#e0a056;margin-top:8px;}
+
+  #helpBody{padding:20px 26px;overflow-y:auto;line-height:1.7;font-size:14px;}
+  #helpBody h3{
+    margin:18px 0 8px;font-size:12px;text-transform:uppercase;
+    letter-spacing:0.13em;color:var(--accent);
+  }
+  #helpBody h3:first-child{margin-top:0;}
+  #helpBody kbd{
+    background:#2a3644;border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:5px;padding:1px 7px;font-family:inherit;font-size:12px;white-space:nowrap;
+  }
+  #helpBody ul{list-style:none;}
+  #helpBody li::before{content:"-";color:var(--teal);margin-right:8px;}
+  .payRow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 4px;}
+  .payCard{
+    background:#1c2530;border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;font-size:13px;line-height:1.55;
+  }
+  .payCard b{display:block;margin-bottom:3px;}
+  .payCard.lab b{color:var(--teal);}
+  .payCard.market b{color:var(--accent);}
+  .qs{list-style:none;counter-reset:qs;display:grid;gap:7px;margin:10px 0;}
+  .qs li{
+    counter-increment:qs;position:relative;
+    padding:9px 12px 9px 44px;background:#1c2530;border:1px solid var(--line);
+    border-radius:10px;line-height:1.55;font-size:13.5px;
+  }
+  .qs li::before{
+    content:counter(qs);position:absolute;left:10px;top:50%;transform:translateY(-50%);
+    width:23px;height:23px;border-radius:50%;
+    background:rgba(255,184,77,0.14);color:var(--accent);
+    font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;
+  }
+  .ctrlTable{
+    display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;
+    align-items:center;margin:10px 0;font-size:13px;
+  }
+  .ctrlTable .k{text-align:right;}
+  .specList{display:grid;gap:8px;margin:10px 0;}
+  .specList > div{
+    background:#1c2530;border:1px solid var(--line);border-radius:10px;
+    padding:9px 12px;font-size:13px;line-height:1.55;
+  }
+  .specList b{color:var(--accent);}
+  .helpFoot{
+    padding:14px 26px;border-top:1px solid var(--line);
+    display:flex;gap:10px;justify-content:flex-end;
+  }
+
+  #tutCard{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:11px 13px;backdrop-filter:blur(8px);width:252px;
+  }
+  #tutCard h4{
+    font-size:11px;letter-spacing:0.13em;text-transform:uppercase;color:var(--accent);
+    margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;
+  }
+  #tutCard h4 button{padding:0 7px;font-size:11px;}
+  #tutList{list-style:none;counter-reset:tut;font-size:12.5px;line-height:1.95;color:var(--dim);}
+  #tutList li{position:relative;padding-left:24px;counter-increment:tut;}
+  #tutList li::before{
+    content:counter(tut);position:absolute;left:0;top:5px;
+    width:16px;height:16px;border-radius:50%;background:#232d3a;
+    color:var(--dim);font-size:10px;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #tutList li.done{color:var(--teal);text-decoration:line-through;}
+  #tutList li.done::before{content:"\2713";background:rgba(53,208,186,0.16);color:var(--teal);}
+
+  #toasts{
+    position:fixed;top:64px;left:50%;transform:translateX(-50%);
+    z-index:50;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;
+  }
+  .toast{
+    background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:9px;padding:8px 16px;font-size:13px;font-weight:600;
+    opacity:0;transform:translateY(-8px);transition:all .25s ease;
+    box-shadow:0 8px 24px rgba(0,0,0,0.4);
+  }
+  .toast.show{opacity:1;transform:translateY(0);}
+  .toast.success{border-left-color:var(--teal);}
+  .toast.bad{border-left-color:var(--red);}
+  .toast.info{border-left-color:var(--accent);}
+
+  #mobilePad{
+    position:fixed;right:12px;bottom:12px;z-index:18;
+    display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+  }
+  #mobilePad .row2{display:flex;gap:8px;}
+  #mobilePad button{
+    width:46px;height:46px;font-size:17px;font-weight:700;
+    background:var(--panel);backdrop-filter:blur(6px);
+  }
+
+  @media (min-width:901px){
+    #mobilePad{display:none;}
+  }
+  @media (max-width:900px){
+    #hintBar{display:none;}
+    #buildMenu{left:8px;right:8px;width:auto;transform:none;}
+    #leftStack{bottom:134px;}
+    #inspector{
+      left:8px;right:8px;top:auto;bottom:8px;width:auto;max-width:none;
+      max-height:46vh;overflow-y:auto;z-index:30;
+    }
+    #mobilePad{bottom:134px;}
+  }
+  @media (max-width:720px){
+    .logo,#topbar .sep{display:none;}
+    #topbar{gap:7px;padding:6px 10px;top:6px;}
+    #topbar > button{padding:5px 8px;font-size:12px;}
+    .stat span:last-child{max-width:64px;overflow:hidden;text-overflow:ellipsis;}
+    #leftStack{display:none;}
+    .chip{height:56px;min-width:104px;padding:0 11px 0 7px;}
+    .chipName{display:none;}
+    .chipBody{align-items:center;}
+    .payRow{grid-template-columns:1fr;}
+    #helpBody{padding:16px 18px;}
+    .modalHead{padding:13px 16px;}
+  }
+  @media (max-width:520px){
+    #btnSave{display:none;}
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="topbar">
+  <span class="logo">FABWERK</span>
+  <div class="sep"></div>
+  <span class="stat" title="Münzen"><span class="dot gold"></span><span id="coinsVal">0</span></span>
+  <span class="stat" title="Forschungspunkte"><span class="dot rp"></span><span id="rpVal">0</span></span>
+  <div class="sep"></div>
+  <div id="speedGrp">
+    <button id="btnPause" title="Pause (Leertaste)">II</button>
+    <button id="btnSp1" title="Normalgeschwindigkeit">1x</button>
+    <button id="btnSp2" title="Doppelte Geschwindigkeit">2x</button>
+    <button id="btnSp3" title="Dreifache Geschwindigkeit">3x</button>
+  </div>
+  <div class="sep"></div>
+  <button id="btnTech">Technologie (T)</button>
+  <button id="btnHelp">Hilfe</button>
+  <button id="btnSave">Speichern</button>
+</div>
+
+<div id="buildMenu">
+  <div id="buildTabs"></div>
+  <div id="buildChips"></div>
+</div>
+
+<div id="leftStack">
+  <div id="tutCard">
+    <h4>Erste Schritte <button id="tutClose" title="Checkliste ausblenden">X</button></h4>
+    <ul id="tutList"></ul>
+  </div>
+  <div id="hintBar">
+    <b>Bauen:</b> Werkzeug wählen, klicken &middot; <b>R</b> drehen &middot;
+    Band: <b>ziehen</b> &middot; <b>Rechtsklick</b> Abbrechen &middot;
+    <b>Q/E</b> Kamera drehen &middot; Mausrad Zoom
+  </div>
+</div>
+
+<div id="inspector" class="hidden"></div>
+
+<div id="mobilePad">
+  <div class="row2">
+    <button id="btnZoomIn">+</button>
+    <button id="btnZoomOut">&minus;</button>
+  </div>
+  <div class="row2">
+    <button id="btnRotL">&#8634;</button>
+    <button id="btnRotR">&#8635;</button>
+    <button id="mbCancel">X</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<div id="techModal" class="modalBack hidden">
+  <div class="modal">
+    <div class="modalHead">
+      <h2>Forschung</h2>
+      <div class="headRight">
+        <span class="fpChip"><span class="dot sm rp"></span><span id="techRp">0</span>&nbsp;FP</span>
+        <button id="techClose">Schließen</button>
+      </div>
+    </div>
+    <div id="techList"></div>
+  </div>
+</div>
+
+<div id="helpModal" class="modalBack hidden">
+  <div class="modal">
+    <div class="modalHead">
+      <h2>FABWERK - Hilfe</h2>
+      <button id="helpClose">Schließen</button>
+    </div>
+    <div id="helpBody">
+      <h3>Ziel</h3>
+      Baue eine Fabrik, die vollautomatisch produziert. Es gibt zwei Wege zu Einnahmen:
+      <div class="payRow">
+        <div class="payCard lab"><b>Forschungslabor</b>
+          Belohnt Lieferungen sofort mit Münzen UND Forschungspunkten gleichzeitig - Rohstoffe bringen wenig, hochwertige Waren viel.</div>
+        <div class="payCard market"><b>Markt</b>
+          Bezahlt den vollen Itempreis - aber keine Forschung. Gut für schnelle Münzen am Anfang.</div>
+      </div>
+      <h3>Schnellstart</h3>
+      <ol class="qs">
+        <li>Setze einen <b>Extraktor</b> auf das Eisenvorkommen.</li>
+        <li>Lege ein <b>Förderband</b> zum Ofen - das Rezept Eisenbarren ist schon eingestellt.</li>
+        <li>Ziehe ein Band vom Ofen in das <b>vorhandene Labor</b> am Spawn.</li>
+        <li>Erforsche deine erste <b>Technologie</b> (Taste T).</li>
+        <li>Baue eine <b>Montage</b>, fertige Draht und Zahnräder und liefere teurere Waren ans Labor.</li>
+      </ol>
+      <h3>Steuerung - Desktop</h3>
+      <div class="ctrlTable">
+        <span class="k"><kbd>Linksklick</kbd></span><span>Setzen / Auswählen</span>
+        <span class="k"><kbd>Ziehen</kbd></span><span>Bandkette oder Unterführung verlegen</span>
+        <span class="k"><kbd>R</kbd></span><span>Gebäude / Ghost drehen</span>
+        <span class="k"><kbd>X</kbd></span><span>Abriss-Werkzeug</span>
+        <span class="k"><kbd>WASD</kbd> / <kbd>Mittlere Maustaste</kbd> / <kbd>Rechtsklick ziehen</kbd></span><span>Kamera schwenken</span>
+        <span class="k"><kbd>Q</kbd> / <kbd>E</kbd></span><span>Kamera in 90&deg;-Schritten drehen</span>
+        <span class="k"><kbd>Mausrad</kbd></span><span>Zoom zum Cursor</span>
+        <span class="k"><kbd>T</kbd></span><span>Technologiebaum</span>
+        <span class="k"><kbd>Leertaste</kbd></span><span>Pause</span>
+        <span class="k"><kbd>Entf</kbd></span><span>Ausgewähltes Gebäude löschen</span>
+        <span class="k"><kbd>Esc</kbd></span><span>Abbrechen</span>
+      </div>
+      <h3>Steuerung - Touch</h3>
+      <div class="ctrlTable">
+        <span class="k"><kbd>Tippen</kbd></span><span>Setzen / Auswählen</span>
+        <span class="k"><kbd>Ziehen</kbd></span><span>Band verlegen bzw. Kamera schwenken</span>
+        <span class="k"><kbd>2 Finger ziehen</kbd></span><span>Drehen und Zoomen (rastet bei 90&deg; ein)</span>
+        <span class="k"><kbd>Buttons</kbd></span><span>Unten rechts: Kamera drehen, Zoom, Werkzeug abbrechen</span>
+      </div>
+      <h3>Spezialbausteine</h3>
+      <div class="specList">
+        <div><b>Verteiler</b> gibt Items abwechselnd nach links und geradeaus weiter.</div>
+        <div><b>Unterführung</b>: geradeaus ziehen (2-6 Kacheln). Der Tunnel kreuzt andere Bänder.</div>
+        <div><b>Greifer</b> nimmt Items von der Kachel hinter sich und legt sie vor sich ab.</div>
+        <div><b>Upgrades</b>: Im Inspektor ausbauen, bis Stufe IV - jede Stufe +50% Arbeitstempo.</div>
+      </div>
+    </div>
+    <div class="helpFoot">
+      <button id="helpNew">Neues Spiel</button>
+      <button onclick="document.getElementById('helpModal').classList.add('hidden')">Loslegen</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
+

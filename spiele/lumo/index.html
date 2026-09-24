@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#10243d">
+  <meta name="description" content="Lumo's Skybound Quest – ein handgezeichnetes Jump-'n'-Run-Abenteuer.">
+  <title>Lumo's Skybound Quest</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="Lumo's Skybound Quest">
+    <canvas id="game" width="1280" height="720" aria-label="Spielfeld"></canvas>
+
+    <section id="title-screen" class="screen active">
+      <div class="title-card">
+        <p class="eyebrow">Ein handgezeichnetes Abenteuer</p>
+        <h1><span>Lumo’s</span><br>Skybound Quest</h1>
+        <p class="story">Der Schattenkönig hat die fünf Sonnensterne gestohlen. Reise durch Wiesen, Nebelwald und Himmelsfestung – und hol das Licht zurück.</p>
+        <button id="start-button" class="primary">Abenteuer starten</button>
+        <div class="controls-hint">
+          <span><kbd>A</kbd><kbd>D</kbd> Laufen</span>
+          <span><kbd>W</kbd>/<kbd>Leertaste</kbd> Springen</span>
+          <span><kbd>Shift</kbd> Sprinten</span>
+          <span><kbd>Esc</kbd> Pause</span>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="moon"></div>
+        <div class="floating-island"><div class="little-lumo"></div></div>
+      </div>
+    </section>
+
+    <section id="pause-screen" class="screen compact" aria-hidden="true">
+      <div class="panel">
+        <p class="eyebrow">Kurze Verschnaufpause</p>
+        <h2>Pausiert</h2>
+        <button id="resume-button" class="primary">Weiterspielen</button>
+        <button id="restart-button" class="secondary">Neu beginnen</button>
+      </div>
+    </section>
+
+    <section id="gameover-screen" class="screen compact" aria-hidden="true">
+      <div class="panel danger">
+        <p class="eyebrow">Die Schatten waren stärker</p>
+        <h2>Abenteuer vorbei</h2>
+        <p id="gameover-stats"></p>
+        <button id="retry-button" class="primary">Noch einmal</button>
+      </div>
+    </section>
+
+    <section id="victory-screen" class="screen compact" aria-hidden="true">
+      <div class="panel victory">
+        <p class="eyebrow">Das Licht ist zurückgekehrt</p>
+        <h2>Geschafft!</h2>
+        <p id="victory-stats"></p>
+        <button id="again-button" class="primary">Neues Abenteuer</button>
+      </div>
+    </section>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <div class="top-buttons">
+      <button id="sound-button" class="icon-button" aria-label="Ton ausschalten" title="Ton">♪</button>
+      <button id="fullscreen-button" class="icon-button" aria-label="Vollbild" title="Vollbild">⛶</button>
+    </div>
+
+    <div id="touch-controls" aria-hidden="true">
+      <div class="touch-left">
+        <button data-action="left" aria-label="Nach links">◀</button>
+        <button data-action="right" aria-label="Nach rechts">▶</button>
+      </div>
+      <button class="touch-jump" data-action="jump" aria-label="Springen">↑</button>
+    </div>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
