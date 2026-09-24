@@ -22,6 +22,8 @@ Live: https://markwaldeis.github.io/
 
 `kind` ist `Spiel`, `Szene` oder `Website`. Ein Projekt, das nur woanders liegt, bekommt die volle `https://`-Adresse. `"play": "external"` öffnet es als Link statt in der Spielfläche, zum Beispiel ein Windows-Spiel.
 
+Das Titelbild liegt unter `bilder/<id>.jpg`. Der Dateiname ist die `id` aus `projects.json`. Ohne diese Datei bleibt die Karte ohne Bild.
+
 3. Committen und nach `main` schieben. GitHub Pages veröffentlicht den Stand von selbst.
 
 ## Nur auf diesem Rechner

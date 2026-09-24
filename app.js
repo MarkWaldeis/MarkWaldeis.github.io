@@ -90,6 +90,7 @@ function render() {
       .join("");
     const local = project.custom ? '<span class="local-tag">nur dieser Browser</span>' : "";
     card.innerHTML =
+      '<img class="card-shot" alt="" src="' + escapeHtml(project.image || ("bilder/" + project.id + ".jpg")) + '">' +
       '<span class="card-kind"><i></i>' + escapeHtml(project.kind || "Spiel") + "</span>" +
       '<h2 class="card-title">' + escapeHtml(project.title) + "</h2>" +
       '<p class="card-blurb">' + escapeHtml(project.blurb || "") + "</p>" +
@@ -119,6 +120,8 @@ function render() {
     card.addEventListener("keydown", (event) => {
       if (event.key === "Enter") openProject(project, card);
     });
+    const shot = card.querySelector(".card-shot");
+    if (shot) shot.addEventListener("error", () => shot.remove());
     wall.appendChild(card);
   }
 }

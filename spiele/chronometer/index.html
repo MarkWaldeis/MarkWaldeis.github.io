@@ -560,7 +560,7 @@ function animate(){
   drop.position.y=4.1+Math.sin(t*0.7)*0.07;
   dropBody.scale.y=1.45+Math.sin(t*3.2)*0.03;
   crown.scale.set(1+Math.sin(t*2.2)*0.008, 1+Math.sin(t*2.8)*0.012, 1+Math.sin(t*2.2)*0.008);
-  oilMat.iridescenceIOR.value=2.3+Math.sin(t*0.5)*0.08;
+  oilMat.iridescenceIOR=2.3+Math.sin(t*0.5)*0.08;
 
   // dust drift catching light
   const dp=dustGeo.attributes.position;
