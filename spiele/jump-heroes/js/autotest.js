@@ -134,7 +134,15 @@ async function __runAutotest() {
     check('Gefahren: i-Frames verhindern Sofortschaden', iframeOk);
 
     G.startLevel(0, { silent: true });
-    const walker = G.level.enemies.find(e => e instanceof Walker);
+    // Walker mit freiem Himmel darüber wählen (keine Einweg-Plattform dazwischen)
+    const walker = G.level.enemies.find(e => {
+      if (!(e instanceof Walker)) return false;
+      const wc = Math.floor(e.cx / TILE), wr = Math.floor(e.y / TILE);
+      for (let r = wr - 1; r >= wr - 4; r--) {
+        if (G.level.tileChar(wc, r) === '-') return false;
+      }
+      return true;
+    });
     let stompOk = false;
     if (walker) {
       const p3 = G.player;
@@ -330,9 +338,10 @@ async function __runAutotest() {
             if (m.cx > P.x - 40 && m.cx < P.x + 16 * TILE) {
               const r = m.rect();
               const dv = Math.abs(r.y - feet);
-              const mc = r.x + r.w / 2;
-              if (mc >= P.x + P.w - 10 && mc <= P.x + P.w + 100 && dv <= 95) moverGo = true;
-              else if (dv <= 130) moverHold = true;
+              const dxEdge = r.x - (P.x + P.w); // Abstand zur nahen Kante
+              const overlapsX = dxEdge < 0 && r.x + r.w > P.x + 6;
+              if ((dxEdge <= 90 || overlapsX) && r.x + r.w > P.x + 10 && dv <= 95) moverGo = true;
+              else if (dxEdge <= 200 && dv <= 130) moverHold = true;
             }
           }
         }

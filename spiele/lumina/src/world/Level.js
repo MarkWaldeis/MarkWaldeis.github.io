@@ -13,13 +13,29 @@ class LuminaLevel {
     this.geysers = [];
     this.decorations = [];
     this.clouds = [];
+    this.pits = [];
+    this.zoneBanners = [];
     this.goal = null;
+    this.goalWarnT = 0;
+    // Cinematic biome banner (big centered title, drawn by the renderer)
+    this.banner = { text: "", sub: "", t: 0, max: 3.4 };
   }
 
   getZone(x) {
     if (x < 6000) return 0; // Bioluminescent Grove
     if (x < 12500) return 1; // Abyssal Crystal Caverns
     return 2; // Celestial Chrono-Citadel
+  }
+
+  // Smooth biome-blend coordinate: 0.0 = grove, 1.0 = caverns, 2.0 = citadel.
+  // Eases over a 700px band around each boundary so skies blend seamlessly.
+  getZoneBlend(x) {
+    const band = 700;
+    if (x < 6000 - band / 2) return 0;
+    if (x < 6000 + band / 2) return (x - (6000 - band / 2)) / band;
+    if (x < 12500 - band / 2) return 1;
+    if (x < 12500 + band / 2) return 1 + (x - (12500 - band / 2)) / band;
+    return 2;
   }
 
   build(engine) {
@@ -30,6 +46,13 @@ class LuminaLevel {
     this.geysers = [];
     this.decorations = [];
     this.clouds = [];
+    this.pits = [];
+    this.goalWarnT = 0;
+    this.banner = { text: "", sub: "", t: 0, max: 3.4 };
+    this.zoneBanners = [
+      { x: 6000, shown: false, label: "💎 Kristallhöhlen", sub: "Die Tiefe ruft — Amethyst & Dampf", toast: "💎 Kristallhöhlen — Die Tiefe ruft" },
+      { x: 12500, shown: false, label: "⚡ Himmels-Zitadelle", sub: "Das Siegel wartet — Sammle alle Kerne", toast: "⚡ Himmels-Zitadelle — Das Siegel wartet" }
+    ];
 
     // 1. Ground Segments (with pits/chasms for platforming challenge)
     const groundSegments = [
@@ -37,6 +60,13 @@ class LuminaLevel {
       [6250, 7600], [7750, 9300], [9450, 10900], [11050, 12400],
       [12550, 13900], [14050, 17500]
     ];
+
+    // Derive deadly pit gaps between ground segments (for visuals & decor mask)
+    for (let i = 0; i < groundSegments.length - 1; i++) {
+      const gapStart = groundSegments[i][1];
+      const gapEnd = groundSegments[i + 1][0];
+      if (gapEnd - gapStart > 20) this.pits.push({ x: gapStart, w: gapEnd - gapStart });
+    }
 
     groundSegments.forEach(([start, end]) => {
       const zone = this.getZone(start);
@@ -139,11 +169,11 @@ class LuminaLevel {
     this.addPickup("shield", 12800, 350);
     this.addPickup("heart", 14600, 340);
 
-    // 7. Checkpoint Obelisks
+    // 7. Checkpoint Obelisks (must stand on solid ground — x=14000 was inside the pit!)
     this.checkpoints = [
-      { x: 4700, y: 490, active: false, label: "🌿 Biolumineszenter Hain gesichert" },
-      { x: 10600, y: 490, active: false, label: "💎 Kristallhöhlen gemeistert" },
-      { x: 14000, y: 490, active: false, label: "⚡ Himmels-Zitadelle betreten" }
+      { x: 4700, y: 610, active: false, label: "🌿 Biolumineszenter Hain gesichert" },
+      { x: 10600, y: 610, active: false, label: "💎 Kristallhöhlen gemeistert" },
+      { x: 14120, y: 610, active: false, label: "⚡ Himmels-Zitadelle betreten" }
     ];
 
     // 8. Goal: Celestial Archway Vault
@@ -182,8 +212,10 @@ class LuminaLevel {
       });
     }
 
-    // Foliage & Crystals Decor
+    // Foliage & Crystals Decor (never hovering over a deadly pit)
     for (let x = 200; x < this.worldEnd; x += LuminaMath.rand(160, 300)) {
+      const inPit = this.pits.some(p => x > p.x - 12 && x < p.x + p.w + 12);
+      if (inPit) continue;
       this.decorations.push({
         x,
         zone: this.getZone(x),
@@ -328,6 +360,19 @@ class LuminaLevel {
       }
     }
 
+    // 4b. Biome transition banners (cinematic title + toast)
+    if (this.banner.t > 0) this.banner.t -= dt;
+    for (const b of this.zoneBanners) {
+      if (!b.shown && player.x > b.x) {
+        b.shown = true;
+        this.banner.text = b.label;
+        this.banner.sub = b.sub;
+        this.banner.t = this.banner.max;
+        engine.ui.showToast(b.toast, 2800);
+        engine.audio.playSFX("checkpoint");
+      }
+    }
+
     // 5. Boss Trigger at Citadel Arena
     if (!engine.boss.active && !engine.boss.defeated && player.x > 15000) {
       engine.boss.spawn(16250, 610);
@@ -339,15 +384,22 @@ class LuminaLevel {
       player.x = LuminaMath.clamp(player.x, 14950, 16850 - player.w);
     }
 
-    // 6. Goal Archway Trigger
+    // 6. Goal Archway Trigger (throttled warnings so the toast can't spam)
+    if (this.goalWarnT > 0) this.goalWarnT -= dt;
     if (this.goal && LuminaMath.rectsOverlap(player, this.goal)) {
       if (!engine.boss.defeated) {
         if (player.x > this.goal.x - 80) player.x = this.goal.x - player.w;
-        engine.ui.showToast("⚠️ Das Siegel öffnet sich erst nach Aetheris' Niederlage!");
+        if (this.goalWarnT <= 0) {
+          this.goalWarnT = 2.5;
+          engine.ui.showToast("⚠️ Das Siegel öffnet sich erst nach Aetheris' Niederlage!");
+        }
         return;
       }
       if (engine.state.cores < 5) {
-        engine.ui.showToast(`⚠️ Es fehlen noch ${5 - engine.state.cores} Aether-Kerne!`);
+        if (this.goalWarnT <= 0) {
+          this.goalWarnT = 2.5;
+          engine.ui.showToast(`⚠️ Es fehlen noch ${5 - engine.state.cores} Aether-Kerne!`);
+        }
         return;
       }
       engine.triggerVictory();

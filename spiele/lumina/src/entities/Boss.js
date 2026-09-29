@@ -23,6 +23,8 @@ class LuminaBoss {
     this.currentAttack = "idle";
     this.laserAngle = 0;
     this.laserActive = false;
+    this.laserWarn = false;
+    this.slamTargetX = 0; // predicted landing spot during jump_slam (telegraph)
     this.grounded = false;
     this.dyingTimer = 0;
     this.animTime = 0;
@@ -42,6 +44,13 @@ class LuminaBoss {
     this.defeated = false;
     this.cooldown = 1.5;
     this.currentAttack = "idle";
+    this.laserActive = false;
+    this.laserWarn = false;
+    this.slamTargetX = 0;
+    this.attackTimer = 0;
+    this.dyingTimer = 0;
+    this.animTime = 0;
+    this.grounded = false;
   }
 
   update(dt, player, engine) {
@@ -64,6 +73,17 @@ class LuminaBoss {
 
     this.animTime += dt * 4;
     this.facing = player.x < this.x + this.w / 2 ? -1 : 1;
+
+    // Predict landing spot while airborne on a jump_slam (for ground telegraph)
+    if (this.currentAttack === "jump_slam" && !this.grounded) {
+      const distToFloor = 610 - (this.y + this.h);
+      const g = 2000;
+      const disc = this.vy * this.vy + 2 * g * distToFloor;
+      const tLand = disc > 0 ? (this.vy + Math.sqrt(disc)) / g : 0.4;
+      this.slamTargetX = this.x + this.w / 2 + this.vx * tLand;
+    } else {
+      this.slamTargetX = this.x + this.w / 2;
+    }
 
     // Phase Transitions
     if (this.hp <= 2) this.phase = 3;
@@ -141,12 +161,16 @@ class LuminaBoss {
       this.cooldown = 2.0 / speedMult;
     } else if (choice === "laser_sweep") {
       this.laserActive = true;
-      this.attackTimer = 1.4;
-      this.cooldown = 2.8 / speedMult;
+      this.laserWarn = true; // telegraph phase before the beam ignites
+      this.attackTimer = 1.5;
+      this.cooldown = 2.9 / speedMult;
       engine.audio.playSFX("boss_laser");
     } else if (choice === "summon_wisps") {
-      engine.enemies.add("wisp", this.x - 80, 420);
-      engine.enemies.add("wisp", this.x + this.w + 80, 420);
+      const aliveCount = engine.enemies.list.reduce((n, e) => n + (e.alive ? 1 : 0), 0);
+      if (aliveCount < 8) {
+        engine.enemies.add("wisp", this.x - 80, 420);
+        engine.enemies.add("wisp", this.x + this.w + 80, 420);
+      }
       this.cooldown = 3.2;
     }
   }
@@ -156,10 +180,22 @@ class LuminaBoss {
       if (this.grounded && Math.random() < 0.3) {
         engine.particles.spawnDust(this.x + this.w / 2, this.y + this.h, "#9b51e0");
       }
-    } else if (this.laserActive) {
+    }
+    if (this.laserActive) {
       this.attackTimer -= dt;
+      // First 0.55s = warning telegraph, remaining time = live beam
+      this.laserWarn = this.attackTimer > 0.95;
       if (this.attackTimer <= 0) {
         this.laserActive = false;
+        this.laserWarn = false;
+      } else if (!this.laserWarn) {
+        // Live beam hitbox: extends 600px in facing direction from the core eye
+        const beamY = this.y + this.h / 2 - 15;
+        const beamX = this.facing === 1 ? this.x + this.w / 2 + 20 : this.x + this.w / 2 - 620;
+        const beam = { x: beamX, y: beamY - 4, w: 600, h: 32 };
+        if (LuminaMath.rectsOverlap(player, beam)) {
+          player.takeDamage(1, engine);
+        }
       }
     }
   }

@@ -105,11 +105,23 @@
       border: 1px solid var(--card-border);
       border-radius: 18px;
       padding: 20px;
-      margin-bottom: 36px;
+      margin-bottom: 12px;
       display: flex;
       flex-direction: column;
       gap: 16px;
       box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+      position: sticky;
+      top: 12px;
+      z-index: 50;
+    }
+    .results-count {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      margin-bottom: 20px;
+      padding-left: 4px;
+    }
+    .results-count strong {
+      color: var(--text-main);
     }
     .controls-top {
       display: flex;
@@ -144,6 +156,20 @@
       color: var(--text-muted);
       font-size: 1.1rem;
       pointer-events: none;
+    }
+    .search-kbd {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      font-family: monospace;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 5px;
+      padding: 2px 7px;
+      pointer-events: none;
+      background: rgba(255, 255, 255, 0.04);
     }
     .sort-select {
       background: rgba(10, 14, 23, 0.8);
@@ -197,6 +223,8 @@
       flex-direction: column;
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
+      content-visibility: auto;
+      contain-intrinsic-size: auto 640px;
     }
     .card:hover {
       transform: translateY(-6px);
@@ -220,6 +248,28 @@
     }
     .card:hover .card-img {
       transform: scale(1.05);
+    }
+    .card-no-image {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
+      color: var(--text-muted);
+    }
+    .card-no-image .no-image-icon {
+      font-size: 2.4rem;
+      opacity: 0.7;
+    }
+    .card-no-image .no-image-text {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.6;
     }
     .media-badge-group {
       position: absolute;
@@ -487,6 +537,43 @@
       cursor: pointer;
       line-height: 1;
     }
+    .modal-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(30, 41, 59, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-size: 1.6rem;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      line-height: 1;
+    }
+    .modal-nav:hover {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+    }
+    .modal-nav.prev { left: -56px; }
+    .modal-nav.next { right: -56px; }
+    .modal-counter {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    @media (max-width: 768px) {
+      .modal-nav.prev { left: 4px; }
+      .modal-nav.next { right: 4px; }
+    }
     /* Toast Notification */
     .toast {
       position: fixed;
@@ -510,11 +597,43 @@
     .toast.show {
       transform: translateX(-50%) translateY(0);
     }
+    /* Thumbnail scrollbar */
+    .thumbnails-strip::-webkit-scrollbar {
+      height: 4px;
+    }
+    .thumbnails-strip::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+    }
+    /* Keyboard focus */
+    .filter-btn:focus-visible,
+    .btn:focus-visible,
+    .thumb-btn:focus-visible,
+    .sort-select:focus-visible,
+    .modal-nav:focus-visible,
+    .modal-close:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+    }
+    .card-repo:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
     /* Responsive */
     @media (max-width: 768px) {
       h1 { font-size: 2rem; }
       .grid { grid-template-columns: 1fr; }
       body { padding: 16px 12px 60px 12px; }
+      .controls { position: static; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+      .card:hover { transform: none; }
+      .card:hover .card-img { transform: none; }
     }
   </style>
 </head>
@@ -528,14 +647,14 @@
     </div>
     <h1>3D GitHub Projects & Vibe Coding Showcase</h1>
     <p class="subtitle">
-      Kuratierte Sammlung von 42 kopierbaren 3D-Spielen (Cartoon- & Everdale-Stil, Stylized Adventure, Civ-6-Klone, Piratenspiele & KI-Spiele) von Solo-Developern und kleinen Accounts (< 200 Stars) mit echten Screenshots & Analysen.
+      Kuratierte Sammlung von 54 kopierbaren 3D-Spielen (Cartoon- & Everdale-Stil, Stylized Adventure, Civ-6-Klone, Piratenspiele & KI-Spiele) von Solo-Developern und kleinen Accounts (< 200 Stars) mit echten Screenshots & Analysen.
     </p>
 
     <!-- Stats Bar -->
-        <div class="stats-bar">
+    <div class="stats-bar">
       <div class="stat-pill">
         <span>🎮</span>
-        <span><span class="stat-number">42</span> Projekte</span>
+        <span><span class="stat-number">54</span> Projekte</span>
       </div>
       <div class="stat-pill">
         <span>📸</span>
@@ -546,21 +665,8 @@
         <span><span class="stat-number">20</span> Cartoon & Cozy</span>
       </div>
       <div class="stat-pill">
-        <span>⭐</span>
-        <span><span class="stat-number">0 – 200</span> Stars (Indie Focus)</span>
-      </div>
-      <div class="stat-pill">
-        <span>📋</span>
-        <span><span class="stat-number">100%</span> Klonbar & Open Source</span>
-      </div>
-    </div>
-      <div class="stat-pill">
-        <span>📸</span>
-        <span><span class="stat-number">46</span> Lokale Screenshots</span>
-      </div>
-      <div class="stat-pill">
         <span>🤖</span>
-        <span><span class="stat-number">12</span> KI & Vibe Coded</span>
+        <span><span class="stat-number">8</span> KI & Vibe Coded</span>
       </div>
       <div class="stat-pill">
         <span>⭐</span>
@@ -578,9 +684,10 @@
     <div class="controls-top">
       <div class="search-wrapper">
         <span class="search-icon">🔍</span>
-        <input type="text" id="searchInput" class="search-input" placeholder="Projekt, Genre, Engine (Three.js, Godot, Bevy) oder KI-Tool suchen...">
+        <input type="text" id="searchInput" class="search-input" aria-label="Projekte durchsuchen" placeholder="Projekt, Genre, Engine (Three.js, Godot, Bevy) oder KI-Tool suchen...">
+        <span class="search-kbd" title="Drücke / zum Fokussieren">/</span>
       </div>
-      <select id="sortSelect" class="sort-select">
+      <select id="sortSelect" class="sort-select" aria-label="Sortierung">
         <option value="recommended">Empfohlene Sortierung</option>
         <option value="stars-asc">Stars: Niedrig zu Hoch (Geheimtipps)</option>
         <option value="stars-desc">Stars: Hoch zu Niedrig</option>
@@ -597,20 +704,26 @@
       <button class="filter-btn" data-filter="civ">🏛️ Civilization & 4X (7)</button>
       <button class="filter-btn" data-filter="pirates">🏴‍☠️ Piraten & Ozean (7)</button>
       <button class="filter-btn" data-filter="ai">🤖 KI-Gebaut & Vibe Coding (8)</button>
-      <button class="filter-btn" data-filter="web">🌐 Browser-Only</button>
-      <button class="filter-btn" data-filter="engine">⚡ Standalone (Godot / Unity)</button>
+      <button class="filter-btn" data-filter="web">🌐 Browser-Only (21)</button>
+      <button class="filter-btn" data-filter="engine">⚡ Standalone (Godot / Unity) (30)</button>
     </div>
   </div>
+
+  <!-- Results Count -->
+  <div class="results-count" id="resultsCount" aria-live="polite"></div>
 
   <!-- Cards Grid -->
   <div class="grid" id="projectsGrid"></div>
 </div>
 
 <!-- Lightbox Modal -->
-<div class="modal" id="imageModal">
+<div class="modal" id="imageModal" role="dialog" aria-modal="true" aria-label="Screenshot-Ansicht">
   <div class="modal-content">
-    <button class="modal-close" id="modalClose">&times;</button>
+    <button class="modal-close" id="modalClose" aria-label="Schließen">&times;</button>
+    <span class="modal-counter" id="modalCounter"></span>
+    <button class="modal-nav prev" id="modalPrev" aria-label="Vorheriges Bild">‹</button>
     <img src="" alt="" class="modal-img" id="modalImg">
+    <button class="modal-nav next" id="modalNext" aria-label="Nächstes Bild">›</button>
     <div class="modal-caption" id="modalCaption"></div>
   </div>
 </div>
@@ -2224,11 +2337,17 @@ const PROJECTS = [
   }
 ];
 
+const PROJECTS_BY_ID = {};
+PROJECTS.forEach(p => { PROJECTS_BY_ID[p.id] = p; });
+
 let currentFilter = 'all';
 let currentSearch = '';
 let currentSort = 'recommended';
+let modalImages = [];
+let modalIndex = 0;
 
 const grid = document.getElementById('projectsGrid');
+const resultsCount = document.getElementById('resultsCount');
 const searchInput = document.getElementById('searchInput');
 const sortSelect = document.getElementById('sortSelect');
 const filterBtns = document.querySelectorAll('.filter-btn');
@@ -2237,6 +2356,9 @@ const modal = document.getElementById('imageModal');
 const modalImg = document.getElementById('modalImg');
 const modalCaption = document.getElementById('modalCaption');
 const modalClose = document.getElementById('modalClose');
+const modalPrev = document.getElementById('modalPrev');
+const modalNext = document.getElementById('modalNext');
+const modalCounter = document.getElementById('modalCounter');
 
 const toast = document.getElementById('toast');
 const toastText = document.getElementById('toastText');
@@ -2256,26 +2378,70 @@ function copyClone(url) {
   });
 }
 
-function openImage(src, caption) {
-  modalImg.src = src;
-  modalCaption.textContent = caption || '';
-  modal.classList.add('open');
+function showModalImage(idx) {
+  if (!modalImages.length) return;
+  modalIndex = (idx + modalImages.length) % modalImages.length;
+  const img = modalImages[modalIndex];
+  modalImg.src = img.path;
+  modalImg.alt = img.caption || '';
+  modalCaption.textContent = img.caption || '';
+  const multi = modalImages.length > 1;
+  modalCounter.textContent = multi ? `${modalIndex + 1} / ${modalImages.length}` : '';
+  modalPrev.style.display = multi ? 'flex' : 'none';
+  modalNext.style.display = multi ? 'flex' : 'none';
 }
 
-modalClose.addEventListener('click', () => modal.classList.remove('open'));
+function openImage(projectId) {
+  const p = PROJECTS_BY_ID[projectId];
+  if (!p || !p.images.length) return;
+  const cardImg = document.getElementById('img-' + projectId);
+  const startIdx = cardImg ? parseInt(cardImg.dataset.idx || '0', 10) : 0;
+  modalImages = p.images;
+  showModalImage(startIdx);
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  modal.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+modalClose.addEventListener('click', closeModal);
+modalPrev.addEventListener('click', (e) => { e.stopPropagation(); showModalImage(modalIndex - 1); });
+modalNext.addEventListener('click', (e) => { e.stopPropagation(); showModalImage(modalIndex + 1); });
 modal.addEventListener('click', (e) => {
-  if (e.target === modal) modal.classList.remove('open');
+  if (e.target === modal) closeModal();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') modal.classList.remove('open');
+  if (modal.classList.contains('open')) {
+    if (e.key === 'Escape') closeModal();
+    else if (e.key === 'ArrowLeft') showModalImage(modalIndex - 1);
+    else if (e.key === 'ArrowRight') showModalImage(modalIndex + 1);
+    return;
+  }
+  // "/" fokussiert die Suche (außer man tippt bereits in ein Feld)
+  if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) {
+    e.preventDefault();
+    searchInput.focus();
+    searchInput.select();
+  }
+});
+// Escape im Suchfeld leert die Suche
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && searchInput.value) {
+    searchInput.value = '';
+    currentSearch = '';
+    renderProjects();
+    e.stopPropagation();
+  }
 });
 
 function renderProjects() {
   let filtered = PROJECTS.filter(p => {
-    // Filter
-    if (currentFilter === 'civ' && p.category !== 'civ') return false;
-    if (currentFilter === 'pirates' && p.category !== 'pirates') return false;
-    if (currentFilter === 'ai' && p.category !== 'ai') return false;
+    // Kategorie-Filter (cozy, adventure, toonweb, citybuilder, civ, pirates, ai)
+    if (currentFilter !== 'all' && currentFilter !== 'web' && currentFilter !== 'engine' && p.category !== currentFilter) return false;
+    // Engine-Filter
     if (currentFilter === 'web' && !p.engine.toLowerCase().includes('three') && !p.engine.toLowerCase().includes('webgl') && !p.engine.toLowerCase().includes('canvas')) return false;
     if (currentFilter === 'engine' && !p.engine.toLowerCase().includes('godot') && !p.engine.toLowerCase().includes('unity') && !p.engine.toLowerCase().includes('rust')) return false;
 
@@ -2302,6 +2468,8 @@ function renderProjects() {
     filtered.sort((a, b) => a.title.localeCompare(b.title));
   }
 
+  resultsCount.innerHTML = `<strong>${filtered.length}</strong> von ${PROJECTS.length} Projekten`;
+
   grid.innerHTML = '';
 
   if (filtered.length === 0) {
@@ -2318,16 +2486,29 @@ function renderProjects() {
     const card = document.createElement('div');
     card.className = 'card';
 
-    const activeImg = p.images[0] || { path: '', caption: '' };
+    const activeImg = p.images[0] || null;
     const badgeClass = p.category === 'civ' ? 'badge-civ' : p.category === 'pirates' ? 'badge-pirates' : (p.category === 'cozy' || p.category === 'adventure') ? 'badge-civ' : 'badge-ai';
+
+    let mediaInner;
+    if (activeImg) {
+      mediaInner = `<img src="${activeImg.path}" alt="${activeImg.caption}" class="card-img" id="img-${p.id}" data-idx="0" loading="lazy" decoding="async">`;
+    } else {
+      mediaInner = `
+        <div class="card-no-image" id="img-${p.id}" data-idx="0">
+          <span class="no-image-icon">🎮</span>
+          <span class="no-image-text">Kein Screenshot</span>
+        </div>`;
+    }
 
     let thumbsHtml = '';
     if (p.images.length > 1) {
       thumbsHtml = `
         <div class="thumbnails-strip">
           ${p.images.map((img, idx) => `
-            <div class="thumb-btn ${idx === 0 ? 'active' : ''}" onclick="switchCardImage(event, '${p.id}', '${img.path}', '${img.caption.replace(/'/g, "\'")}')">
-              <img src="${img.path}" alt="Thumb">
+            <div class="thumb-btn ${idx === 0 ? 'active' : ''}" role="button" tabindex="0" title="${img.caption}"
+                 onclick="switchCardImage(event, '${p.id}', ${idx})"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchCardImage(event,'${p.id}',${idx})}">
+              <img src="${img.path}" alt="${img.caption}" loading="lazy" decoding="async">
             </div>
           `).join('')}
         </div>
@@ -2335,21 +2516,23 @@ function renderProjects() {
     }
 
     card.innerHTML = `
-      <div class="card-media" id="media-${p.id}" onclick="openImage(document.getElementById('img-${p.id}').src, document.getElementById('img-${p.id}').alt)">
+      <div class="card-media" id="media-${p.id}" role="button" tabindex="0" title="Screenshot vergrößern"
+           onclick="openImage('${p.id}')"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openImage('${p.id}')}">
         <div class="media-badge-group">
           <span class="media-badge ${badgeClass}">${p.category_label}</span>
         </div>
         <div class="stars-badge">
           <span>★</span> <span>${p.stars}</span>
         </div>
-        <img src="${activeImg.path}" alt="${activeImg.caption}" class="card-img" id="img-${p.id}">
+        ${mediaInner}
       </div>
 
       ${thumbsHtml}
 
       <div class="card-body">
         <h3 class="card-title">${p.title}</h3>
-        <a href="https://github.com/${p.repo}" target="_blank" class="card-repo">${p.repo}</a>
+        <a href="https://github.com/${p.repo}" target="_blank" rel="noopener" class="card-repo">${p.repo}</a>
 
         <div class="tags-container">
           <span class="tag-chip engine-chip">🎮 ${p.engine}</span>
@@ -2367,13 +2550,13 @@ function renderProjects() {
           <button class="btn btn-clone" onclick="copyClone('${p.clone_url}')">
             <span>📋</span> Clone
           </button>
-          <a href="${p.dossier}" class="btn btn-dossier" title="Lokales Dossier ansehen">
+          <a href="${p.dossier}" target="_blank" rel="noopener" class="btn btn-dossier" title="Lokales Dossier ansehen">
             <span>📖</span> Dossier
           </a>
-          <a href="https://github.com/${p.repo}" target="_blank" class="btn btn-github" title="Auf GitHub öffnen">
+          <a href="https://github.com/${p.repo}" target="_blank" rel="noopener" class="btn btn-github" title="Auf GitHub öffnen">
             <span>⭐</span> GitHub
           </a>
-          ${p.demo_url ? `<a href="${p.demo_url}" target="_blank" class="btn btn-demo" title="Live im Browser spielen"><span>▶</span> Demo</a>` : ''}
+          ${p.demo_url ? `<a href="${p.demo_url}" target="_blank" rel="noopener" class="btn btn-demo" title="Live im Browser spielen"><span>▶</span> Demo</a>` : ''}
         </div>
       </div>
     `;
@@ -2382,22 +2565,27 @@ function renderProjects() {
   });
 }
 
-window.switchCardImage = function(e, cardId, newSrc, newCaption) {
+window.switchCardImage = function(e, cardId, idx) {
   e.stopPropagation();
+  const p = PROJECTS_BY_ID[cardId];
   const img = document.getElementById('img-' + cardId);
-  if (img) {
-    img.src = newSrc;
-    img.alt = newCaption;
-  }
+  if (!p || !img || !p.images[idx]) return;
+  img.src = p.images[idx].path;
+  img.alt = p.images[idx].caption || '';
+  img.dataset.idx = idx;
   const parentStrip = e.currentTarget.parentElement;
   parentStrip.querySelectorAll('.thumb-btn').forEach(b => b.classList.remove('active'));
   e.currentTarget.classList.add('active');
 };
 
 // Event Listeners
+let searchDebounce;
 searchInput.addEventListener('input', (e) => {
-  currentSearch = e.target.value.trim();
-  renderProjects();
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    currentSearch = e.target.value.trim();
+    renderProjects();
+  }, 150);
 });
 
 sortSelect.addEventListener('change', (e) => {

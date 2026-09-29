@@ -2,11 +2,13 @@
  * BUILDERMENT 3D - FACTORY SIMULATION & LOGISTICS ENGINE
  */
 
+// angle rotates a model's local +X axis onto the travel direction (dx, dz).
+// R_y(theta) * (1,0,0) = (cos, 0, -sin) => angle = -atan2(dz, dx)
 const DIRS = [
     { dx: 1, dz: 0, name: 'OST (→)', angle: 0 },
-    { dx: 0, dz: 1, name: 'SÜD (↓)', angle: Math.PI / 2 },
+    { dx: 0, dz: 1, name: 'SÜD (↓)', angle: -Math.PI / 2 },
     { dx: -1, dz: 0, name: 'WEST (←)', angle: Math.PI },
-    { dx: 0, dz: -1, name: 'NORD (↑)', angle: -Math.PI / 2 }
+    { dx: 0, dz: -1, name: 'NORD (↑)', angle: Math.PI / 2 }
 ];
 
 const ITEM_PALETTE = [0x38bdf8, 0xf97316, 0x10b981, 0xfacc15, 0xa855f7, 0xec4899, 0x94a3b8, 0xef4444];
@@ -40,6 +42,66 @@ const MACHINE_RECIPES = {};
 window.ITEM_DATA = ITEM_DATA;
 window.MACHINE_RECIPES = MACHINE_RECIPES;
 
+// ----------------------------------------------------
+// SHARED ITEM GEOMETRY / MATERIAL CACHES (perf: no per-item allocs)
+// ----------------------------------------------------
+const ITEM_GEO_CACHE = {};
+function getItemGeometry(kind) {
+    if (ITEM_GEO_CACHE[kind]) return ITEM_GEO_CACHE[kind];
+    let geo;
+    if (kind === 'cylinder') {
+        geo = new THREE.CylinderGeometry(0.22, 0.22, 0.5, 8);
+        geo.rotateX(Math.PI / 2);
+    } else if (kind === 'gear') {
+        geo = new THREE.CylinderGeometry(0.28, 0.28, 0.12, 6);
+    } else if (kind === 'ingot') {
+        geo = new THREE.BoxGeometry(0.52, 0.2, 0.3);
+    } else if (kind === 'torus') {
+        geo = new THREE.TorusGeometry(0.24, 0.09, 6, 12);
+    } else if (kind === 'dodeca') {
+        geo = new THREE.DodecahedronGeometry(0.3, 0);
+    } else if (kind === 'coin') {
+        geo = new THREE.CylinderGeometry(0.32, 0.32, 0.1, 16);
+        geo.rotateX(Math.PI / 2);
+    } else {
+        geo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+    }
+    ITEM_GEO_CACHE[kind] = geo;
+    return geo;
+}
+
+const ITEM_MAT_CACHE = {};
+function getItemMaterial(itemName, itemInfo) {
+    if (ITEM_MAT_CACHE[itemName]) return ITEM_MAT_CACHE[itemName];
+    const mat = new THREE.MeshStandardMaterial({
+        color: itemInfo.color,
+        roughness: itemInfo.rough,
+        metalness: itemInfo.metal,
+        emissive: itemInfo.color,
+        emissiveIntensity: 0.18
+    });
+    ITEM_MAT_CACHE[itemName] = mat;
+    return mat;
+}
+
+/** Direction arrow geometry: cone apex pointing along local +X. */
+function makeDirArrowGeometry(radius = 0.3, length = 0.62, segments = 4) {
+    const geo = new THREE.ConeGeometry(radius, length, segments);
+    geo.rotateZ(-Math.PI / 2); // +Y apex -> +X
+    return geo;
+}
+
+/** Dispose a building mesh's unique geometries & materials. */
+function disposeObject3D(root) {
+    root.traverse(obj => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+            if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+            else obj.material.dispose();
+        }
+    });
+}
+
 class FactorySimulation {
     constructor(scene, cellSize = 2) {
         this.scene = scene;
@@ -58,6 +120,7 @@ class FactorySimulation {
         this.buildings = new Map(); // key: "gx,gz" -> building object
         this.itemsOnBelts = [];     // Array of items moving on belts
         this.selectedBuilding = null;
+        this.deposits = null;       // set by app (world.deposits) for hiding ore under extractors
 
         // Technology / Upgrades
         this.conveyorTier = 1; // 1: 420/min, 2: 720/min, 3: 1080/min
@@ -119,8 +182,61 @@ class FactorySimulation {
         }
 
         buildingData.mesh = mesh;
+
+        // Cache animated sub-parts once (no per-frame traversal)
+        if (mesh) {
+            buildingData._drill = mesh.getObjectByName('drillBit') || null;
+            buildingData._cogA = mesh.getObjectByName('cogA') || null;
+            buildingData._cogB = mesh.getObjectByName('cogB') || null;
+            buildingData._dome = mesh.getObjectByName('energyDome') || null;
+            buildingData._chimney = mesh.getObjectByName('chimney') || null;
+        }
+
+        // Any building covers the ore/tree deposit it stands on (revealed again on demolish)
+        if (this.deposits) {
+            const dep = this.deposits.get(key);
+            if (dep && dep.mesh) {
+                dep.mesh.visible = false;
+                buildingData.coveredDeposit = dep;
+            }
+        }
+
+        // Live production progress bar for producers/crafters
+        if (type === 'extractor' || type === 'gem_tree' ||
+            ['furnace', 'workshop', 'forge', 'machine_shop', 'industrial_factory', 'manufacturer', 'earth_teleporter'].includes(type)) {
+            const bar = this.createProgressBar();
+            mesh.add(bar);
+            buildingData.progressBar = bar;
+        }
+
         this.buildings.set(key, buildingData);
         return buildingData;
+    }
+
+    createProgressBar() {
+        const group = new THREE.Group();
+        group.name = 'progressBar';
+        group.position.y = 2.9;
+
+        const bg = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.35, 0.17),
+            new THREE.MeshBasicMaterial({ color: 0x0b1220, transparent: true, opacity: 0.8, depthWrite: false })
+        );
+        group.add(bg);
+
+        const fillGeo = new THREE.PlaneGeometry(1.35, 0.17);
+        fillGeo.translate(0.675, 0, 0); // grow from left edge
+        const fill = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({
+            color: 0x34d399, transparent: true, opacity: 0.95, depthWrite: false
+        }));
+        fill.position.x = -0.675;
+        fill.position.z = 0.001;
+        fill.scale.x = 0.0001;
+        group.add(fill);
+
+        group.userData.fill = fill;
+        group.visible = false;
+        return group;
     }
 
     removeBuilding(gx, gz) {
@@ -128,7 +244,15 @@ class FactorySimulation {
         const b = this.buildings.get(key);
         if (!b || b.isVault) return null;
 
-        if (b.mesh) this.scene.remove(b.mesh);
+        // Reveal a covered resource deposit again
+        if (b.coveredDeposit && b.coveredDeposit.mesh) {
+            b.coveredDeposit.mesh.visible = true;
+        }
+
+        if (b.mesh) {
+            this.scene.remove(b.mesh);
+            disposeObject3D(b.mesh);
+        }
         this.buildings.delete(key);
 
         if (this.selectedBuilding === b) {
@@ -152,19 +276,28 @@ class FactorySimulation {
         rail.receiveShadow = true;
         group.add(rail);
 
-        // Tread Surface
-        const treadGeo = new THREE.BoxGeometry(this.cellSize * 0.74, 0.06, this.cellSize * 0.88);
+        // Tread Surface (travel along local +X)
+        const treadGeo = new THREE.BoxGeometry(this.cellSize * 0.88, 0.06, this.cellSize * 0.7);
         const treadMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
         const tread = new THREE.Mesh(treadGeo, treadMat);
         tread.position.y = 0.17;
         group.add(tread);
 
-        // Glowing Chevron Direction Indicator
-        const chevronGeo = new THREE.ConeGeometry(0.32, 0.65, 3);
-        chevronGeo.rotateX(Math.PI / 2);
-        const chevronMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+        // Two raised side rails for a real conveyor silhouette
+        const railSideGeo = new THREE.BoxGeometry(this.cellSize * 0.92, 0.14, 0.12);
+        const railSideMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.85, roughness: 0.28 });
+        for (const sz of [-1, 1]) {
+            const side = new THREE.Mesh(railSideGeo, railSideMat);
+            side.position.set(0, 0.24, sz * this.cellSize * 0.41);
+            side.castShadow = false;
+            group.add(side);
+        }
+
+        // Glowing Chevron Direction Indicator (apex along local +X = travel dir)
+        const chevronGeo = makeDirArrowGeometry(0.3, 0.66, 3);
+        const chevronMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
         const chevron = new THREE.Mesh(chevronGeo, chevronMat);
-        chevron.position.set(0, 0.22, 0);
+        chevron.position.set(0.05, 0.24, 0);
         group.add(chevron);
 
         group.position.set(gx * this.cellSize, 0, gz * this.cellSize);
@@ -261,6 +394,14 @@ class FactorySimulation {
         beacon.position.set(0, 2.35, 0);
         group.add(beacon);
 
+        // Output direction marker on the cell edge
+        const outArrow = new THREE.Mesh(
+            makeDirArrowGeometry(0.22, 0.5, 4),
+            new THREE.MeshBasicMaterial({ color: 0xfde047 })
+        );
+        outArrow.position.set(0.72, 0.35, 0);
+        group.add(outArrow);
+
         group.position.set(gx * this.cellSize, 0, gz * this.cellSize);
         group.rotation.y = DIRS[dir].angle;
         this.scene.add(group);
@@ -292,6 +433,14 @@ class FactorySimulation {
         body.receiveShadow = true;
         group.add(body);
 
+        // Dark roof cap for a stronger silhouette
+        const roofGeo = new THREE.BoxGeometry(1.72, 0.16, 1.72);
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.7, roughness: 0.35 });
+        const roof = new THREE.Mesh(roofGeo, roofMat);
+        roof.position.y = 1.48;
+        roof.castShadow = true;
+        group.add(roof);
+
         if (type === 'furnace') {
             // Chimney & Glowing Hearth
             const chimneyGeo = new THREE.CylinderGeometry(0.3, 0.38, 1.6, 8);
@@ -309,16 +458,16 @@ class FactorySimulation {
             hearth.rotation.y = Math.PI / 2;
             group.add(hearth);
         } else if (type === 'workshop') {
-            // Animated Cogs
+            // Animated Cogs (above the roof cap)
             const cogGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.2, 8);
             const cogMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.85, roughness: 0.2 });
             const cogA = new THREE.Mesh(cogGeo, cogMat);
-            cogA.position.set(-0.25, 1.45, 0);
+            cogA.position.set(-0.25, 1.66, 0);
             cogA.name = "cogA";
             group.add(cogA);
 
             const cogB = new THREE.Mesh(cogGeo, cogMat);
-            cogB.position.set(0.35, 1.45, 0);
+            cogB.position.set(0.35, 1.66, 0);
             cogB.scale.set(0.7, 0.7, 0.7);
             cogB.name = "cogB";
             group.add(cogB);
@@ -332,10 +481,18 @@ class FactorySimulation {
                 roughness: 0.1
             });
             const dome = new THREE.Mesh(domeGeo, domeMat);
-            dome.position.y = 1.75;
+            dome.position.y = 1.85;
             dome.name = "energyDome";
             group.add(dome);
         }
+
+        // Output direction marker on the cell edge
+        const outArrow = new THREE.Mesh(
+            makeDirArrowGeometry(0.2, 0.45, 4),
+            new THREE.MeshBasicMaterial({ color: 0xfde047 })
+        );
+        outArrow.position.set(0.78, 0.2, 0);
+        group.add(outArrow);
 
         group.position.set(gx * this.cellSize, 0, gz * this.cellSize);
         group.rotation.y = DIRS[dir].angle;
@@ -348,35 +505,10 @@ class FactorySimulation {
     // ----------------------------------------------------
 
     spawnItem(itemName, startX, startZ, targetGx, targetGz) {
-        const itemInfo = ITEM_DATA[itemName] || { color: 0xf8fafc, geo: 'box_flat', metal: 0.3, rough: 0.4 };
-        let geo;
-
-        if (itemInfo.geo === 'cylinder') {
-            geo = new THREE.CylinderGeometry(0.22, 0.22, 0.5, 8);
-            geo.rotateX(Math.PI / 2);
-        } else if (itemInfo.geo === 'gear') {
-            geo = new THREE.CylinderGeometry(0.28, 0.28, 0.12, 6);
-        } else if (itemInfo.geo === 'ingot') {
-            geo = new THREE.BoxGeometry(0.5, 0.18, 0.28);
-        } else if (itemInfo.geo === 'torus') {
-            geo = new THREE.TorusGeometry(0.22, 0.08, 6, 12);
-        } else if (itemInfo.geo === 'dodeca') {
-            geo = new THREE.DodecahedronGeometry(0.26, 0);
-        } else if (itemInfo.geo === 'coin') {
-            geo = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
-            geo.rotateX(Math.PI / 2);
-        } else {
-            geo = new THREE.BoxGeometry(0.38, 0.38, 0.38);
-        }
-
-        const mat = new THREE.MeshStandardMaterial({
-            color: itemInfo.color,
-            roughness: itemInfo.rough,
-            metalness: itemInfo.metal
-        });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(startX, 0.38, startZ);
-        mesh.castShadow = true;
+        const itemInfo = ITEM_DATA[itemName] || { color: 0xf8fafc, geo: 'box', metal: 0.3, rough: 0.4 };
+        const geo = getItemGeometry(itemInfo.geo);
+        const mesh = new THREE.Mesh(geo, getItemMaterial(itemName, itemInfo));
+        mesh.position.set(startX, 0.42, startZ);
         this.scene.add(mesh);
 
         const speed = 1.6 * this.conveyorTier;
@@ -403,8 +535,7 @@ class FactorySimulation {
         // 1. UPDATE EXTRACTORS & MACHINES
         this.buildings.forEach(b => {
             if (b.type === 'extractor' || b.type === 'gem_tree') {
-                const drill = b.mesh ? b.mesh.getObjectByName("drillBit") : null;
-                if (drill) drill.rotation.y += delta * 12;
+                if (b._drill) b._drill.rotation.y += delta * 12;
 
                 b.timer += delta * b.speedMultiplier;
                 const interval = b.interval || 3.0;
@@ -423,22 +554,15 @@ class FactorySimulation {
 
                     if (this.buildings.has(targetKey)) {
                         this.spawnItem(resName, b.gx * this.cellSize, b.gz * this.cellSize, targetGx, targetGz);
+                        this.producedCounts[resName] = (this.producedCounts[resName] || 0) + 1;
                         if (renderEngine) renderEngine.spawnSparks(b.gx * this.cellSize, 0.4, b.gz * this.cellSize);
                     }
                 }
             } else if (['furnace', 'workshop', 'forge', 'machine_shop', 'industrial_factory', 'manufacturer', 'earth_teleporter'].includes(b.type)) {
-                // Animate machine parts
-                if (b.mesh) {
-                    const cogA = b.mesh.getObjectByName("cogA");
-                    const cogB = b.mesh.getObjectByName("cogB");
-                    if (cogA) cogA.rotation.y += delta * 4;
-                    if (cogB) cogB.rotation.y -= delta * 4;
-
-                    const dome = b.mesh.getObjectByName("energyDome");
-                    if (dome) {
-                        dome.scale.setScalar(1.0 + Math.sin(now * 0.005) * 0.05);
-                    }
-                }
+                // Animate machine parts (cached refs)
+                if (b._cogA) b._cogA.rotation.y += delta * 4;
+                if (b._cogB) b._cogB.rotation.y -= delta * 4;
+                if (b._dome) b._dome.scale.setScalar(1.0 + Math.sin(now * 0.005) * 0.05);
 
                 if (b.activeRecipe) {
                     // Check if inputs are available
@@ -474,6 +598,16 @@ class FactorySimulation {
                     }
                 }
             }
+
+            // Floating production progress bar (billboarded to camera)
+            if (b.progressBar) {
+                const p = b.progress || 0;
+                b.progressBar.visible = p > 0.02;
+                if (b.progressBar.visible) {
+                    b.progressBar.userData.fill.scale.x = Math.max(p, 0.0001);
+                    if (renderEngine) b.progressBar.quaternion.copy(renderEngine.camera.quaternion);
+                }
+            }
         });
 
         // 2. MOVE ITEMS ALONG BELTS
@@ -488,7 +622,7 @@ class FactorySimulation {
 
             item.mesh.position.x = THREE.MathUtils.lerp(startX, endX, Math.min(item.progress, 1.0));
             item.mesh.position.z = THREE.MathUtils.lerp(startZ, endZ, Math.min(item.progress, 1.0));
-            item.mesh.rotation.y += delta * 3.0;
+            item.mesh.rotation.y += delta * 1.4;
 
             if (item.progress >= 1.0) {
                 const targetKey = `${item.targetGx},${item.targetGz}`;
@@ -498,6 +632,12 @@ class FactorySimulation {
                     this.scene.remove(item.mesh);
                     this.itemsOnBelts.splice(i, 1);
                     continue;
+                }
+
+                // Resurface after an underground hop
+                if (item.undergroundHop) {
+                    item.undergroundHop = false;
+                    item.mesh.visible = true;
                 }
 
                 // A. Reached Central Gold Vault
@@ -537,21 +677,36 @@ class FactorySimulation {
                     item.targetGz = item.currentGz + nextDir.dz;
                     item.progress = 0;
                 } else if (targetBuilding.type === 'splitter') {
-                                    item.currentGx = item.targetGx;
-                                    item.currentGz = item.targetGz;
-                                    const choices = [targetBuilding.dir, (targetBuilding.dir + (targetBuilding.routeIndex++ % 2 ? 1 : 3)) % 4];
-                                    const nextDir = DIRS[choices[targetBuilding.routeIndex % choices.length]];
-                                    item.targetGx = item.currentGx + nextDir.dx;
-                                    item.targetGz = item.currentGz + nextDir.dz;
-                                    item.progress = 0;
-                                } else if (targetBuilding.type === 'underground') {
-                    // Jump forward 3 tiles
+                    item.currentGx = item.targetGx;
+                    item.currentGz = item.targetGz;
+                    // Alternate left/right relative to facing; prefer occupied exits, fall back straight.
+                    targetBuilding.routeIndex = (targetBuilding.routeIndex || 0) + 1;
+                    const left = (targetBuilding.dir + 3) % 4;
+                    const right = (targetBuilding.dir + 1) % 4;
+                    const preferred = (targetBuilding.routeIndex % 2 === 0) ? left : right;
+                    const candidates = [preferred, preferred === left ? right : left, targetBuilding.dir];
+                    let chosen = targetBuilding.dir;
+                    for (const c of candidates) {
+                        const d = DIRS[c];
+                        if (this.buildings.has(`${item.currentGx + d.dx},${item.currentGz + d.dz}`)) {
+                            chosen = c;
+                            break;
+                        }
+                    }
+                    const nextDir = DIRS[chosen];
+                    item.targetGx = item.currentGx + nextDir.dx;
+                    item.targetGz = item.currentGz + nextDir.dz;
+                    item.progress = 0;
+                } else if (targetBuilding.type === 'underground') {
+                    // Dive into the tunnel: jump forward 3 tiles hidden
                     const nextDir = DIRS[targetBuilding.dir];
                     item.currentGx = item.targetGx;
                     item.currentGz = item.targetGz;
                     item.targetGx = item.currentGx + nextDir.dx * 3;
                     item.targetGz = item.currentGz + nextDir.dz * 3;
                     item.progress = 0;
+                    item.undergroundHop = true;
+                    item.mesh.visible = false;
                 } else {
                     this.scene.remove(item.mesh);
                     this.itemsOnBelts.splice(i, 1);

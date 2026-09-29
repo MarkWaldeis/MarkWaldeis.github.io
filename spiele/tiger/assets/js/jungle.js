@@ -34,7 +34,7 @@
   var mistSprite = makeGlowSprite(256, "rgba(120,200,140,0.05)", "rgba(90,170,110,0.02)");
 
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    DPR = Math.min(window.devicePixelRatio || 1, 1.5);
     W = window.innerWidth; H = window.innerHeight;
     [backCanvas, frontCanvas].forEach(function (c) {
       c.width = W * DPR; c.height = H * DPR;
@@ -101,14 +101,14 @@
     }
   }
 
-  function drawLeafShape(g, s, hue, warm) {
+  function drawLeafShape(g, s, hue, warm, life) {
     g.beginPath();
     g.moveTo(0, -s);
     g.quadraticCurveTo(s * 0.9, -s * 0.2, 0, s);
     g.quadraticCurveTo(-s * 0.9, -s * 0.2, 0, -s);
     g.closePath();
     g.fillStyle = warm
-      ? "rgba(214,158,64," + (0.75 * Math.max(0, arguments[3] || 1)) + ")"
+      ? "rgba(214,158,64," + (0.75 * Math.max(0, life === undefined ? 1 : life)) + ")"
       : "rgba(" + (60 + hue * 40 | 0) + "," + (130 + hue * 60 | 0) + ",70,0.8)";
     g.fill();
   }
@@ -126,8 +126,10 @@
     g.globalCompositeOperation = "lighter";
     var mistX1 = (W * 0.25) + Math.sin(t / 9000) * W * 0.1;
     var mistX2 = (W * 0.75) + Math.cos(t / 11000) * W * 0.12;
+    var mistX3 = (W * 0.5) + Math.sin(t / 14000 + 2) * W * 0.16;
     g.drawImage(m0, mistX1 - 320, H * 0.62, 640, 360);
     g.drawImage(m0, mistX2 - 320, H * 0.5, 640, 360);
+    g.drawImage(m0, mistX3 - 360, H * 0.26, 720, 300);
     var i, f, px, py, blink;
     for (i = 0; i < fireflies.length; i++) {
       f = fireflies[i];

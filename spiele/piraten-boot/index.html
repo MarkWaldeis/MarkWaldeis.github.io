@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏴‍☠️</text></svg>" />
 <title>Black Sails — Pirate Galleon at Sunset</title>
 <style>
   html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#0b1e33; font-family: Georgia, serif; }
@@ -25,6 +26,12 @@
     background:radial-gradient(ellipse at 50% 60%, #3a2a3a 0%, #131e33 60%, #070d18 100%);
     color:#ffd9a8; z-index:20; transition:opacity .8s; font-size:14px; letter-spacing:2px;
   }
+  #vignette {
+    position:fixed; inset:0; z-index:5; pointer-events:none;
+    background:
+      radial-gradient(ellipse at 50% 44%, transparent 54%, rgba(8,4,10,.40) 100%),
+      linear-gradient(to top, rgba(6,4,8,.24), transparent 18%, transparent 82%, rgba(16,8,10,.20));
+  }
 </style>
 <script type="importmap">
 {
@@ -37,12 +44,17 @@
 </head>
 <body>
 <div id="app"></div>
-<div id="overlay"><h1>SEA SERPENT <span>— SUNSET</span></h1><p>Drag to orbit &nbsp;•&nbsp; Scroll to zoom &nbsp;•&nbsp; Right-drag to pan</p></div>
+<div id="vignette"></div>
+<div id="overlay"><h1>BLACK SAILS <span>— SUNSET</span></h1><p>Drag to orbit &nbsp;•&nbsp; Scroll to zoom &nbsp;•&nbsp; Right-drag to pan</p></div>
 <div id="badge">procedural galleon • gerstner ocean • golden-hour sky</div>
 <div id="loader">RIGGING THE SHIP…</div>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* ============================================================
    RENDERER / SCENE / CAMERA
@@ -72,6 +84,16 @@ controls.minDistance = 12;
 controls.maxDistance = 220;
 controls.maxPolarAngle = Math.PI * 0.495;
 
+// Slow cinematic auto-orbit; pauses on interaction, resumes when idle
+controls.autoRotate = true;
+controls.autoRotateSpeed = -0.45;
+let orbitIdle;
+controls.addEventListener('start', ()=>{ controls.autoRotate=false; clearTimeout(orbitIdle); });
+controls.addEventListener('end', ()=>{
+  clearTimeout(orbitIdle);
+  orbitIdle = setTimeout(()=>{ controls.autoRotate=true; }, 6000);
+});
+
 /* ============================================================
    SUN + LIGHTS  (golden hour, low in -X/-Z to backlight ship)
 ============================================================ */
@@ -86,9 +108,9 @@ sunLight.shadow.camera.top = 40; sunLight.shadow.camera.bottom = -30;
 sunLight.shadow.camera.near = 200; sunLight.shadow.camera.far = 420;
 sunLight.shadow.bias = -0.0006;
 scene.add(sunLight);
-scene.add(new THREE.HemisphereLight(0x8aa5c8, 0x3a2c24, 0.65));
-scene.add(new THREE.AmbientLight(0xffd9b0, 0.22));
-const rim = new THREE.DirectionalLight(0x6a86b8, 0.5);
+scene.add(new THREE.HemisphereLight(0x8aa5c8, 0x3a2c24, 0.8));
+scene.add(new THREE.AmbientLight(0xffd9b0, 0.3));
+const rim = new THREE.DirectionalLight(0x7a92bc, 0.7);
 rim.position.set(80, 40, 90);
 scene.add(rim);
 
@@ -195,6 +217,15 @@ const cloudSpriteTex = canvasTex(128,(g,s)=>{
   }
 });
 cloudSpriteTex.wrapS = cloudSpriteTex.wrapT = THREE.ClampToEdgeWrapping;
+const sprayTex = canvasTex(64,(g,s)=>{
+  g.clearRect(0,0,s,s);
+  const gr=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s*0.48);
+  gr.addColorStop(0,'rgba(255,255,255,0.95)');
+  gr.addColorStop(0.45,'rgba(232,242,255,0.38)');
+  gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,s,s);
+});
+sprayTex.wrapS = sprayTex.wrapT = THREE.ClampToEdgeWrapping;
 
 /* ============================================================
    SKY DOME — sunset gradient + fbm clouds + sun disc
@@ -317,7 +348,7 @@ const oceanMat = new THREE.ShaderMaterial({
       float wake = behind * smoothstep(wakeWidth, wakeWidth*0.25, abs(rel.y)) * 0.9;
       float lap = sin(ellipse*28.0 - uTime*3.0)*0.5+0.5;
       float foamN = noise(vWorld.xz*2.2 + vec2(-uTime*1.2, uTime*0.3))*0.65 + noise(vWorld.xz*6.0)*0.35;
-      float foam = clamp(band*(0.55+0.45*lap) + wake*0.8, 0.0, 1.0);
+      float foam = clamp(band*(0.38+0.42*lap) + wake*0.8, 0.0, 1.0);
       foam *= smoothstep(0.35, 0.75, foamN + foam*0.45);
       // bow wave brighter
       float bow = smoothstep(6.0,0.0,length(vWorld.xz - (uShip+vec2(16.5,0.0))))*0.7;
@@ -362,6 +393,59 @@ function waveHeight(x, z, t){
     sp.position.set(Math.sin(a)*rnd(500,900), rnd(60,190), Math.cos(a)*rnd(500,900));
     sp.scale.set(rnd(160,340), rnd(40,90), 1);
     scene.add(sp);
+  }
+}
+
+/* ============================================================
+   DISTANT SISTER SHIP — fogged silhouette against the sun path
+============================================================ */
+const farShip = new THREE.Group();
+{
+  const fm = new THREE.MeshBasicMaterial({ color:0x241a1e, fog:true });
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(17,2.8,3.4), fm);
+  hull.position.y = 1.1; farShip.add(hull);
+  const stern = new THREE.Mesh(new THREE.BoxGeometry(4.5,2.6,3.0), fm);
+  stern.position.set(-7.5,3.2,0); farShip.add(stern);
+  for(const mx of [-4.5, 1.0, 6.0]){
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.22,12,5), fm);
+    mast.position.set(mx,7.0,0); farShip.add(mast);
+    const sail = new THREE.Mesh(new THREE.PlaneGeometry(5.4,3.6), fm);
+    sail.rotation.y = Math.PI/2; sail.position.set(mx-0.3,8.6,0); farShip.add(sail);
+    const topsl = new THREE.Mesh(new THREE.PlaneGeometry(3.6,2.2), fm);
+    topsl.rotation.y = Math.PI/2; topsl.position.set(mx-0.2,11.6,0); farShip.add(topsl);
+  }
+  const sprit = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.14,7,5), fm);
+  sprit.rotation.z = -Math.PI/2+0.35; sprit.position.set(10.5,3.4,0); farShip.add(sprit);
+  farShip.position.set(-168, -0.6, -158);
+  farShip.rotation.y = 0.62;
+  scene.add(farShip);
+}
+
+/* ============================================================
+   SEABIRDS — dark gliding silhouettes circling the masts
+============================================================ */
+const birds = [];
+{
+  const birdMat = new THREE.MeshBasicMaterial({ color:0x14100f, side:THREE.DoubleSide, fog:true });
+  const wingGeo = new THREE.PlaneGeometry(1.25, 0.42);
+  wingGeo.translate(0.625, 0, 0);            // pivot at wing root
+  const bodyGeo = new THREE.ConeGeometry(0.09, 0.72, 5);
+  for(let i=0;i<8;i++){
+    const b = new THREE.Group();
+    const wl = new THREE.Group(), wr = new THREE.Group();
+    const ml = new THREE.Mesh(wingGeo, birdMat); ml.rotation.x = -Math.PI/2; ml.scale.x = -1;
+    const mr = new THREE.Mesh(wingGeo, birdMat); mr.rotation.x = -Math.PI/2;
+    wl.add(ml); wr.add(mr);
+    const body = new THREE.Mesh(bodyGeo, birdMat);
+    body.rotation.x = Math.PI/2;
+    b.add(wl, wr, body);
+    b.userData = {
+      wl, wr,
+      cx:rnd(-30,40), cy:rnd(26,52), cz:rnd(-40,30),
+      r:rnd(26,62), sp:rnd(0.05,0.14)*(Math.random()>0.5?1:-1),
+      ph:Math.random()*Math.PI*2, fl:rnd(5.5,8.5), glide:Math.random()
+    };
+    scene.add(b); birds.push(b);
   }
 }
 
@@ -712,12 +796,48 @@ flag(-17.8, 12.2, 0, 1.5);
 ship.traverse(o=>{ if(o.isMesh){ o.castShadow=o.castShadow||false; } });
 
 /* ============================================================
+   BOW SPRAY — particle arcs thrown off the cutwater
+   (child of ship so it follows pitch / roll / drift)
+============================================================ */
+const spray = (()=>{
+  const N=180;
+  const geo=new THREE.BufferGeometry();
+  const pos=new Float32Array(N*3);
+  const ex=[];
+  for(let i=0;i<N;i++){
+    ex.push({ life:Math.random(), speed:0.55+Math.random()*0.85,
+      side:Math.random()>0.5?1:-1, x0:15.6+Math.random()*2.8, kick:0.7+Math.random()*1.1 });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const pts=new THREE.Points(geo, new THREE.PointsMaterial({
+    map:sprayTex, transparent:true, depthWrite:false, size:0.85,
+    color:0xfff4e2, opacity:0.75, sizeAttenuation:true
+  }));
+  pts.frustumCulled=false;
+  pts.userData.ex=ex;
+  ship.add(pts);
+  return pts;
+})();
+
+/* ============================================================
+   POST-PROCESSING — subtle bloom for lanterns / sun glitter
+============================================================ */
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+composer.addPass(new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth,window.innerHeight), 0.38, 0.55, 0.85));
+composer.addPass(new OutputPass());
+
+/* ============================================================
    ANIMATION LOOP — buoyancy synced to waves + sail flutter
 ============================================================ */
 const clock=new THREE.Clock();
+let loaderGone=false;
+const _bNext=new THREE.Vector3();
 function animate(){
   requestAnimationFrame(animate);
-  const t=clock.getElapsedTime();
+  const dt=Math.min(clock.getDelta(),0.05);
+  const t=clock.elapsedTime;
   oceanUniforms.uTime.value=t;
   oceanUniforms.uShip.value.set(ship.position.x, ship.position.z);
   skyMat.uniforms.uTime.value=t;
@@ -752,8 +872,45 @@ function animate(){
     }
     p.needsUpdate=true; f.geometry.computeVertexNormals();
   }
+  // bow spray arcs
+  {
+    const p=spray.geometry.attributes.position, ex=spray.userData.ex;
+    for(let i=0;i<ex.length;i++){
+      const e=ex[i];
+      e.life+=dt*e.speed;
+      if(e.life>1){ e.life=0; e.x0=15.6+Math.random()*2.8; }
+      const arc=e.life*(1-e.life)*4;
+      p.setXYZ(i,
+        e.x0 + e.life*3.0,
+        -0.8 + arc*e.kick,
+        e.side*(0.7 + e.life*3.4) + Math.sin(t*2.2+i)*0.2);
+    }
+    p.needsUpdate=true;
+    spray.material.opacity=0.62+Math.sin(t*3.1)*0.1;
+  }
+  // seabirds — glide + flap cycles, lazy circles
+  for(const b of birds){
+    const u=b.userData, a=t*u.sp+u.ph;
+    b.position.set(u.cx+Math.cos(a)*u.r, u.cy+Math.sin(a*1.7)*2.2, u.cz+Math.sin(a)*u.r);
+    const a2=a+0.08*Math.sign(u.sp);
+    _bNext.set(u.cx+Math.cos(a2)*u.r, u.cy+Math.sin(a2*1.7)*2.2, u.cz+Math.sin(a2)*u.r);
+    b.lookAt(_bNext);
+    // intermittent flapping: glide when sin gate is low
+    const gate=0.35+0.65*Math.max(0,Math.sin(t*0.6+u.glide*7));
+    const flap=Math.sin(t*u.fl+u.ph)*0.55*gate;
+    u.wl.rotation.z=flap; u.wr.rotation.z=-flap;
+  }
+  // distant ship — slow swell + barely moving ahead
+  farShip.position.y=-0.6+Math.sin(t*0.42)*0.5;
+  farShip.rotation.z=Math.sin(t*0.3)*0.02;
+
   controls.update();
-  renderer.render(scene,camera);
+  composer.render();
+  if(!loaderGone){
+    loaderGone=true;
+    const l=document.getElementById('loader');
+    if(l){ l.style.opacity='0'; setTimeout(()=>l.remove(),900); }
+  }
 }
 animate();
 
@@ -761,9 +918,8 @@ window.addEventListener('resize', ()=>{
   camera.aspect=window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
-document.getElementById('loader').style.opacity='0';
-setTimeout(()=>document.getElementById('loader').remove(), 900);
 </script>
 </body>
 </html>

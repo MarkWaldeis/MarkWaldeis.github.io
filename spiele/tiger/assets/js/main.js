@@ -68,18 +68,27 @@
     });
   }
 
-  /* ---------- Scroll-Fortschritt + aktive Links ---------- */
+  /* ---------- Scroll-Fortschritt + Nav + Dämmerung ---------- */
   var progressBar = document.getElementById("progressBar");
+  var navEl = document.getElementById("nav");
   var navLinks = Array.prototype.slice.call(document.querySelectorAll(".nav-links a"));
+  var root = document.documentElement;
   function onScroll() {
     var max = document.documentElement.scrollHeight - window.innerHeight;
-    progressBar.style.width = (max > 0 ? (window.scrollY / max) * 100 : 0) + "%";
+    var p = max > 0 ? window.scrollY / max : 0;
+    progressBar.style.width = (p * 100) + "%";
+    navEl.classList.toggle("scrolled", window.scrollY > 60);
+    /* Der Dschungel erwacht: Dämmerung steigt mit dem Scrollen */
+    root.style.setProperty("--dawn", (p * p * 0.75).toFixed(3));
   }
   window.addEventListener("scroll", onScroll, { passive: true });
   onScroll();
 
-  /* ---------- Parallax-Ebenen ---------- */
-  var paraLayers = Array.prototype.slice.call(document.querySelectorAll("[data-para]"));
+  /* ---------- Parallax-Ebenen ----------
+     data-para        = Maus + Scroll
+     data-para-m      = nur Maus
+     data-para-scroll = eigener Scroll-Faktor (überschreibt d*0.12) */
+  var paraLayers = Array.prototype.slice.call(document.querySelectorAll("[data-para], [data-para-m]"));
   var parallaxMouse = { x: 0, y: 0 };
   if (!reduced) {
     window.addEventListener("mousemove", function (e) {
@@ -89,9 +98,13 @@
     (function paraLoop() {
       var sy = window.scrollY;
       paraLayers.forEach(function (el) {
-        var d = parseFloat(el.getAttribute("data-para")) || 0;
+        var mouseOnly = el.hasAttribute("data-para-m");
+        var d = parseFloat(el.getAttribute(mouseOnly ? "data-para-m" : "data-para")) || 0;
+        var sFactor = el.hasAttribute("data-para-scroll")
+          ? parseFloat(el.getAttribute("data-para-scroll")) || 0
+          : d * 0.12;
         var px = parallaxMouse.x * 26 * d;
-        var py = parallaxMouse.y * 16 * d - sy * d * 0.12;
+        var py = parallaxMouse.y * 16 * d - (mouseOnly ? 0 : sy * sFactor);
         el.style.transform = "translate3d(" + px.toFixed(1) + "px," + py.toFixed(1) + "px,0)";
       });
       requestAnimationFrame(paraLoop);
@@ -150,12 +163,14 @@
     });
   }
 
-  /* ---------- Sektionen -> Tiger-Regie ---------- */
+  /* ---------- Sektionen -> Tiger-Regie + Kapitel ---------- */
+  var chapterLabel = document.getElementById("chapterLabel");
   var sectionIO = new IntersectionObserver(function (entries) {
     entries.forEach(function (en) {
       if (!en.isIntersecting) return;
       var t = (en.target.getAttribute("data-tiger") || "0.5,0.8").split(",");
       if (window.Tiger) Tiger.setAnchor(parseFloat(t[0]), parseFloat(t[1]));
+      if (chapterLabel) chapterLabel.textContent = en.target.getAttribute("data-title") || "";
       navLinks.forEach(function (a) {
         a.classList.toggle("active", a.getAttribute("href") === "#" + en.target.id);
       });
@@ -163,20 +178,51 @@
   }, { threshold: 0.32 });
   document.querySelectorAll(".section").forEach(function (s) { sectionIO.observe(s); });
 
-  /* ---------- Klick-Interaktion: Tiger kommt ---------- */
+  /* ---------- Klick-Interaktion: Tiger kommt (oder schnaubt) ---------- */
+  function onInteractive(e) {
+    return e.target && e.target.closest && !!e.target.closest("a, button, input, textarea, select");
+  }
   document.addEventListener("click", function (e) {
-    if (e.target.closest("a, button")) return;
-    if (window.Tiger && !reduced) {
-      Tiger.dashTo(e.clientX / window.innerWidth);
-      if (window.Jungle) Jungle.burst(e.clientX, e.clientY);
+    if (onInteractive(e)) return;
+    if (window.Tiger) {
+      var fx = e.clientX / window.innerWidth;
+      if (!reduced && Tiger.getX && Math.abs(fx - Tiger.getX()) < 0.11) {
+        Tiger.snort();                       /* fast erwischt! */
+        toast("Ein leises Schnauben …");
+      } else {
+        Tiger.dashTo(fx);                    /* bei reduced: sofortiges Umsetzen */
+      }
+      if (window.Jungle && !reduced) Jungle.burst(e.clientX, e.clientY);
     }
+  });
+
+  /* Doppelklick: Tiger schnaubt */
+  document.addEventListener("dblclick", function (e) {
+    if (onInteractive(e)) return;
+    if (window.Tiger && !reduced) {
+      Tiger.snort();
+      if (window.Jungle) Jungle.burst(e.clientX, e.clientY);
+      toast("Ein leises Schnauben …");
+    }
+  });
+
+  /* Taste T: Tiger rufen */
+  document.addEventListener("keydown", function (e) {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key !== "t" && e.key !== "T") return;
+    var tag = (e.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+    if (callBtn) callBtn.click();
   });
 
   /* ---------- Buttons ---------- */
   var callBtn = document.getElementById("callTiger");
   if (callBtn) callBtn.addEventListener("click", function () {
-    if (window.Tiger && !reduced) { Tiger.pulse(); Tiger.dashTo(0.5); }
-    if (window.Jungle) Jungle.burst(window.innerWidth * 0.5, window.innerHeight * 0.8);
+    if (window.Tiger) {
+      if (!reduced) Tiger.pulse();
+      Tiger.dashTo(0.5);
+    }
+    if (window.Jungle && !reduced) Jungle.burst(window.innerWidth * 0.5, window.innerHeight * 0.8);
     toast("Er kommt — ganz ruhig bleiben.");
   });
 

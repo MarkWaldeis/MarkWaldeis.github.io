@@ -5,9 +5,13 @@
 class LuminaParticles {
   constructor() {
     this.list = [];
+    this.maxCount = 420; // hard cap — protects frame-rate during heavy bursts
   }
 
   spawnBurst(x, y, color, count = 10, speed = 180, shape = "circle") {
+    if (this.list.length + count > this.maxCount) {
+      this.list.splice(0, this.list.length + count - this.maxCount);
+    }
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const vel = LuminaMath.rand(speed * 0.4, speed);
@@ -27,6 +31,7 @@ class LuminaParticles {
   }
 
   spawnDust(x, y, color = "#64d2ff") {
+    if (this.list.length >= this.maxCount) this.list.shift();
     this.list.push({
       x,
       y,
@@ -39,6 +44,12 @@ class LuminaParticles {
       shape: "circle",
       gravity: -10
     });
+  }
+
+  // Slow-drifting ambient mote (fireflies, crystal dust, citadel embers)
+  spawnMote(x, y, color, vx, vy, life, size, gravity = 0) {
+    if (this.list.length >= this.maxCount) return;
+    this.list.push({ x, y, vx, vy, life, maxLife: life, size, color, shape: "mote", gravity });
   }
 
   update(dt) {
@@ -75,11 +86,16 @@ class LuminaCamera {
   }
 
   getShakeOffset() {
-    if (this.shake <= 0) return { x: 0, y: 0 };
-    return {
-      x: LuminaMath.rand(-this.shake, this.shake),
-      y: LuminaMath.rand(-this.shake * 0.5, this.shake * 0.5)
-    };
+    // Reused object — avoids a per-frame allocation in the hot render path
+    this._shake = this._shake || { x: 0, y: 0 };
+    if (this.shake <= 0) {
+      this._shake.x = 0;
+      this._shake.y = 0;
+      return this._shake;
+    }
+    this._shake.x = LuminaMath.rand(-this.shake, this.shake);
+    this._shake.y = LuminaMath.rand(-this.shake * 0.5, this.shake * 0.5);
+    return this._shake;
   }
 
   update(dt, player, engine) {
@@ -167,6 +183,13 @@ class LuminaUI {
   }
 
   showToast(message, duration = 2200) {
+    // Pull a leading emoji into the dedicated icon slot so the text stays clean
+    const m = message.match(/^([\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]+\uFE0F?)\s*/u);
+    const iconEl = document.getElementById("toast-icon");
+    if (m && iconEl) {
+      iconEl.textContent = m[1];
+      message = message.slice(m[0].length);
+    }
     this.toastText.textContent = message;
     this.toastEl.classList.add("visible");
     clearTimeout(this.toastTimer);
@@ -255,6 +278,7 @@ class LuminaGame {
     };
 
     this.freezeTime = 0;
+    this.ambientT = 0;
     this.lastTime = performance.now();
     this.accumulator = 0;
     this.fixedStep = 1 / 120;
@@ -375,6 +399,7 @@ class LuminaGame {
     this.enemies.update(dt, this.player, this);
     this.boss.update(dt, this.player, this);
     this.level.update(dt, this.player, this);
+    this.spawnAmbientParticles(dt);
     this.particles.update(dt);
     this.camera.update(dt, this.player, this);
 
@@ -382,6 +407,41 @@ class LuminaGame {
     this.audio.updateMusic(this.state.zone, this.boss.active);
 
     this.input.clearFrame();
+  }
+
+  // Ambient biome particles: fireflies in the grove, crystal dust in the
+  // caverns, golden embers in the citadel. Blend-weighted near biome borders.
+  spawnAmbientParticles(dt) {
+    this.ambientT -= dt;
+    if (this.ambientT > 0 || this.particles.list.length > 330) return;
+    this.ambientT = 0.11;
+
+    const blend = this.level.getZoneBlend(this.player.x);
+    const z = Math.min(2, Math.floor(blend + Math.random())); // proportional mix
+    const x = this.camera.x + LuminaMath.rand(-60, 1340);
+
+    if (z === 0) {
+      // Drifting spore fireflies
+      this.particles.spawnMote(
+        x, LuminaMath.rand(320, 620), Math.random() < 0.5 ? "#7dffd4" : "#8be9fd",
+        LuminaMath.rand(-14, 14), LuminaMath.rand(-20, -6),
+        LuminaMath.rand(1.6, 3.2), LuminaMath.rand(1.5, 3), -4
+      );
+    } else if (z === 1) {
+      // Falling crystal dust
+      this.particles.spawnMote(
+        x, LuminaMath.rand(-20, 420), Math.random() < 0.5 ? "#d8b4fe" : "#7dd3fc",
+        LuminaMath.rand(-8, 8), LuminaMath.rand(24, 55),
+        LuminaMath.rand(1.4, 2.8), LuminaMath.rand(1.5, 2.8), 6
+      );
+    } else {
+      // Rising golden embers
+      this.particles.spawnMote(
+        x, LuminaMath.rand(480, 720), Math.random() < 0.6 ? "#ffd200" : "#ff9900",
+        LuminaMath.rand(-10, 10), LuminaMath.rand(-42, -16),
+        LuminaMath.rand(1.2, 2.6), LuminaMath.rand(1.5, 3), -8
+      );
+    }
   }
 
   loop(now) {

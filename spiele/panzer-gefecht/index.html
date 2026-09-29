@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PANZER-GEFECHT</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23262c17'/%3E%3Crect x='4' y='18' width='24' height='7' rx='3' fill='%2356673c'/%3E%3Crect x='10' y='12' width='12' height='7' rx='2' fill='%237fae3f'/%3E%3Crect x='20' y='14' width='10' height='2.5' fill='%23d9c98a'/%3E%3C/svg%3E">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',Verdana,sans-serif;color:#e8e6df}
@@ -32,15 +33,19 @@ canvas{display:block}
 #showcaseWrap{flex:1;position:relative;border:1px solid #3a4232;background:rgba(8,10,6,.35);min-width:200px}
 #mapCards .card{padding:9px 12px}
 #mapCards .cname{font-size:15px}
+.mapPrev{width:100%;height:56px;display:block;margin:0 0 7px;border:1px solid #2c3324;background:#1a1d14}
 .btn{display:inline-block;border:1px solid #d9c98a;background:linear-gradient(180deg,#3d4429,#262c17);color:#efe6bd;padding:12px 26px;font-size:17px;font-weight:800;letter-spacing:4px;cursor:pointer;text-transform:uppercase}
 .btn:hover{background:linear-gradient(180deg,#59632f,#333b1c);box-shadow:0 0 16px rgba(217,201,138,.35)}
 #startBtn{align-self:center;margin-top:12px;font-size:21px;padding:14px 60px}
+#bestLine{align-self:center;margin-top:9px;font-size:12px;letter-spacing:3px;color:#b7ab77}
 #controlsBox{border:1px solid #3a4232;background:rgba(12,15,9,.8);padding:10px 13px;font-size:12.5px;line-height:1.85;color:#b8bfab}
 #controlsBox b{color:#d9c98a;display:inline-block;width:118px;font-weight:600}
 
 #hud{z-index:10;pointer-events:none}
-#crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px}
-#reloadRing{position:absolute;inset:0;border-radius:50%}
+#crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;transition:transform .18s ease}
+#crosshair.aim{transform:translate(-50%,-50%) scale(.74)}
+#crosshair.aim .tick,#crosshair.aim .chDot{background:#ffd76b}
+#reloadRing{position:absolute;inset:0;border-radius:50%;-webkit-mask:radial-gradient(circle,transparent 58%,#000 62%);mask:radial-gradient(circle,transparent 58%,#000 62%)}
 .chDot{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px;background:#fff;border-radius:50%;box-shadow:0 0 4px #000}
 .tick{position:absolute;background:#ffffffcc;box-shadow:0 0 3px #000}
 .tN{left:50%;top:-6px;width:2px;height:9px;margin-left:-1px}
@@ -54,12 +59,20 @@ canvas{display:block}
 .hm3{top:50%;left:0;height:2px;width:10px;margin-top:-1px}
 .hm4{top:50%;right:0;height:2px;width:10px;margin-top:-1px}
 #hitmarker.kill div{background:#ff5533}
+#dmgDirs{position:absolute;left:50%;top:50%;width:0;height:0;z-index:8}
+.dmgArc{position:absolute;left:-70px;top:-70px;width:140px;height:140px;animation:dmgFade .95s forwards}
+.dmgArc:before{content:'';position:absolute;left:50%;top:2px;width:54px;height:16px;margin-left:-27px;background:radial-gradient(ellipse at 50% 0,rgba(255,70,45,.95),rgba(255,70,45,0) 75%);border-radius:50%}
+@keyframes dmgFade{0%{opacity:1}65%{opacity:.85}100%{opacity:0}}
+#vignette.lowhp{opacity:1;animation:lowhpPulse 1.5s ease-in-out infinite}
+@keyframes lowhpPulse{0%,100%{opacity:.18}50%{opacity:.42}}
 
 .hudPanel{position:absolute;background:rgba(8,10,6,.62);border:1px solid rgba(150,150,110,.35);padding:9px 13px;backdrop-filter:blur(2px)}
 #statusPanel{left:16px;bottom:16px;width:290px}
 #hpBar{height:14px;background:#241a14;border:1px solid #000;margin-top:5px}
 #hpFill{height:100%;width:100%;background:linear-gradient(90deg,#7fae3f,#a8cf60);transition:width .2s}
 #hpText{font-size:12px;color:#cfd6bd;letter-spacing:1px;margin-top:4px}
+#spdText{font-size:12px;color:#cfd6bd;letter-spacing:1px;margin-top:3px}
+#tankName{font-size:13px;font-weight:700;letter-spacing:2px;color:#efe6bd;margin-top:2px}
 .lbl{font-size:11px;letter-spacing:2px;color:#a8ad93}
 #ammoPanel{right:16px;bottom:16px;min-width:210px;text-align:right}
 .shellRow{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
@@ -100,13 +113,16 @@ canvas{display:block}
     <div><span class="lbl">FEINDE</span> <b id="enemyVal">0</b></div>
     <div><span class="lbl">ABSCHÜSSE</span> <b id="killVal">0</b></div>
     <div><span class="lbl">PUNKTE</span> <b id="scoreVal">0</b></div>
+    <div id="nextRow" class="hidden"><span class="lbl">NÄCHSTE WELLE</span> <b id="nextVal">5</b></div>
   </div>
   <div id="minimapWrap"><canvas id="minimap" width="170" height="170"></canvas></div>
   <div id="killfeed"></div>
   <div class="hudPanel" id="statusPanel">
+    <div id="tankName">PANZER</div>
     <span class="lbl">ZUSTAND</span>
     <div id="hpBar"><div id="hpFill"></div></div>
     <div id="hpText">800 / 800</div>
+    <div id="spdText">0 km/h</div>
   </div>
   <div class="hudPanel" id="ammoPanel">
     <span class="lbl">MUNITION</span>
@@ -122,7 +138,8 @@ canvas{display:block}
     <div class="tick tN"></div><div class="tick tS"></div><div class="tick tW"></div><div class="tick tE"></div>
   </div>
   <div id="hitmarker"><div class="hm1"></div><div class="hm2"></div><div class="hm3"></div><div class="hm4"></div></div>
-  <div id="hint">WASD FAHREN &nbsp;·&nbsp; MAUS ZIELEN &nbsp;·&nbsp; LINKSKLICK FEUER &nbsp;·&nbsp; 1/2 MUNITION &nbsp;·&nbsp; MAUSRAD ZOOM &nbsp;·&nbsp; ESC PAUSE</div>
+  <div id="dmgDirs"></div>
+  <div id="hint">WASD FAHREN &nbsp;·&nbsp; MAUS ZIELEN &nbsp;·&nbsp; LINKSKLICK FEUER &nbsp;·&nbsp; RECHTSKLICK ZOOM &nbsp;·&nbsp; 1/2 MUNITION &nbsp;·&nbsp; ESC PAUSE</div>
   <div id="bannerWrap"><div id="bannerText"></div><div id="bannerSub"></div></div>
 </div>
 
@@ -144,12 +161,14 @@ canvas{display:block}
         <b>A / D</b> Drehen<br>
         <b>Maus</b> Geschützturm zielen<br>
         <b>Linksklick</b> Feuern<br>
+        <b>Rechtsklick</b> Zielen (Zoom)<br>
         <b>1 / 2</b> AP-/HE-Munition<br>
         <b>Leertaste</b> Bremsen<br>
-        <b>Mausrad</b> Zoom<br>
+        <b>Mausrad</b> Kamera-Distanz<br>
         <b>ESC</b> Pause
       </div>
       <button class="btn" id="startBtn">In die Schlacht</button>
+      <div id="bestLine"></div>
     </div>
   </div>
 </div>

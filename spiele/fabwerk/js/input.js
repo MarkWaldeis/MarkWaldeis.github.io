@@ -1,6 +1,6 @@
 import {
   GRID, BUILDINGS, UNDER_MIN, UNDER_MAX,
-  RES_ITEM, keyOf, recipesFor
+  RES_ITEM, RES_NAME, keyOf, recipesFor, fmt, techName, isUnlockedBuilding
 } from './config.js';
 import { getB, makeBuilding, addBuilding, removeBuilding } from './world.js';
 import { isBeltLike } from './sim.js';
@@ -17,8 +17,19 @@ export function initInput(dom, ctx){
     pointers:new Map(),
     keys:new Set(),
     pinch:null,
-    downInfo:null
+    downInfo:null,
+    lastPx:null
   };
+
+  const dragInfoEl=document.getElementById('dragInfo');
+  const tileTipEl=document.getElementById('tileTip');
+
+  function hideDragInfo(){
+    if(dragInfoEl) dragInfoEl.style.display='none';
+  }
+  function hideTileTip(){
+    if(tileTipEl) tileTipEl.style.display='none';
+  }
 
   function tileFromEvent(e){
     return ctx.render.screenToTile(e.clientX,e.clientY);
@@ -27,7 +38,7 @@ export function initInput(dom, ctx){
   function setTool(type){
     state.tool=type;
     ctx.ui.setActiveTool(type);
-    if(!type) ctx.render.setGhost(null);
+    if(!type){ ctx.render.setGhost(null); hideDragInfo(); }
     ctx.closeInspector();
   }
   state.setTool=setTool;
@@ -48,10 +59,13 @@ export function initInput(dom, ctx){
     if(x<0||z<0||x>=GRID||z>=GRID) return {ok:false,reason:'Ausserhalb der Karte'};
     const ex=getB(S,x,z);
     if(ex&&!existingReplaceable(ex,type)) return {ok:false,reason:'Feld ist belegt'};
+    const def=BUILDINGS[type];
+    if(def&&def.tech&&!isUnlockedBuilding(S,type)){
+      return {ok:false,reason:'Erfordert Forschung: '+techName(def.tech)};
+    }
     if(type==='extractor'){
       if(!S.res[keyOf(x,z)]) return {ok:false,reason:'Extraktor braucht eine Ressource'};
     }
-    const def=BUILDINGS[type];
     if(def&&S.coins<def.cost) return {ok:false,reason:'Nicht genug Münzen'};
     return {ok:true};
   }
@@ -113,6 +127,34 @@ export function initInput(dom, ctx){
     return res;
   }
 
+  function updateDragInfo(p){
+    if(!dragInfoEl) return;
+    const S=ctx.getS();
+    if(!state.lastPx||!p){ hideDragInfo(); return; }
+    let txt='',bad=false;
+    if(state.path.type==='underground'){
+      const cost=costOf('underground');
+      if(!p.cells.length){ txt='Nur gerade, 2-'+UNDER_MAX+' Kacheln'; bad=true; }
+      else if(!p.valid){ txt=p.cells.length+' Kacheln - blockiert'; bad=true; }
+      else{
+        txt='Unterführung - '+fmt(cost)+' Münzen';
+        if(S.coins<cost){ txt+=' - zu wenig'; bad=true; }
+      }
+    }else{
+      const n=p.cells.length, cost=n*BUILDINGS.belt.cost;
+      if(!p.valid){ txt=n+' Felder - blockiert'; bad=true; }
+      else{
+        txt=n+(n===1?' Feld':' Felder')+' - '+fmt(cost)+' Münzen';
+        if(S.coins<cost){ txt+=' - zu wenig'; bad=true; }
+      }
+    }
+    dragInfoEl.textContent=txt;
+    dragInfoEl.classList.toggle('bad',bad);
+    dragInfoEl.style.left=state.lastPx.x+'px';
+    dragInfoEl.style.top=state.lastPx.y+'px';
+    dragInfoEl.style.display='block';
+  }
+
   function updateGhost(){
     const S=ctx.getS();
     if(!state.tool||state.path&&state.path.active){
@@ -127,10 +169,18 @@ export function initInput(dom, ctx){
             ?S.coins>=costOf('underground')
             :S.coins>=p.cells.length*BUILDINGS.belt.cost)
         });
+        updateDragInfo(p);
+      }else{
+        hideDragInfo();
       }
       return;
     }
+    hideDragInfo();
     if(!state.hover) return;
+    if(state.tool==='bulldoze'){
+      ctx.render.setGhost({mode:'del',x:state.hover.x,z:state.hover.z});
+      return;
+    }
     if(['belt','splitter','underground'].includes(state.tool)){
       if(state.tool==='splitter'){
         ctx.render.setGhost({

@@ -77,7 +77,7 @@ const LEVELS = [
 
   defLevel({
     name: 'Wipfelpfad', world: 'Grüne Hügel', theme: 'green',
-    hint: 'Klettert durch die Baumkronen – unten lauert Gefahr!',
+    hint: '↓ + SPRUNG lässt euch durch dünne Plattformen fallen!',
     width: 118,
     build(B) {
       B.set(2, 13, 'P');

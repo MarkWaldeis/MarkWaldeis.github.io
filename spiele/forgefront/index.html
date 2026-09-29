@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Forgefront 3D – Fabrik-Automation</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙️</text></svg>">
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +32,7 @@
                 <div class="game-logo">
                     <div class="logo-gem">⚙️</div>
                     <div class="logo-title">
-                        <h2>FORGEFRONT <span>3D</span></</span>h2>
+                        <h2>FORGEFRONT <span>3D</span></h2>
                         <span class="version-tag">Automation Campaign</span>
                     </div>
                 </div>
@@ -62,7 +63,7 @@
                 <button class="icon-btn" id="btn-camera-center" title="Auf Gold-Zitadelle zentrieren (Space)">🎯</button>
                 <button class="icon-btn" id="btn-tech-tree" title="Forschungsbaum öffnen (T)">🔬</button>
                 <button class="icon-btn" id="btn-codex" title="Produktions-Kodex öffnen (K)">📚</button>
-                <button class="icon-btn" id="btn-stats" title="Produktionsstatistik öffnen (S)">📊</button>
+                <button class="icon-btn" id="btn-stats" title="Produktionsstatistik öffnen (P)">📊</button>
                 <button class="icon-btn" id="btn-audio" title="Sound umschalten (M)">🔊</button>
                 <button class="icon-btn" id="btn-settings" title="Einstellungen & Speichern">⚙️</button>
             </div>
@@ -80,9 +81,11 @@
         </div>
 
         <div id="quick-controls-hint" class="glass-card">
-            <div class="hint-row"><span>🖱️ Ziehen:</span> <strong>Förderbänder verlegen</strong></div>
+            <div class="hint-row"><span>🖱️ Links ziehen:</span> <strong>Förderbänder verlegen</strong></div>
+            <div class="hint-row"><span>🖱️ Rechts / [Q/E]:</span> <strong>Kamera drehen</strong></div>
+            <div class="hint-row"><span>⌨️ [WASD]:</span> <strong>Kamera fahren</strong></div>
             <div class="hint-row"><span>🔄 [R]:</span> <strong>Richtung drehen (<span id="hud-dir-name">OST →</span>)</strong></div>
-            <div class="hint-row"><span>🗑️ [X]:</span> <strong>Abreißen & Rückerstatten</strong></div>
+            <div class="hint-row"><span>🗑️ [X]:</span> <strong>Abreißen & Rückerstattung</strong></div>
         </div>
 
         <!-- BOTTOM DOCKING TOOLBAR (APPLE GLASS STYLE) -->
@@ -178,7 +181,7 @@
                         <button class="tool-card demolish-action" data-tool="demolish" id="action-demolish" title="Gebäude abreißen (X)">
                             <div class="tool-icon-wrap">🗑️</div>
                             <span class="tool-title">Abreißen</span>
-                            <span class="tool-badge">100% Refund</span>
+                            <span class="tool-badge">75% Refund</span>
                         </button>
                     </div>
                 </div>
@@ -230,8 +233,8 @@
                 <div class="inspect-section">
                     <div class="section-label">LAGERPUFFER</div>
                     <div class="inventory-slots" id="inspect-inventory-slots">
-                        <div class="inv-slot"><span class="inv-name">Eingang:</span> <strong id="inspect-in-count">0</strong></div>
-                        <div class="inv-slot"><span class="inv-name">Ausgang:</span> <strong id="inspect-out-count">0</strong></div>
+                        <div class="inv-slot"><span class="inv-name">Lager:</span> <strong id="inspect-in-count">0</strong></div>
+                        <div class="inv-slot"><span class="inv-name">Tempo:</span> <strong id="inspect-out-count">0</strong></div>
                     </div>
                 </div>
 
@@ -269,23 +272,23 @@
         </div>
 
         <!-- MODAL 3: PRODUCTION CODEX -->
-                <div id="codex-modal" class="glass-modal large-modal">
-                    <div class="modal-header">
-                        <div class="modal-title-wrap">
-                            <span class="modal-icon">📚</span>
-                            <div>
-</div>                                <h3>Produkt</h3>ions-Kodex</h3>
-                                <span class="modal-subtitle">Alle 54 Ressourcen, Rezepte und Produktionswege</span>
-                            </div>
-                        </div>
-                        <button class="close-modal-btn">✕</button>
+        <div id="codex-modal" class="glass-modal large-modal">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="modal-icon">📚</span>
+                    <div>
+                        <h3>Produktions-Kodex</h3>
+                        <span class="modal-subtitle">Alle Ressourcen, Rezepte und Produktionswege</span>
                     </div>
-                    <div class="codex-toolbar">
-                        <input id="codex-search" type="search" placeholder="Ressource oder Maschine suchen …" autocomplete="off">
-                        <div id="codex-count"></div>
-                    </div>
-                    <div class="modal-body codex-body" id="codex-list"></div>
                 </div>
+                <button class="close-modal-btn">✕</button>
+            </div>
+            <div class="codex-toolbar">
+                <input id="codex-search" type="search" placeholder="Ressource oder Maschine suchen …" autocomplete="off">
+                <div id="codex-count"></div>
+            </div>
+            <div class="modal-body codex-body" id="codex-list"></div>
+        </div>
 
                 <!-- MODAL 4: PRODUCTION STATISTICS & CHARTS -->
         <div id="stats-modal" class="glass-modal medium-modal">

@@ -124,6 +124,8 @@ class UIManager {
 
                 // Keyboard Shortcuts
         window.addEventListener('keydown', (e) => {
+            const tag = e.target && e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return; // don't hijack typing
             if (e.key === 'r' || e.key === 'R') this.rotate();
             else if (e.key === 'x' || e.key === 'X') this.setTool('demolish');
             else if (e.key === '1') this.setTool('belt');
@@ -136,14 +138,25 @@ class UIManager {
             else if (e.key === '8') this.setTool('industrial_factory');
             else if (e.key === '9') this.setTool('manufacturer');
             else if (e.key === 't' || e.key === 'T') { this.openModal('tech-modal'); this.renderTechTree(); }
-            else if (e.key === 's' || e.key === 'S') { this.openModal('stats-modal'); this.renderStats(); }
-                        else if (e.key === 'k' || e.key === 'K') { this.openModal('codex-modal'); this.renderCodex(); }
+            else if (e.key === 'p' || e.key === 'P') { this.openModal('stats-modal'); this.renderStats(); }
+            else if (e.key === 'k' || e.key === 'K') { this.openModal('codex-modal'); this.renderCodex(); }
+            else if (e.key === 'm' || e.key === 'M') document.getElementById('btn-audio').click();
+            else if (e.key === 'c' || e.key === 'C') this.engine.toggleIsometric();
             else if (e.key === 'Escape') this.closeAllModals();
-            else if (e.key === ' ') this.engine.resetCameraToVault();
+            else if (e.key === ' ') { e.preventDefault(); this.engine.resetCameraToVault(); }
         });
     }
 
     setTool(tool) {
+        // Locked tools can't be selected — show why instead of failing on click
+        if (tool !== 'demolish') {
+            const special = tool === 'splitter' ? this.tech.isUnlocked('mechanics_gears')
+                : tool === 'earth_teleporter' ? this.tech.isUnlocked('earth_token_project') : false;
+            if (!this.tech.isToolUnlocked(tool) && !special) {
+                this.showToast('🔒 Dieses Gebäude muss zuerst erforscht werden.');
+                return;
+            }
+        }
         this.selectedTool = tool;
         document.querySelectorAll('.tool-card').forEach(btn => {
             if (btn.dataset.tool === tool) btn.classList.add('active');
@@ -152,6 +165,17 @@ class UIManager {
     }
 
     rotate() {
+        // If the mouse hovers an existing logistics piece, rotate that in place
+        const app = window.gameApp;
+        if (app && app.hoverKey) {
+            const b = this.sim.buildings.get(app.hoverKey);
+            if (b && ['belt', 'underground', 'splitter'].includes(b.type)) {
+                b.dir = (b.dir + 1) % 4;
+                if (b.mesh) b.mesh.rotation.y = DIRS[b.dir].angle;
+                if (window.soundEngine) window.soundEngine.playPlaceBelt();
+                return;
+            }
+        }
         this.currentDir = (this.currentDir + 1) % 4;
         const dirName = DIRS[this.currentDir].name;
         document.getElementById('hud-dir-name').innerText = dirName;
@@ -218,6 +242,10 @@ class UIManager {
         } else {
             title = 'Kampagne abgeschlossen'; detail = 'Der Planet versorgt die Heimat. Optimiere nun deine Megafabrik.'; progress = 1;
         }
+        if (this._lastObjectiveTitle && this._lastObjectiveTitle !== title) {
+            this.showToast(`🎯 Neues Missionsziel: ${title}`);
+        }
+        this._lastObjectiveTitle = title;
         document.getElementById('objective-title').innerText = title;
         document.getElementById('objective-detail').innerText = detail;
         document.getElementById('objective-progress-fill').style.width = `${Math.min(1, progress) * 100}%`;
@@ -240,6 +268,13 @@ class UIManager {
         document.getElementById('inspect-icon').innerText = icons[building.type] || '🏭';
         document.getElementById('inspect-title').innerText = `${building.type.toUpperCase()} (Tier ${building.level})`;
         document.getElementById('inspect-coords').innerText = `Position: (${building.gx}, ${building.gz}) | Richtung: ${DIRS[building.dir].name}`;
+
+        // Logistics pieces have no recipes or upgrades — hide those sections
+        const isLogistics = ['belt', 'underground', 'splitter'].includes(building.type);
+        const recipeSection = document.getElementById('inspect-recipe-card').closest('.inspect-section');
+        if (recipeSection) recipeSection.style.display = isLogistics ? 'none' : '';
+        const upgradeBtn = document.getElementById('inspect-upgrade-btn');
+        if (upgradeBtn) upgradeBtn.style.display = isLogistics ? 'none' : '';
 
         // Render Recipe Options
         const optContainer = document.getElementById('inspect-recipe-options');
@@ -287,6 +322,9 @@ class UIManager {
         } else if (b.type === 'extractor' || b.type === 'gem_tree') {
             document.getElementById('inspect-recipe-flow').innerHTML = `<span class="rec-out">${b.type === 'gem_tree' ? 'Züchtet Gem Apples' : 'Fördert Rohstoffe aus Vorkommen'}</span>`;
             document.getElementById('inspect-rate-text').innerText = `${(60 / (b.interval || 3) * b.speedMultiplier).toFixed(1)} / Min`;
+        } else {
+            document.getElementById('inspect-recipe-flow').innerHTML = `<span class="rec-out">${b.type === 'underground' ? 'Tunnel: 3 Felder unterirdisch' : b.type === 'splitter' ? 'Verteilt Güter links/rechts' : 'Transportiert Güter'}</span>`;
+            document.getElementById('inspect-rate-text').innerText = `Stufe ${(this.sim.conveyorTier || 1)} Band`;
         }
 
         // Inventory Buffers
@@ -406,11 +444,23 @@ class UIManager {
         document.getElementById('stat-items-on-belts').innerText = this.sim.itemsOnBelts.length;
 
         const list = document.getElementById('resource-breakdown-list');
-        list.innerHTML = `
-            <div class="res-breakdown-row"><span>Erzabbau-Rate</span><strong>${(this.sim.itemsPerMin * 0.6).toFixed(0)} / Min</strong></div>
-            <div class="res-breakdown-row"><span>Fertigungs-Effizienz</span><strong>${(this.sim.itemsPerMin > 0 ? 98 : 0)}%</strong></div>
-            <div class="res-breakdown-row"><span>Gold-Generierung</span><strong>🪙 ${this.sim.goldPerMin} / Min</strong></div>
-        `;
+        const rows = [];
+
+        // Real produced/delivered counts per resource (top 12 by output)
+        const entries = Object.entries(this.sim.producedCounts || {})
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 12);
+        if (entries.length === 0) {
+            list.innerHTML = `<div class="res-breakdown-row"><span>Noch keine Produktion — baue Bohrer & Maschinen.</span><strong>—</strong></div>`;
+        } else {
+            entries.forEach(([name, count]) => {
+                const delivered = (this.sim.deliveredCounts || {})[name] || 0;
+                const value = (ITEM_DATA[name] || {}).gold || 1;
+                rows.push(`<div class="res-breakdown-row"><span>${name}</span><strong>${count}× produziert · ${delivered}× geliefert · 🪙${value}</strong></div>`);
+            });
+            rows.push(`<div class="res-breakdown-row"><span>Gold-Generierung</span><strong>🪙 ${this.sim.goldPerMin} / Min</strong></div>`);
+            list.innerHTML = rows.join('');
+        }
     }
 
     // ----------------------------------------------------
@@ -418,6 +468,12 @@ class UIManager {
     // ----------------------------------------------------
 
     showToast(message) {
+        // Dedup: identical toasts within 1.5s are dropped (prevents drag-build spam)
+        const now = performance.now();
+        if (!this._toastSeen) this._toastSeen = {};
+        if (this._toastSeen[message] && now - this._toastSeen[message] < 1500) return;
+        this._toastSeen[message] = now;
+
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = 'toast';

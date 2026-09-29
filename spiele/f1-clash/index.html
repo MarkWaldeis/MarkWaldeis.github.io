@@ -5,11 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>F1 Clash 3D - Grand Prix Circuit & Autonomous Racing</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
-  <script type="module" crossorigin src="./assets/index-CINu6bzU.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DrjgWUXf.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="./game.js"></script>
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <div id="canvas-container"></div>
+  <div class="vignette"></div>
 
   <!-- Loading Screen -->
   <div id="loading-overlay">
@@ -24,6 +33,28 @@
     </div>
   </div>
 
+  <!-- Race Start Lights -->
+  <div id="start-lights" class="start-lights hidden">
+    <div class="lights-row">
+      <div class="start-lamp"></div>
+      <div class="start-lamp"></div>
+      <div class="start-lamp"></div>
+      <div class="start-lamp"></div>
+      <div class="start-lamp"></div>
+    </div>
+    <div id="start-text" class="start-text">STARTEN</div>
+  </div>
+
+  <!-- Race Finish Banner -->
+  <div id="finish-banner" class="finish-banner hidden">
+    <div class="finish-card">
+      <div class="finish-flag">🏁</div>
+      <h2 id="finish-title">Rennende</h2>
+      <div id="finish-results" class="finish-results"></div>
+      <button id="btn-restart" class="restart-btn">🔄 Neustart</button>
+    </div>
+  </div>
+
   <!-- UI Overlay -->
   <div id="ui-overlay">
     <!-- Top Header Bar -->
@@ -32,7 +63,7 @@
         <span class="circuit-flag">🇮🇹</span>
         <div>
           <div class="circuit-name">Autodromo Nazionale Monza</div>
-          <div class="circuit-meta">F1 GP • 5.793 km • Track Temp 32°C • Dry</div>
+          <div class="circuit-meta" id="circuit-meta">F1 GP • 5.793 km • Track Temp 32°C • Dry</div>
         </div>
       </div>
 
@@ -43,21 +74,21 @@
           <span id="speed-label">1x Speed</span>
         </button>
         <!-- Pause / Play -->
-        <button id="btn-pause" class="glass-btn" title="Pause / Play">
+        <button id="btn-pause" class="glass-btn" title="Pause / Play (Leertaste)">
           <span id="pause-icon">⏸️</span>
         </button>
         <!-- Lighting Preset (Day / Sunset / Night) -->
         <button id="btn-tod" class="glass-btn" title="Tageszeit ändern">
           <span id="tod-icon">☀️</span>
-          <span id="tod-label">Day</span>
+          <span id="tod-label">Tag</span>
         </button>
         <!-- Audio Engine Sound Toggle -->
-        <button id="btn-sound" class="glass-btn" title="F1 V6 Turbo Hybrid Sound an/aus">
+        <button id="btn-sound" class="glass-btn" title="F1 V6 Turbo Hybrid Sound an/aus (M)">
           <span id="sound-icon">🔇</span>
           <span id="sound-label">Sound OFF</span>
         </button>
         <!-- Focus Whole Circuit -->
-        <button id="btn-overview" class="glass-btn" title="Gesamte Strecke ansehen">
+        <button id="btn-overview" class="glass-btn" title="Gesamte Strecke ansehen (O)">
           <span>🌍</span>
           <span>Overview</span>
         </button>
@@ -76,18 +107,26 @@
     <div class="leaderboard-panel pointer-auto">
       <div class="panel-header">
         <span>F1 Live Timing</span>
-        <span id="lap-counter">Lap 1/5</span>
+        <span id="lap-counter">Runde 1/10</span>
+      </div>
+      <div class="race-status">
+        <span id="race-flag" class="race-flag green">🟩 GRÜNE FLAGGE</span>
+        <span id="race-time">00:00</span>
       </div>
 
       <div id="driver-list">
         <!-- Driver 1: Verstappen -->
         <div class="driver-card selected" data-car="redbull">
           <div class="driver-left">
-            <span class="pos-tag">1</span>
-            <div class="team-stripe" style="background: #001a30;"></div>
+            <div class="pos-wrap">
+              <span class="pos-tag">1</span>
+              <span class="pos-delta" id="delta-redbull"></span>
+            </div>
+            <div class="team-stripe" style="background: #3671c6;"></div>
             <div class="driver-info">
               <span class="driver-name">M. Verstappen</span>
               <span class="driver-team">Red Bull Racing #1</span>
+              <span class="driver-lastlap" id="lastlap-redbull">--:--.---</span>
             </div>
           </div>
           <div class="driver-right">
@@ -99,11 +138,15 @@
         <!-- Driver 2: Alonso -->
         <div class="driver-card" data-car="ferrari">
           <div class="driver-left">
-            <span class="pos-tag">2</span>
+            <div class="pos-wrap">
+              <span class="pos-tag">2</span>
+              <span class="pos-delta" id="delta-ferrari"></span>
+            </div>
             <div class="team-stripe" style="background: #00594f;"></div>
             <div class="driver-info">
               <span class="driver-name">F. Alonso</span>
               <span class="driver-team">Aston Martin #14</span>
+              <span class="driver-lastlap" id="lastlap-ferrari">--:--.---</span>
             </div>
           </div>
           <div class="driver-right">
@@ -115,11 +158,15 @@
         <!-- Driver 3: Hamilton -->
         <div class="driver-card" data-car="mercedes">
           <div class="driver-left">
-            <span class="pos-tag">3</span>
+            <div class="pos-wrap">
+              <span class="pos-tag">3</span>
+              <span class="pos-delta" id="delta-mercedes"></span>
+            </div>
             <div class="team-stripe" style="background: #00a19c;"></div>
             <div class="driver-info">
               <span class="driver-name">L. Hamilton</span>
               <span class="driver-team">Mercedes-AMG #44</span>
+              <span class="driver-lastlap" id="lastlap-mercedes">--:--.---</span>
             </div>
           </div>
           <div class="driver-right">
@@ -133,6 +180,7 @@
     <!-- Live 2D Track Radar Minimap -->
     <div class="minimap-card pointer-auto">
       <canvas id="minimap-canvas" width="220" height="240"></canvas>
+      <div id="cam-badge" class="cam-badge">🎥 Free Orbit</div>
     </div>
 
     <!-- Bottom Telemetry & Strategy Controls -->
@@ -145,6 +193,10 @@
           <button class="pace-btn active" data-pace="balanced">BALANCED</button>
           <button class="pace-btn" data-pace="attack">ATTACK</button>
         </div>
+
+        <button id="btn-ers" class="ers-btn" title="ERS Boost - kurzer Leistungsschub (E)">
+          ⚡ OVERTAKE <span id="ers-btn-state">READY</span>
+        </button>
 
         <div>
           <div class="strategy-stats">
@@ -169,25 +221,33 @@
 
       <!-- Cockpit Live Telemetry -->
       <div class="cockpit-telemetry pointer-auto">
+        <div class="pedal-bars">
+          <div class="pedal" title="Throttle"><div id="pedal-throttle" class="pedal-fill throttle"></div></div>
+          <div class="pedal" title="Brake"><div id="pedal-brake" class="pedal-fill brake"></div></div>
+        </div>
         <div class="speed-cluster">
-          <span id="telemetry-speed" class="speed-number">284</span>
+          <span id="telemetry-speed" class="speed-number">0</span>
           <span class="speed-unit">KM/H</span>
         </div>
 
-        <div class="gear-box" id="telemetry-gear">6</div>
+        <div class="gear-box" id="telemetry-gear">N</div>
 
         <div class="speed-cluster">
-          <span id="telemetry-rpm" style="font-size: 16px; font-weight: 800; font-mono: monospace;">11,400</span>
+          <span id="telemetry-rpm" style="font-size: 16px; font-weight: 800;">7,500</span>
           <span class="speed-unit">RPM</span>
         </div>
+        <div class="rpm-bar"><div id="rpm-fill"></div></div>
 
         <div id="telemetry-drs" class="drs-badge">DRS</div>
       </div>
     </div>
 
+    <!-- Toast Notifications (Overtakes etc.) -->
+    <div id="toast-area" class="toast-area"></div>
+
     <!-- Inspection Hint -->
     <div id="inspection-hint" class="inspection-hint">
-      🎥 Freie Kamera: Linksklick + Ziehen = Rotieren • Rechtsklick = Verschieben • Scrollen = Zoom
+      🎥 Free Orbit folgt dem Fahrer: Linksklick = Rotieren • Scrollen = Zoom • Tab = Fahrer • 1-6 = Kameras • E = ERS • Leertaste = Pause
     </div>
 
     <!-- Floating Camera Switch Toolbar -->

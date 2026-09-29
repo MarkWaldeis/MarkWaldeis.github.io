@@ -74,9 +74,15 @@ const UI = {
   },
 
   updateHUD(force = false) {
+    if (!Game.level) return;
+    // Zeit läuft immer (billig: nur bei geändertem Text ins DOM schreiben)
+    const tStr = this.fmtTime(Game.time);
+    if (tStr !== this._lastTimeStr) {
+      this._lastTimeStr = tStr;
+      this.$('hud-time').textContent = tStr;
+    }
     if (!force && !this.hudDirty) return;
     this.hudDirty = false;
-    if (!Game.level) return;
     const p = Game.player;
     let hearts = '';
     for (let i = 0; i < p.maxHp; i++) {
@@ -87,7 +93,6 @@ const UI = {
     shield.style.display = p.shieldActive ? 'inline-block' : 'none';
     this.$('hud-coins').textContent = Save.data.wallet + '  (+' + Game.coinsRun * COIN_VALUE + ')';
     this.$('hud-level').textContent = (Game.levelIdx + 1) + ' · ' + LEVELS[Game.levelIdx].name;
-    this.$('hud-time').textContent = this.fmtTime(Game.time);
     if (Game.level.boss && Game.level.enemies.includes(Game.level.boss)) {
       const b = Game.level.boss;
       this.$('bossbar').classList.remove('hidden');

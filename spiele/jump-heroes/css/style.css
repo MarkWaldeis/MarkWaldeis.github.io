@@ -55,6 +55,18 @@ body.in-menu #ui, body.in-game #hud, .overlay:not(.hidden), #modal:not(.hidden) 
 .subtitle { font-size: clamp(14px, 2vw, 19px); color: #cfd8ff; opacity: 0.85; margin-top: -10px; letter-spacing: 2px; }
 
 .menu-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 22px; min-width: 300px; }
+.screen.active .menu-stack .btn { animation: btnIn 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.screen.active .menu-stack .btn:nth-child(1) { animation-delay: 0.04s; }
+.screen.active .menu-stack .btn:nth-child(2) { animation-delay: 0.10s; }
+.screen.active .menu-stack .btn:nth-child(3) { animation-delay: 0.16s; }
+.screen.active .menu-stack .btn:nth-child(4) { animation-delay: 0.22s; }
+.screen.active .menu-stack .btn:nth-child(5) { animation-delay: 0.28s; }
+@keyframes btnIn { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+
+button:focus-visible, .level-card:focus-visible, .card .btn:focus-visible {
+  outline: 2px solid #ffd34d;
+  outline-offset: 2px;
+}
 
 .btn {
   pointer-events: auto;
@@ -165,8 +177,9 @@ body.in-menu #ui, body.in-game #hud, .overlay:not(.hidden), #modal:not(.hidden) 
   border: 2px solid rgba(120,140,220,0.3);
   border-radius: 16px;
   padding: 14px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
+.card:hover { transform: translateY(-2px); border-color: rgba(255,211,77,0.45); box-shadow: 0 10px 26px rgba(0,0,0,0.3); }
 .card.selected { border-color: #57d977; box-shadow: 0 0 0 2px rgba(87,217,119,0.35), 0 8px 22px rgba(87,217,119,0.15); }
 .char-card { flex-direction: row; }
 .char-card .card-left { display: flex; flex-direction: column; align-items: center; gap: 8px; }

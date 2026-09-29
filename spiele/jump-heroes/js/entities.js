@@ -4,6 +4,15 @@ function aabb(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
+// Hex-Farbe abdunkeln/aufhellen (f < 1 dunkler, f > 1 heller)
+function shadeColor(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * f)));
+  const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * f)));
+  const b = Math.max(0, Math.min(255, Math.round((n & 255) * f)));
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
 class MovingPlat {
   constructor(cx, cy, axis, idx) {
     this.cx = (cx + 0.5) * TILE;
@@ -30,7 +39,11 @@ class MovingPlat {
 }
 
 class Coin {
-  constructor(x, y) { this.x = x; this.y = y; this.taken = false; this.t = Math.random() * 6; }
+  constructor(x, y) {
+    this.x = x; this.y = y; this.taken = false;
+    this.t = Math.random() * 6;
+    this.tw = 1 + Math.random() * 2.5;
+  }
   rect() { return { x: this.x - 10, y: this.y - 10, w: 20, h: 20 }; }
 }
 
@@ -200,6 +213,8 @@ class Player {
     this.dashT = 0; this.dashCD = 0; this.airDashUsed = false;
     this.shieldActive = this.shieldMax;
     this.ride = null;
+    this.dropT = 0;
+    this.stepT = 0;
     this.dead = false; this.deadT = 0;
     this.animT = 0; this.landSquash = 0;
     this.trailT = 0;
@@ -210,11 +225,25 @@ class Player {
     const keepShield = this.shieldMax;
     this.reset(cp.x, cp.y);
     this.shieldActive = keepShield;
+    this.invuln = 1.2;
   }
 
   get cx() { return this.x + this.w / 2; }
   get cy() { return this.y + this.h / 2; }
   rect() { return { x: this.x, y: this.y, w: this.w, h: this.h }; }
+
+  onOneWay(lvl) {
+    const T = TILE;
+    const row = Math.floor((this.y + this.h + 4) / T);
+    const c0 = Math.floor((this.x + 3) / T), c1 = Math.floor((this.x + this.w - 3) / T);
+    let any = false;
+    for (let c = c0; c <= c1; c++) {
+      const ch = lvl.tileChar(c, row);
+      if (lvl.isSolidChar(ch, c, row)) return false;
+      if (ch === '-') any = true;
+    }
+    return any;
+  }
 
   doJump(air, lvl) {
     this.vy = -this.jumpPow;
@@ -242,6 +271,7 @@ class Player {
     this.hp--;
     Audio.sfx('hurt');
     Game.flash = 0.4;
+    Game.hitstop = Math.max(Game.hitstop, 0.07);
     Game.cam.shake = Math.max(Game.cam.shake, 8);
     FX.pop(this.cx, this.cy, '#ff6b6b', 8);
     if (this.hp <= 0) {
@@ -261,6 +291,7 @@ class Player {
     this.vy = -420;
     Audio.sfx('death');
     FX.pop(this.cx, this.cy, this.char.color, 16);
+    Game.hitstop = Math.max(Game.hitstop, 0.11);
     Game.cam.shake = 10;
   }
 
@@ -299,8 +330,8 @@ class Player {
     }
 
     const icy = lvl.themeObj.icy && this.grounded;
-    const acc = this.grounded ? (icy ? 750 : 2400) : 1700;
-    const fric = this.grounded ? (icy ? 220 : 2300) : 350;
+    const acc = this.grounded ? (icy ? 750 : 2600) : 1800;
+    const fric = this.grounded ? (icy ? 220 : 2500) : 380;
     const dirIn = (input.right ? 1 : 0) - (input.left ? 1 : 0);
 
     if (this.dashT > 0) {
@@ -317,7 +348,10 @@ class Player {
         const f = fric * dt;
         if (Math.abs(this.vx) <= f) this.vx = 0; else this.vx -= Math.sign(this.vx) * f;
       }
-      this.vy += GRAV * dt;
+      // Schwereres Fallen + leichtes Schweben am Sprungscheitel
+      const gravMul = this.vy > 60 ? 1.16 : (Math.abs(this.vy) < 110 ? 0.78 : 1);
+      this.vy += GRAV * gravMul * dt;
+      if (!this.grounded && input.down && this.vy > 0) this.vy += GRAV * 0.9 * dt;
       if (this.vy > MAXFALL) this.vy = MAXFALL;
       if (this.glideOn && !this.grounded && this.vy > 0 && input.jump) {
         this.vy = Math.min(this.vy, 115);
@@ -325,24 +359,38 @@ class Player {
       }
     }
 
+    if (this.dropT > 0) this.dropT -= dt;
+
     if (this.grounded) {
-      this.coyote = 0.09;
+      this.coyote = 0.11;
       this.jumpsLeft = this.maxJumps;
       this.airDashUsed = false;
     } else {
       this.coyote -= dt;
     }
-    if (input.jumpP) this.jumpBuf = 0.12; else this.jumpBuf -= dt;
+    if (input.jumpP) this.jumpBuf = 0.14; else this.jumpBuf -= dt;
 
     if (this.jumpBuf > 0 && this.dashT <= 0) {
-      if (this.coyote > 0) {
+      if (input.down && this.grounded && this.onOneWay(lvl)) {
+        // Durch dünne Plattformen fallen lassen
+        this.dropT = 0.28;
+        this.grounded = false;
+        this.coyote = 0;
+        this.jumpBuf = 0;
+        this.y += 4;
+        this.vy = Math.max(this.vy, 40);
+        this.ride = null;
+        FX.dust(this.cx, this.y + this.h, 2);
+      } else if (this.coyote > 0) {
         this.doJump(false, lvl);
       } else if (this.jumpsLeft > 0 && this.maxJumps > 1) {
         this.doJump(true, lvl);
       }
     }
-    if (!input.jump && this.vy < -260 && !this.jumpCut) {
-      this.vy *= 0.42;
+    // Sprung-Höhenkappung erst NACH dem Absprung-Frame (jumpP ist im
+    // Absprung-Frame noch true — sonst wird der Sprung sofort abgewürgt)
+    if (!input.jump && !input.jumpP && this.vy < -40 && !this.jumpCut) {
+      this.vy *= 0.45;
       this.jumpCut = true;
     }
 
@@ -350,8 +398,9 @@ class Player {
       this.dashT = 0.17;
       this.dashCD = 0.75;
       if (!this.grounded) this.airDashUsed = true;
-      Audio.sfx('spring');
+      Audio.sfx('dash');
       FX.ring(this.cx, this.cy, '#c792ea');
+      FX.spark(this.cx - this.facing * 10, this.cy, '#c792ea');
     }
 
     const T = TILE;
@@ -377,13 +426,14 @@ class Player {
     this.grounded = false;
     let ny = this.y + this.vy * dt;
     if (this.vy >= 0) {
+      const impactVy = this.vy;
       const botRow = Math.floor((ny + this.h) / T);
       const c0 = Math.floor((this.x + 2) / T), c1 = Math.floor((this.x + this.w - 2) / T);
       let landRow = -1, onB = false;
       for (let c = c0; c <= c1; c++) {
         const ch = lvl.tileChar(c, botRow);
         const solid = lvl.isSolidChar(ch, c, botRow);
-        const oneway = ch === '-' && this.prevBottom <= botRow * T + 8;
+        const oneway = ch === '-' && this.dropT <= 0 && this.prevBottom <= botRow * T + 8;
         if (solid || oneway) {
           if (landRow < 0 || botRow < landRow) { landRow = botRow; onB = ch === 'B'; }
         }
@@ -393,8 +443,12 @@ class Player {
         this.vy = 0;
         this.grounded = true;
         if (!wasGrounded) {
-          this.landSquash = 0.18;
-          FX.dust(this.cx, ny + this.h, 5);
+          this.landSquash = impactVy > 560 ? 0.26 : 0.18;
+          FX.dust(this.cx, ny + this.h, Math.min(12, 3 + Math.round(impactVy / 90)));
+          if (impactVy > 700) {
+            Game.cam.shake = Math.max(Game.cam.shake, 3);
+            Audio.sfx('land');
+          }
         }
         if (onB) {
           for (let c = c0; c <= c1; c++) lvl.triggerCrumble(c, landRow);
@@ -464,6 +518,15 @@ class Player {
     }
 
     const moving = Math.abs(this.vx) > 40 && this.grounded;
+    this.stepT -= dt;
+    if (moving && Math.abs(this.vx) > 150 && this.stepT <= 0) {
+      this.stepT = 0.19;
+      FX.spawn({
+        x: this.cx - this.facing * 9, y: this.y + this.h - 2,
+        vx: -this.facing * (20 + Math.random() * 30), vy: -12 - Math.random() * 22,
+        life: 0.32, size: 2 + Math.random() * 2, color: 'rgba(255,255,255,0.4)', type: 'circle'
+      });
+    }
     const trailColor = getTrail(Save.data.trail).color;
     this.trailT -= dt;
     if ((moving || !this.grounded) && trailColor !== '#ffffff' && this.trailT <= 0) {
@@ -517,6 +580,9 @@ const FX = {
   trail(x, y, color) {
     this.spawn({ x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 10, vx: 0, vy: -20, life: 0.4, size: 4, color, type: 'traildot' });
   },
+  twinkle(x, y) {
+    this.spawn({ x, y, vx: 0, vy: -14, life: 0.45, size: 5, color: 'rgba(255,255,255,0.95)', type: 'star' });
+  },
   update(dt) {
     const arr = this.arr;
     for (let i = arr.length - 1; i >= 0; i--) {
@@ -550,6 +616,19 @@ const FX = {
         ctx.beginPath();
         ctx.arc(p.x - camX, p.y - camY, p.size + (1 - a) * 26, 0, 7);
         ctx.stroke();
+      } else if (p.type === 'star') {
+        const s = p.size * (0.4 + a * 0.6);
+        ctx.translate(p.x - camX, p.y - camY);
+        ctx.rotate(p.t * 4);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          ctx.lineTo(0, -s);
+          ctx.lineTo(s * 0.28, -s * 0.28);
+          ctx.rotate(Math.PI / 2);
+        }
+        ctx.closePath();
+        ctx.fill();
       }
       ctx.restore();
     }

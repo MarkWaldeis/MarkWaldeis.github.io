@@ -2,7 +2,8 @@ import {
   ITEMS, BUILDINGS, CATS, TECHS, RECIPE_BY_ID,
   isUnlockedBuilding, recipesFor,
   techName, fmt, OUT_CAP, INPUT_CAP, RES_NAME,
-  MAX_LEVEL, UPGRADEABLE_TYPES, upgradeCost
+  MAX_LEVEL, UPGRADEABLE_TYPES, upgradeCost,
+  multFor, levelMult, EXTRACT_TIME, LAB_TIME
 } from './config.js';
 
 const DIR_NAMES=['O','S','W','N'];
@@ -51,7 +52,7 @@ export function initUI(hooks){
     return name.slice(0,2).toUpperCase();
   }
 
-  function makeChip(type){
+  function makeChip(type,keyHint){
     const def=BUILDINGS[type];
     const chip=document.createElement('button');
     chip.className='chip cat-'+def.cat;
@@ -62,8 +63,16 @@ export function initUI(hooks){
         <span class="chipName">${def.name}</span>
         <span class="cost"><i></i><span class="costNum">${fmt(def.cost)}</span></span>
       </span>
+      ${keyHint?`<span class="chipKey">${keyHint}</span>`:''}
       <span class="lockTag"></span>`;
-    chip.addEventListener('click',()=>hooks.setTool(type));
+    chip.addEventListener('click',()=>{
+      const S=hooks.getS&&hooks.getS();
+      if(S&&!isUnlockedBuilding(S,type)){
+        toast('Erfordert Forschung: '+techName(def.tech),true);
+        return;
+      }
+      hooks.setTool(type);
+    });
     return chip;
   }
 
@@ -72,10 +81,12 @@ export function initUI(hooks){
       b.classList.toggle('active',b.dataset.cat===activeCat);
     });
     chipRow.innerHTML='';
+    let keyN=1;
     for(const type in BUILDINGS){
       const def=BUILDINGS[type];
       if(def.cat!==activeCat) continue;
-      chipRow.appendChild(makeChip(type));
+      chipRow.appendChild(makeChip(type,keyN<=9?keyN:0));
+      keyN++;
     }
     const S=hooks.getS&&hooks.getS();
     if(S) ui.refreshMenu(S);
@@ -131,6 +142,16 @@ export function initUI(hooks){
     applyActive();
   };
 
+  ui.toolAt=i=>{
+    let idx=0;
+    for(const type in BUILDINGS){
+      if(BUILDINGS[type].cat!==activeCat) continue;
+      if(idx===i) return type;
+      idx++;
+    }
+    return null;
+  };
+
   ui.setActiveTool=type=>{
     activeTool=type||null;
     applyActive();
@@ -141,10 +162,26 @@ export function initUI(hooks){
     ui.rp.textContent=fmt(S.rp);
   };
 
+  ui.setRates=(coins,fp)=>{
+    const ce=el('coinsRate'), re=el('rpRate');
+    if(ce){
+      const v=Math.round(coins);
+      ce.textContent=Math.abs(v)>=1?((v>0?'+':'')+fmt(v)+'/min'):'';
+      ce.className='rate '+(v>=1?'pos':(v<=-1?'neg':''));
+    }
+    if(re){
+      const v=Math.round(fp);
+      re.textContent=v>=1?'+'+fmt(v)+'/min':'';
+      re.className='rate '+(v>=1?'pos':'');
+    }
+  };
+
   ui.setSpeedUI=(speed,paused)=>{
     for(const k in ui.speedBtns){
       ui.speedBtns[k].classList.toggle('active',paused?k==='p':String(speed)===k);
     }
+    const pb=el('pauseBadge');
+    if(pb) pb.classList.toggle('hidden',!paused);
   };
 
   function initTopbar(){
@@ -192,6 +229,8 @@ export function initUI(hooks){
   ui.refreshTech=S=>{
     const fp=el('techRp');
     if(fp) fp.textContent=fmt(S.rp);
+    const tc=el('techCount');
+    if(tc) tc.textContent=S.researched.size+'/'+TECHS.length+' erforscht';
     ui.techList.innerHTML='';
     const depth=t=>{
       let d=1;
@@ -298,12 +337,14 @@ export function initUI(hooks){
         rows.push(`<div class="row col"><span>Rezept</span><select id="inspRecipe">${sel}</select></div>`);
       }
       rows.push(`<div class="row"><span>Fortschritt</span><div class="bar"><div id="inspProg"></div></div></div>`);
+      rows.push(`<div class="row"><span>Rate</span><b id="inspRate">-</b></div>`);
       rows.push(`<div class="row"><span>Effizienz</span><b id="inspEff">-</b></div>`);
       rows.push(`<div class="row"><span>Eingang</span><span id="inspIn" class="itemChips"></span></div>`);
       rows.push(`<div class="row"><span>Ausgang</span><span id="inspOut" class="itemChips"></span></div>`);
     }
     if(b.type==='lab'){
       rows.push(`<div class="row"><span>Fortschritt</span><div class="bar"><div id="inspProg"></div></div></div>`);
+      rows.push(`<div class="row"><span>Tempo</span><b id="inspRate">-</b></div>`);
       rows.push(`<div class="row"><span>Eingang</span><span id="inspIn" class="itemChips"></span></div>`);
       rows.push('<div class="hint">Belohnt Lieferungen SOFORT mit Münzen und Forschung. Rohstoffe bringen wenig, hochwertige Waren viel.</div>');
     }
@@ -328,6 +369,7 @@ export function initUI(hooks){
     inspRefs={
       prog:el('inspProg'),
       eff:el('inspEff'),
+      rate:el('inspRate'),
       inChips:el('inspIn'),
       out:el('inspOut'),
       sold:el('inspSold'),
@@ -382,6 +424,19 @@ export function initUI(hooks){
       const e=b.total>0?Math.round(b.worked/b.total*100):0;
       inspRefs.eff.textContent=e+'%';
     }
+    if(inspRefs.rate){
+      const speed=multFor(S,b.type)*levelMult(b);
+      let perMin=0;
+      if(b.type==='lab'){
+        perMin=60*speed/LAB_TIME;
+      }else{
+        const rec=b.recipe?RECIPE_BY_ID[b.recipe]:null;
+        const time=b.type==='extractor'?EXTRACT_TIME:(rec?rec.time:0);
+        const n=b.type==='extractor'?1:(rec?rec.n:0);
+        if(time>0) perMin=60*n*speed/time;
+      }
+      inspRefs.rate.textContent=perMin>0?('~'+(perMin<10?perMin.toFixed(1):Math.round(perMin))+'/min'):'-';
+    }
     if(inspRefs.inChips) inspRefs.inChips.innerHTML=chipHtml(b.inputs||{},INPUT_CAP);
     if(inspRefs.out){
       inspRefs.out.innerHTML=b.outItem&&b.outCount>0
@@ -404,7 +459,9 @@ export function initUI(hooks){
     ['t3','Beliefere das Labor am Spawn (gibt Forschung)'],
     ['t4','Erforsche deine erste Technologie'],
     ['t5','Baue eine Montage'],
-    ['t6','Erreiche 2.000 Münzen']
+    ['t6','Erreiche 2.000 Münzen'],
+    ['t7','Erforsche: Elektronik'],
+    ['t8','Produziere einen Schaltkreis']
   ];
 
   function buildTut(){
@@ -426,18 +483,25 @@ export function initUI(hooks){
       if(b.type==='belt')belt=true;
       if(b.type==='assembler')asm=true;
     }
+    const seen=S.stats.seen||{};
     const done={
       t1:ext,
       t2:fur&&belt,
       t3:S.stats.rpEarned>0,
       t4:S.researched.size>0,
       t5:asm,
-      t6:S.stats.peakCoins>=2000
+      t6:S.stats.peakCoins>=2000,
+      t7:S.researched.has('electronics'),
+      t8:!!seen.circuit
     };
     let all=true;
     for(const [id] of TUT_ITEMS){
       el('tut_'+id).classList.toggle('done',!!done[id]);
       if(!done[id]) all=false;
+    }
+    if(all&&!S.tut.celebrated){
+      S.tut.celebrated=true;
+      toast('Grundlagen gemeistert - baue jetzt die große Fabrik!');
     }
     ui.tut.classList.toggle('hidden',all);
   };

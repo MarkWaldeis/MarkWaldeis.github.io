@@ -61,6 +61,13 @@ class LuminaEnemies {
       const distToPlayer = Math.abs(e.x - player.x);
       if (distToPlayer > 1800) continue;
 
+      // Fell into a chasm — silently remove (prevents infinite ticking)
+      if (e.y > 980) {
+        e.alive = false;
+        e.dyingTimer = 0.01;
+        continue;
+      }
+
       e.phase += dt * 3.5;
       if (e.cooldown > 0) e.cooldown -= dt;
 
@@ -170,7 +177,10 @@ class LuminaEnemies {
           engine.audio.playSFX("wall_jump");
           engine.camera.addShake(4);
           engine.particles.spawnBurst(e.x + (e.direction === -1 ? 0 : e.w), e.y + e.h / 2, "#00f2fe", 12, 180);
-          engine.ui.showToast("🛡️ Schild blockiert Frontalangriffe!");
+          if (engine.state.time - (this._lastShieldToast || -10) > 3) {
+            this._lastShieldToast = engine.state.time;
+            engine.ui.showToast("🛡️ Schild blockiert Frontalangriffe!");
+          }
         } else {
           player.takeDamage(1, engine);
         }

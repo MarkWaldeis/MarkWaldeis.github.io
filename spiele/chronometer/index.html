@@ -30,13 +30,14 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 /* ============ RENDERER / SCENE / CAMERA (100mm macro f/2.8) ============ */
 const container = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -59,6 +60,12 @@ controls.dampingFactor = 0.06;
 controls.minDistance = 4.2;
 controls.maxDistance = 18;
 controls.maxPolarAngle = Math.PI * 0.62;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.45;
+// pause auto-orbit while the user drags, resume after 6s idle
+let idleTimer = null;
+controls.addEventListener('start', () => { controls.autoRotate = false; if (idleTimer) clearTimeout(idleTimer); });
+controls.addEventListener('end', () => { idleTimer = setTimeout(() => { controls.autoRotate = true; }, 6000); });
 
 RectAreaLightUniformsLib.init();
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -100,6 +107,11 @@ const bioLight = new THREE.PointLight(0x36f6ff, 8, 6, 2);
 bioLight.position.set(0, 0.35, 0);
 scene.add(bioLight);
 
+// warm accent kiss on the oil crown (subtle shimmer in animate)
+const crownGlow = new THREE.PointLight(0xffa04e, 2.6, 7, 2);
+crownGlow.position.set(0.4, 2.6, 0.9);
+scene.add(crownGlow);
+
 /* ============ HELPERS ============ */
 function radialSprite(inner='rgba(255,255,255,1)', outer='rgba(255,255,255,0)'){
   const c=document.createElement('canvas'); c.width=c.height=64;
@@ -136,6 +148,18 @@ function oilSwirlTex(){
   t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
 }
 const swirlMap = oilSwirlTex();
+
+// soft ambient aura far behind the subject — lifts the pure-black backdrop
+{
+  const auraTex = radialSprite('rgba(70,140,190,0.55)', 'rgba(20,30,60,0)');
+  const aura = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: auraTex, transparent: true, opacity: 0.16,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  }));
+  aura.position.set(0, 1.2, -10);
+  aura.scale.set(18, 13, 1);
+  scene.add(aura);
+}
 
 /* ============ GROUND + CAUSTICS (chromatic dispersion) ============ */
 const causticUniforms = {
@@ -312,6 +336,166 @@ jelly.add(coreGlow);
   }
 }
 
+/* ============ CHRONOMETER DIAL — floating glass bezel + real-time hands ============ */
+const dial = new THREE.Group();
+dial.position.copy(core.position);
+dial.rotation.x = 0.05;
+dial.rotation.y = -0.08;
+scene.add(dial);
+
+const dialGlass = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff, metalness: 0, roughness: 0.04,
+  transmission: 1.0, thickness: 0.12, ior: 1.5,
+  clearcoat: 1, clearcoatRoughness: 0.04,
+  iridescence: 0.35, iridescenceIOR: 1.4,
+  envMapIntensity: 1.7, transparent: true,
+});
+// outer bezel + a second, slightly tilted hairline ring (depth parallax)
+const bezel = new THREE.Mesh(new THREE.TorusGeometry(2.55, 0.032, 20, 180), dialGlass);
+bezel.castShadow = true;
+dial.add(bezel);
+const bezel2 = new THREE.Mesh(new THREE.TorusGeometry(2.72, 0.011, 12, 180), dialGlass);
+bezel2.rotation.x = 0.045;
+dial.add(bezel2);
+
+// 60 minute ticks + 12 brighter hour markers, pointing inward
+{
+  const dummy = new THREE.Object3D();
+  const minMat = new THREE.MeshStandardMaterial({ color: 0x8fd4e8, emissive: 0x2fb8d8, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.7 });
+  const hrMat  = new THREE.MeshStandardMaterial({ color: 0xffe2b0, emissive: 0xffa040, emissiveIntensity: 1.1,  roughness: 0.25, metalness: 0.6 });
+  const minTicks = new THREE.InstancedMesh(new THREE.BoxGeometry(0.014, 0.15, 0.008), minMat, 48);
+  const hrTicks  = new THREE.InstancedMesh(new THREE.BoxGeometry(0.034, 0.30, 0.012), hrMat, 12);
+  let mi = 0, hi = 0;
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2;
+    const isHour = i % 5 === 0;
+    const R = isHour ? 2.32 : 2.38;
+    dummy.position.set(Math.cos(a) * R, Math.sin(a) * R, 0);
+    dummy.rotation.set(0, 0, a - Math.PI / 2);
+    dummy.updateMatrix();
+    if (isHour) hrTicks.setMatrixAt(hi++, dummy.matrix);
+    else minTicks.setMatrixAt(mi++, dummy.matrix);
+  }
+  minTicks.instanceMatrix.needsUpdate = true;
+  hrTicks.instanceMatrix.needsUpdate = true;
+  dial.add(minTicks, hrTicks);
+}
+
+// dauphine-style tapered hands (sword profile), real-time driven
+function dauphineHand(len, w, tail, depth, mat) {
+  const s = new THREE.Shape();
+  s.moveTo(-w * 0.5, -tail);
+  s.lineTo(w * 0.5, -tail);
+  s.lineTo(w * 0.22, len * 0.62);
+  s.lineTo(0, len);
+  s.lineTo(-w * 0.22, len * 0.62);
+  s.closePath();
+  const geo = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2 });
+  const grp = new THREE.Group();
+  grp.add(new THREE.Mesh(geo, mat));
+  return grp;
+}
+const handMatCool = new THREE.MeshStandardMaterial({ color: 0xdff4ff, emissive: 0x74d8f0, emissiveIntensity: 0.7, roughness: 0.2, metalness: 0.85, envMapIntensity: 1.4 });
+const handMatWarm = new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xff9433, emissiveIntensity: 1.4, roughness: 0.25, metalness: 0.7 });
+const hourHand = dauphineHand(1.15, 0.075, 0.22, 0.012, handMatCool);
+hourHand.position.z = 0.02;
+const minHand = dauphineHand(1.78, 0.052, 0.30, 0.010, handMatCool);
+minHand.position.z = 0.045;
+const secHand = new THREE.Group();
+{
+  const needle = new THREE.Mesh(new THREE.BoxGeometry(0.014, 2.28, 0.008), handMatWarm);
+  needle.position.y = 0.94;
+  secHand.add(needle);
+  const counter = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.016, 8, 24), handMatWarm);
+  counter.position.y = -0.42;
+  secHand.add(counter);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), handMatWarm);
+  tip.position.y = 2.08;
+  secHand.add(tip);
+}
+secHand.position.z = 0.07;
+dial.add(hourHand, minHand, secHand);
+// jeweled center cap + halo
+{
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 0.05, 20), new THREE.MeshStandardMaterial({ color: 0xc8d4dc, metalness: 1, roughness: 0.22, envMapIntensity: 1.5 }));
+  cap.rotation.x = Math.PI / 2;
+  cap.position.z = 0.08;
+  dial.add(cap);
+  const jewel = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), new THREE.MeshStandardMaterial({ color: 0x550011, emissive: 0xff2050, emissiveIntensity: 1.6, roughness: 0.2 }));
+  jewel.position.z = 0.11;
+  dial.add(jewel);
+  const capHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialSprite('rgba(140,240,255,0.8)', 'rgba(140,240,255,0)'), transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
+  capHalo.scale.set(0.5, 0.5, 1);
+  capHalo.position.z = 0.12;
+  dial.add(capHalo);
+}
+
+/* ============ TOURBILLON — beating mechanical heart inside the sphere ============ */
+const tbMetal = new THREE.MeshStandardMaterial({ color: 0xc8d4dc, metalness: 1.0, roughness: 0.24, envMapIntensity: 1.6 });
+const tbGold  = new THREE.MeshStandardMaterial({ color: 0xd8a860, metalness: 1.0, roughness: 0.3, envMapIntensity: 1.4 });
+const tourbillon = new THREE.Group();
+tourbillon.position.set(0, core.position.y - 1.30, 0);
+scene.add(tourbillon);
+const tbCage = new THREE.Group();
+tourbillon.add(tbCage);
+{
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.018, 12, 64), tbMetal);
+  ring.rotation.x = Math.PI / 2;
+  tbCage.add(ring);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.012, 10, 48), tbGold);
+  ring2.rotation.x = Math.PI / 2;
+  ring2.position.y = 0.06;
+  tbCage.add(ring2);
+  for (let i = 0; i < 3; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.014, 0.03), tbMetal);
+    spoke.rotation.y = (i / 3) * Math.PI;
+    tbCage.add(spoke);
+  }
+  const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 10), tbGold);
+  tbCage.add(staff);
+}
+// oscillating balance wheel + hairspring spiral
+const balance = new THREE.Group();
+balance.position.y = 0.05;
+tbCage.add(balance);
+{
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.014, 8, 40), tbGold);
+  wheel.rotation.x = Math.PI / 2;
+  balance.add(wheel);
+  for (let i = 0; i < 2; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.01, 0.02), tbGold);
+    spoke.rotation.y = i * Math.PI / 2;
+    balance.add(spoke);
+  }
+  // flat spiral hairspring
+  const pts = [];
+  for (let i = 0; i <= 120; i++) {
+    const a = i * 0.28, r = 0.02 + i * 0.0011;
+    pts.push(new THREE.Vector3(Math.cos(a) * r, 0.02, Math.sin(a) * r));
+  }
+  const spring = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0x8fe8ff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending })
+  );
+  spring.position.y = 0.04;
+  balance.add(spring);
+}
+// ruby jewels on the cage
+const jewelMat = new THREE.MeshStandardMaterial({ color: 0x550011, emissive: 0xff2050, emissiveIntensity: 1.5, roughness: 0.2 });
+for (let i = 0; i < 3; i++) {
+  const a = (i / 3) * Math.PI * 2;
+  const j = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), jewelMat);
+  j.position.set(Math.cos(a) * 0.42, 0, Math.sin(a) * 0.42);
+  tbCage.add(j);
+}
+// geneva-striped base disc under the cage
+const baseDisc = new THREE.Mesh(new THREE.CircleGeometry(0.58, 48), new THREE.MeshStandardMaterial({
+  color: 0x8a95a0, metalness: 0.95, roughness: 0.35, map: swirlMap, envMapIntensity: 1.1,
+}));
+baseDisc.rotation.x = -Math.PI / 2;
+baseDisc.position.y = -0.16;
+tourbillon.add(baseDisc);
+
 /* ============ SHATTERED FRAGMENTS (razor geometric, dispersive) ============ */
 const shardMat = new THREE.MeshPhysicalMaterial({
   color: 0xffffff, metalness:0, roughness:0.02,
@@ -327,7 +511,6 @@ const shards = new THREE.Group();
 scene.add(shards);
 const shardData = [];
 {
-  const dummy = new THREE.Object3D();
   for(let i=0;i<78;i++){
     const sz = 0.08 + Math.pow(Math.random(),1.6)*0.55;
     let geo;
@@ -350,7 +533,6 @@ const shardData = [];
     const dir = new THREE.Vector3(px, py-0.35, pz).normalize();
     shardData.push({ mesh, dir, dist:R-1.8, spin:new THREE.Vector3((Math.random()-0.5)*1.2,(Math.random()-0.5)*1.2,(Math.random()-0.5)*1.2), base:mesh.position.clone() });
     shards.add(mesh);
-    dummy.updateMatrix();
   }
   // prism edge glints: tiny additive edges on biggest shards
   const edgeMat = new THREE.LineBasicMaterial({ color:0xd8f6ff, transparent:true, opacity:0.5, blending:THREE.AdditiveBlending });
@@ -447,11 +629,12 @@ const microData=[];
     const rr=0.6+Math.random()*2.1;
     const yy=2.0+Math.random()*2.4;
     const s=0.015+Math.pow(Math.random(),2.2)*0.11;
+    const sy=0.8+Math.random()*0.9;
     d.position.set(Math.cos(a)*rr*0.9, yy, Math.sin(a)*rr*0.9);
-    d.scale.set(s, s*(0.8+Math.random()*0.9), s);
+    d.scale.set(s, s*sy, s);
     d.updateMatrix();
     inst.setMatrixAt(i,d.matrix);
-    microData.push({ x:d.position.x, y:d.position.y, z:d.position.z, s, ph:Math.random()*6.28 });
+    microData.push({ x:d.position.x, y:d.position.y, z:d.position.z, s, sy, ph:Math.random()*6.28 });
   }
   inst.instanceMatrix.needsUpdate=true;
   oilGroup.add(inst);
@@ -459,7 +642,7 @@ const microData=[];
 }
 
 /* ============ GLASS DUST + BOKEH SPECKS ============ */
-let dustGeo, dustPts;
+let dustGeo, dustPts, dustBase, dustRand;
 {
   const N=900;
   const p=new Float32Array(N*3);
@@ -476,6 +659,8 @@ let dustGeo, dustPts;
   dustGeo=new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(p,3));
   dustGeo.setAttribute('aRand', new THREE.BufferAttribute(a,1));
+  dustBase=p.slice();
+  dustRand=a;
   const dustMat=new THREE.PointsMaterial({
     size:0.055, map:radialSprite(), transparent:true, opacity:0.75,
     color:0xfff2d8, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true,
@@ -484,6 +669,7 @@ let dustGeo, dustPts;
   scene.add(dustPts);
 }
 // few large sharp bokeh discs
+const bokehSprites=[];
 {
   const bokehTex = radialSprite('rgba(255,240,210,0.9)','rgba(255,240,210,0)');
   for(let i=0;i<26;i++){
@@ -494,7 +680,7 @@ let dustGeo, dustPts;
     sp.scale.set(s,s,1);
     sp.userData.ph=Math.random()*6.28;
     sp.userData.baseY=sp.position.y;
-    sp.userData.isBokeh=true;
+    bokehSprites.push(sp);
     scene.add(sp);
   }
 }
@@ -521,23 +707,68 @@ let dustGeo, dustPts;
   scene.add(beamR);
 }
 
-/* ============ POST: BLOOM + MACRO BOKEN (f/2.8) ============ */
+/* ============ POST: BLOOM + MACRO BOKEH (f/2.8) + GRADE ============ */
 const composer=new EffectComposer(renderer);
+composer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 composer.addPass(new RenderPass(scene,camera));
 const bloom=new UnrealBloomPass(new THREE.Vector2(window.innerWidth,window.innerHeight), 0.55, 0.65, 0.62);
 composer.addPass(bloom);
 const bokeh=new BokehPass(scene,camera,{ focus:9.0, aperture:0.0016, maxblur:0.0085 });
 composer.addPass(bokeh);
 composer.addPass(new OutputPass());
+// final grade: edge chromatic aberration + vignette + film grain (on tonemapped image)
+const gradePass=new ShaderPass({
+  uniforms:{ tDiffuse:{value:null}, uTime:{value:0}, uVig:{value:0.55}, uGrain:{value:0.028}, uCA:{value:0.9} },
+  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`
+    varying vec2 vUv; uniform sampler2D tDiffuse; uniform float uTime,uVig,uGrain,uCA;
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    void main(){
+      vec2 d=vUv-0.5; float r2=dot(d,d);
+      vec2 ca=d*r2*uCA*0.012;
+      vec3 col;
+      col.r=texture2D(tDiffuse,vUv+ca).r;
+      col.g=texture2D(tDiffuse,vUv).g;
+      col.b=texture2D(tDiffuse,vUv-ca).b;
+      col*=1.0-uVig*smoothstep(0.10,0.72,r2);
+      col+=(hash(vUv*913.0+fract(uTime)*7.0)-0.5)*uGrain;
+      gl_FragColor=vec4(col,1.0);
+    }`
+});
+composer.addPass(gradePass);
 
 /* ============ ANIMATE — frozen high-speed, ultra slow drift ============ */
 const clock=new THREE.Clock();
+const breathVec=new THREE.Vector3();
+const microDummy=new THREE.Object3D();
 function animate(){
   requestAnimationFrame(animate);
   const t=clock.getElapsedTime();
   const ts=t*0.28; // slow-motion time
+  camera.position.sub(breathVec); // undo last frame's handheld offset
 
   causticUniforms.uTime.value=t*0.55;
+  gradePass.uniforms.uTime.value=t;
+
+  // ---- real-time chronometer hands ----
+  const now=new Date();
+  const secF=now.getSeconds()+now.getMilliseconds()/1000;
+  const minF=now.getMinutes()+secF/60;
+  const hrF=(now.getHours()%12)+minF/60;
+  secHand.rotation.z=-(secF/60)*Math.PI*2;
+  minHand.rotation.z=-(minF/60)*Math.PI*2;
+  hourHand.rotation.z=-(hrF/12)*Math.PI*2;
+
+  // ---- tourbillon: slow cage rev + fast balance oscillation ----
+  tbCage.rotation.y=t*0.5;
+  balance.rotation.y=Math.sin(t*9.0)*0.85;
+  balance.scale.y=1+Math.sin(t*18.0)*0.06;
+
+  // ---- light choreography ----
+  rimL.intensity=160+Math.sin(t*0.8)*14;
+  rimR.intensity=120+Math.sin(t*0.65+2.0)*10;
+  underGlow.intensity=6+Math.sin(t*1.1)*1.2;
+  crownGlow.intensity=2.6+Math.sin(t*7.3)*0.3+Math.sin(t*13.7)*0.15;
 
   // jelly pulse + float
   const pulse=1+Math.sin(t*1.8)*0.035;
@@ -562,23 +793,39 @@ function animate(){
   crown.scale.set(1+Math.sin(t*2.2)*0.008, 1+Math.sin(t*2.8)*0.012, 1+Math.sin(t*2.2)*0.008);
   oilMat.iridescenceIOR=2.3+Math.sin(t*0.5)*0.08;
 
-  // dust drift catching light
+  // micro-droplets: gentle hover bob (absolute, no drift)
+  {
+    const inst=oilGroup.userData.microMesh;
+    for(let i=0;i<microData.length;i++){
+      const m=microData[i];
+      microDummy.position.set(m.x, m.y+Math.sin(t*0.6+m.ph)*0.05, m.z);
+      microDummy.scale.set(m.s, m.s*m.sy, m.s);
+      microDummy.rotation.set(0,0,0);
+      microDummy.updateMatrix();
+      inst.setMatrixAt(i,microDummy.matrix);
+    }
+    inst.instanceMatrix.needsUpdate=true;
+  }
+
+  // dust drift catching light (absolute positions, all motes move)
   const dp=dustGeo.attributes.position;
-  for(let i=0;i<dp.count;i+=3){
-    dp.array[i+1]+=Math.sin(t*0.5+i)*0.0006;
-    dp.array[i]+=Math.cos(t*0.3+i*0.7)*0.0005;
+  for(let i=0;i<dp.count;i++){
+    const a=dustRand[i]*6.283;
+    dp.array[i*3]  =dustBase[i*3]  +Math.cos(t*0.25+a)*0.06;
+    dp.array[i*3+1]=dustBase[i*3+1]+Math.sin(t*0.35+a*1.7)*0.09;
+    dp.array[i*3+2]=dustBase[i*3+2]+Math.sin(t*0.20+a)*0.06;
   }
   dp.needsUpdate=true;
   dustPts.rotation.y=ts*0.02;
 
   // bokeh float
-  scene.traverse(o=>{ if(o.userData && o.userData.isBokeh){ o.position.y=o.userData.baseY+Math.sin(t*0.4+o.userData.ph)*0.3; } });
-
-  // subtle camera breathing (handheld macro)
-  camera.position.x=0.6+Math.sin(t*0.22)*0.08;
-  camera.position.y=1.1+Math.sin(t*0.3)*0.06;
+  for(const sp of bokehSprites){ sp.position.y=sp.userData.baseY+Math.sin(t*0.4+sp.userData.ph)*0.3; }
 
   controls.update();
+  // handheld macro breathing — applied after controls so it never fights the orbit
+  breathVec.set(Math.sin(t*0.22)*0.08, Math.sin(t*0.30)*0.06, Math.cos(t*0.18)*0.05);
+  camera.position.add(breathVec);
+  camera.lookAt(controls.target);
   composer.render();
 }
 animate();

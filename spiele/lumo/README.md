@@ -22,9 +22,9 @@ Danach `http://localhost:8080` aufrufen.
 
 ## Inhalt
 
-- Drei nahtlos verbundene Biome mit Parallax-Hintergründen
-- Präzise Plattform-Physik mit Coyote-Time und variablem Sprung
-- Vier Gegnertypen inklusive Endboss
+- Drei nahtlos verbundene Biome mit mehrschichtigem Parallax, Vordergrund-Silhouetten und Papierkorn-Optik
+- Präzise Plattform-Physik mit Coyote-Time, Sprungpuffer und variablem Sprung
+- Bewegliche Plattformen, Stachelfallen und vier Gegnertypen inklusive Endboss
 - Fünf Sonnensterne, Münzen, Lebensfunken und Checkpoints
-- Partikel, Kamerawackeln, synthetisierte Musik und Soundeffekte
-- Titelbildschirm, Pause, Game Over und Siegsequenz
+- Schwebende Punktetexte, Hitstop, Bildschirmeffekte, Partikel und synthetisierte Musik
+- Titelbildschirm, Pause, Game Over und Siegsequenz mit Rangwertung

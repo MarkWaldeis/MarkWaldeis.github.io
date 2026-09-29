@@ -2,12 +2,27 @@
  * BUILDERMENT 3D - WORLD & ENVIRONMENT GENERATOR
  */
 
+/** Deterministic PRNG (mulberry32): deposit layout must be identical every session,
+ *  otherwise saved extractors would sit next to reshuffled veins after reload. */
+function mulberry32(seed) {
+    return function () {
+        seed |= 0;
+        seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
 class WorldGenerator {
     constructor(scene, cellSize = 2) {
         this.scene = scene;
         this.cellSize = cellSize;
         this.deposits = new Map(); // key: "gx,gz" -> deposit object
         this.trees = [];
+        this.rand = mulberry32(1337);
+        this._cachedCrown = null;
+        this._cachedCoin = null;
     }
 
     generateWorld() {
@@ -112,8 +127,8 @@ class WorldGenerator {
 
         veinClusters.forEach(cluster => {
             for (let i = 0; i < cluster.count; i++) {
-                const gx = cluster.cx + Math.floor((Math.random() - 0.5) * 5);
-                const gz = cluster.cz + Math.floor((Math.random() - 0.5) * 5);
+                const gx = cluster.cx + Math.floor((this.rand() - 0.5) * 5);
+                const gz = cluster.cz + Math.floor((this.rand() - 0.5) * 5);
                 const key = `${gx},${gz}`;
                 
                 // Keep center 3x3 vault clear
@@ -150,7 +165,7 @@ class WorldGenerator {
         });
         const core = new THREE.Mesh(coreGeo, coreMat);
         core.position.y = 0.65;
-        core.rotation.set(Math.random() * 2, Math.random() * 2, Math.random() * 2);
+        core.rotation.set(this.rand() * 2, this.rand() * 2, this.rand() * 2);
         core.castShadow = true;
         core.receiveShadow = true;
         group.add(core);
@@ -167,8 +182,8 @@ class WorldGenerator {
                 emissiveIntensity: isCrystal ? 0.6 : 0.3
             });
             const shard = new THREE.Mesh(shardGeo, shardMat);
-            shard.position.set((Math.random() - 0.5) * 0.9, 0.8, (Math.random() - 0.5) * 0.9);
-            shard.rotation.set((Math.random() - 0.5) * 0.6, Math.random() * 3, (Math.random() - 0.5) * 0.6);
+            shard.position.set((this.rand() - 0.5) * 0.9, 0.8, (this.rand() - 0.5) * 0.9);
+            shard.rotation.set((this.rand() - 0.5) * 0.6, this.rand() * 3, (this.rand() - 0.5) * 0.6);
             shard.castShadow = true;
             group.add(shard);
         }
@@ -205,8 +220,8 @@ class WorldGenerator {
     spawnNatureEnvironment() {
         // Decorative flowering plants & mushrooms on non-resource tiles
         for (let i = 0; i < 30; i++) {
-            const gx = Math.floor((Math.random() - 0.5) * 26);
-            const gz = Math.floor((Math.random() - 0.5) * 26);
+            const gx = Math.floor((this.rand() - 0.5) * 26);
+            const gz = Math.floor((this.rand() - 0.5) * 26);
             const key = `${gx},${gz}`;
             if (Math.abs(gx) <= 2 && Math.abs(gz) <= 2) continue;
             if (this.deposits.has(key)) continue;
@@ -221,13 +236,13 @@ class WorldGenerator {
             const flowerColors = [0xf43f5e, 0x38bdf8, 0xfde047, 0xa855f7];
             const flowerGeo = new THREE.SphereGeometry(0.14, 6, 6);
             const flowerMat = new THREE.MeshBasicMaterial({
-                color: flowerColors[Math.floor(Math.random() * flowerColors.length)]
+                color: flowerColors[Math.floor(this.rand() * flowerColors.length)]
             });
             const flower = new THREE.Mesh(flowerGeo, flowerMat);
             flower.position.y = 0.35;
             flowerGroup.add(flower);
 
-            flowerGroup.position.set(gx * this.cellSize + (Math.random() - 0.5) * 1.2, 0, gz * this.cellSize + (Math.random() - 0.5) * 1.2);
+            flowerGroup.position.set(gx * this.cellSize + (this.rand() - 0.5) * 1.2, 0, gz * this.cellSize + (this.rand() - 0.5) * 1.2);
             this.scene.add(flowerGroup);
         }
     }
@@ -238,13 +253,15 @@ class WorldGenerator {
             t.rotation.z = Math.sin(elapsed * 1.5 + i) * 0.03;
         });
 
-        // Rotate and bob the Gold Citadel crown and coin
-        const crown = this.scene.getObjectByName("vaultCrown");
-        const coin = this.scene.getObjectByName("vaultCoin");
-        if (crown) crown.rotation.y = elapsed * 0.8;
-        if (coin) {
-            coin.rotation.z = elapsed * 1.4;
-            coin.position.y = 6.8 + Math.sin(elapsed * 2.2) * 0.25;
+        // Rotate and bob the Gold Citadel crown and coin (cached refs)
+        if (!this._cachedCrown) {
+            this._cachedCrown = this.scene.getObjectByName("vaultCrown");
+            this._cachedCoin = this.scene.getObjectByName("vaultCoin");
+        }
+        if (this._cachedCrown) this._cachedCrown.rotation.y = elapsed * 0.8;
+        if (this._cachedCoin) {
+            this._cachedCoin.rotation.z = elapsed * 1.4;
+            this._cachedCoin.position.y = 6.8 + Math.sin(elapsed * 2.2) * 0.25;
         }
     }
 }

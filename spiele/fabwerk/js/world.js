@@ -1,6 +1,6 @@
 import {
   GRID, START_COINS, ITEMS, RECIPE_BY_ID, BUILDINGS,
-  RES_ITEM, keyOf, UNDER_MIN
+  RES_ITEM, keyOf, UNDER_MIN, STARTER_PATCHES
 } from './config.js';
 
 export function mulberry32(a){
@@ -58,6 +58,26 @@ export function genTerrain(S){
         else if(dir===2&&x>1)x--;
         else if(dir===3&&z>1)z--;
       }
+    }
+  }
+  // Garantierte Starter-Vorkommen in Sichtweite des Spawns
+  let ang=rng()*Math.PI*2;
+  for(const st of STARTER_PATCHES){
+    ang+=0.9+rng()*1.4;
+    const px=Math.round(cx+Math.cos(ang)*st.dist);
+    const pz=Math.round(cz+Math.sin(ang)*st.dist);
+    const blob=st.size+Math.floor(rng()*6);
+    let x=px,z=pz;
+    for(let i=0;i<blob;i++){
+      const ddx=x-cx,ddz=z-cz;
+      if(ddx*ddx+ddz*ddz>5*5 && x>1&&z>1&&x<size-2&&z<size-2){
+        res[z*size+x]=st.code;
+      }
+      const dir=Math.floor(rng()*4);
+      if(dir===0&&x<size-2)x++;
+      else if(dir===1&&z<size-2)z++;
+      else if(dir===2&&x>1)x--;
+      else if(dir===3&&z>1)z--;
     }
   }
   S.decorSeed=Math.floor(rng()*1e9);

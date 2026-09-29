@@ -4,6 +4,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* ============================================================
@@ -32,13 +33,13 @@ function mulberry32(seed) {
 }
 
 export function createCyborgScene(mount) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
   renderer.setSize(mount.clientWidth, mount.clientHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.08;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   mount.appendChild(renderer.domElement);
 
@@ -55,6 +56,12 @@ export function createCyborgScene(mount) {
   controls.dampingFactor = 0.06;
   controls.minDistance = 0.5;
   controls.maxDistance = 7;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.8;
+  // Auto-Orbit pausiert bei Interaktion, kehrt nach 5s Ruhe zurück
+  let idleTimer = null;
+  controls.addEventListener('start', () => { controls.autoRotate = false; if (idleTimer) clearTimeout(idleTimer); });
+  controls.addEventListener('end', () => { idleTimer = setTimeout(() => { controls.autoRotate = true; }, 5000); });
 
   // ---------- Studio-Licht ----------
   scene.add(new THREE.HemisphereLight(0x8fb7d8, 0x0a0c10, 0.55));

@@ -107,7 +107,9 @@ const Audio = (() => {
     check(t)  { [659, 880].forEach((f, i) => tone(sfxGain, t + i * 0.08, 0.16, f, 'square', 0.1)); },
     bosshit(t){ tone(sfxGain, t, 0.25, 160, 'sawtooth', 0.2, 50); },
     bossdie(t){ [392, 330, 262, 196].forEach((f, i) => tone(sfxGain, t + i * 0.13, 0.28, f, 'sawtooth', 0.17)); },
-    shield(t) { tone(sfxGain, t, 0.2, 520, 'triangle', 0.15, 260); }
+    shield(t) { tone(sfxGain, t, 0.2, 520, 'triangle', 0.15, 260); },
+    dash(t)   { tone(sfxGain, t, 0.15, 760, 'sawtooth', 0.07, 170); tone(sfxGain, t, 0.07, 1500, 'square', 0.045, 480); },
+    land(t)   { tone(sfxGain, t, 0.09, 150, 'triangle', 0.15, 55); tone(sfxGain, t, 0.03, 850, 'square', 0.05, 240); }
   };
 
   function sfx(name, arg) {

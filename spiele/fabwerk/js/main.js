@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  TECHS, BUILDINGS, GRID, MAX_LEVEL, UPGRADEABLE_TYPES, upgradeCost
+  TECHS, BUILDINGS, GRID, MAX_LEVEL, UPGRADEABLE_TYPES, upgradeCost, ITEMS
 } from './config.js';
 import {
   newState, genTerrain, serialize, loadState, removeBuilding,
@@ -54,11 +54,29 @@ function saveGame(silent){
   }
 }
 
+const MILESTONE_ITEMS=new Set(['circuit','motor','computer','robot']);
+let lastRpToast=-1e9;
+
 const evt={
-  sell(){ dirty.top=true; },
+  sell(item){
+    dirty.top=true;
+    if(item&&MILESTONE_ITEMS.has(item)){
+      S.stats.seen=S.stats.seen||{};
+      if(!S.stats.seen[item]){
+        S.stats.seen[item]=1;
+        ui.toast(item==='robot'
+          ?'Endziel erreicht: Roboter produziert!'
+          :'Neue Ware produziert: '+ITEMS[item].name,'info');
+      }
+    }
+  },
   rp(gain,silent){
     dirty.top=true;
-    if(!silent&&gain>0) ui.toast(`+${gain} Forschung`);
+    const now=performance.now();
+    if(!silent&&gain>0&&now-lastRpToast>2600){
+      lastRpToast=now;
+      ui.toast(`+${gain} Forschung`);
+    }
   }
 };
 
@@ -171,10 +189,33 @@ const hooks={
   closeModals:()=>ui.closeModals()
 };
 
+const rateBuf=[];
+let rateAcc=0;
+
+function sampleRates(dtReal){
+  rateAcc+=dtReal;
+  if(rateAcc<1) return;
+  rateAcc=0;
+  rateBuf.push({t:performance.now(),c:S.coins,r:S.rp});
+  if(rateBuf.length>70) rateBuf.shift();
+}
+
+function currentRates(){
+  const n=rateBuf.length;
+  if(n<10) return {c:0,r:0};
+  const a=rateBuf[Math.max(0,n-61)];
+  const b=rateBuf[n-1];
+  const mins=(b.t-a.t)/60000;
+  if(mins<=0.02) return {c:0,r:0};
+  return {c:(b.c-a.c)/mins,r:(b.r-a.r)/mins};
+}
+
 function tickUI(){
   S.stats.peakCoins=Math.max(S.stats.peakCoins||0,S.coins);
   ui.refreshTopbar(S);
   ui.refreshMenu(S);
+  const rt=currentRates();
+  ui.setRates(rt.c,rt.r);
   if(dirty.tech&&ui.techOpen()){ ui.refreshTech(S); }
   ui.tickTutorial(S);
   ui.refreshInspectorLive(S);
@@ -208,6 +249,7 @@ function loop(){
   const dtSim=paused?0:dtReal*speed;
   updateSim(S,dtSim,evt);
   input.update(dtReal);
+  sampleRates(dtReal);
   render.frame(S,dtSim,dtReal);
   tickAcc+=dtReal;
   if(tickAcc>0.25){
@@ -254,6 +296,15 @@ function boot(){
   document.addEventListener('visibilitychange',()=>{
     if(document.hidden) saveGame(true);
   });
+
+  // Debug-/Test-Hook (kein Spielbestandteil)
+  window.__fw={
+    getS:()=>S,
+    render,
+    ui,
+    input,
+    save:()=>saveGame(true)
+  };
 
   loop();
 }

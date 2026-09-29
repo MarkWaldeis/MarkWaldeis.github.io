@@ -1,9 +1,16 @@
 /* ==========================================================================
    LUMINA INPUT SYSTEM - Keyboard, Mobile Touch & Gamepad Controller Support
+   ==========================================================================
+   All input sources (keyboard codes, touch buttons, gamepad state) are tracked
+   independently and merged once per frame in refresh(). This guarantees:
+     - No stuck keys when multiple sources map to the same action
+     - Correct press/release edges even across device boundaries
+     - Releasing one key while another "jump" key is held does not cut the jump
    ========================================================================== */
 
 class LuminaInput {
   constructor() {
+    // Effective merged state, read by the game
     this.keys = {
       left: false,
       right: false,
@@ -13,6 +20,7 @@ class LuminaInput {
       dash: false
     };
 
+    // Single-frame edge triggers, consumed by the fixed-step update
     this.pressed = {
       jump: false,
       dash: false,
@@ -24,13 +32,19 @@ class LuminaInput {
       jump: false
     };
 
+    // Per-source raw state
+    this.codes = new Set(); // currently held keyboard codes
+    this.touchState = { left: false, right: false, up: false, down: false, jump: false, dash: false };
+    this.gpState = { left: false, right: false, up: false, down: false, jump: false, dash: false };
+
     this.gamepadConnected = false;
-    this.lastGamepadButtons = {};
-    
+    this.gpPauseHeld = false;
+
     this.keyMap = {
       KeyA: "left", ArrowLeft: "left",
       KeyD: "right", ArrowRight: "right",
-      KeyW: "up", ArrowUp: "up",
+      // W / ArrowUp act as jump (matching the on-screen control hints)
+      KeyW: "jump", ArrowUp: "jump",
       KeyS: "down", ArrowDown: "down",
       Space: "jump",
       ShiftLeft: "dash", ShiftRight: "dash", KeyJ: "dash", KeyX: "dash",
@@ -42,6 +56,14 @@ class LuminaInput {
     this.initGamepad();
   }
 
+  // True if any currently-held keyboard code maps to the given action
+  kbDown(action) {
+    for (const code of this.codes) {
+      if (this.keyMap[code] === action) return true;
+    }
+    return false;
+  }
+
   initKeyboard() {
     window.addEventListener("keydown", (e) => {
       if (e.code === "Escape" || e.code === "KeyP") {
@@ -50,28 +72,22 @@ class LuminaInput {
         return;
       }
 
-      const action = this.keyMap[e.code];
-      if (action) {
-        if (action === "jump" && !this.keys.jump) this.pressed.jump = true;
-        if (action === "dash" && !this.keys.dash) this.pressed.dash = true;
-        if (action === "down" && !this.keys.down) this.pressed.down = true;
-        
-        this.keys[action] = true;
+      if (this.keyMap[e.code]) {
+        this.codes.add(e.code);
         e.preventDefault();
       }
     });
 
     window.addEventListener("keyup", (e) => {
-      const action = this.keyMap[e.code];
-      if (action) {
-        if (action === "jump") this.released.jump = true;
-        this.keys[action] = false;
+      if (this.keyMap[e.code]) {
+        this.codes.delete(e.code);
         e.preventDefault();
       }
     });
 
     window.addEventListener("blur", () => {
-      Object.keys(this.keys).forEach(k => this.keys[k] = false);
+      this.codes.clear();
+      Object.keys(this.touchState).forEach(k => this.touchState[k] = false);
     });
   }
 
@@ -79,22 +95,18 @@ class LuminaInput {
     const touchButtons = document.querySelectorAll(".touch-btn");
     touchButtons.forEach(btn => {
       const action = btn.dataset.action;
-      if (!action) return;
+      if (!action || !(action in this.touchState)) return;
 
       const handlePress = (e) => {
         e.preventDefault();
         btn.classList.add("active");
-        if (action === "jump" && !this.keys.jump) this.pressed.jump = true;
-        if (action === "dash" && !this.keys.dash) this.pressed.dash = true;
-        if (action === "down" && !this.keys.down) this.pressed.down = true;
-        this.keys[action] = true;
+        this.touchState[action] = true;
       };
 
       const handleRelease = (e) => {
         e.preventDefault();
         btn.classList.remove("active");
-        if (action === "jump") this.released.jump = true;
-        this.keys[action] = false;
+        this.touchState[action] = false;
       };
 
       btn.addEventListener("pointerdown", handlePress);
@@ -111,46 +123,64 @@ class LuminaInput {
     });
     window.addEventListener("gamepaddisconnected", () => {
       this.gamepadConnected = false;
+      Object.keys(this.gpState).forEach(k => this.gpState[k] = false);
+      this.gpPauseHeld = false;
     });
   }
 
-  // Poll Gamepad state on each frame
+  // Poll Gamepad + merge all sources. Called once per rendered frame.
   pollGamepad() {
-    if (!navigator.getGamepads) return;
-    const gamepads = navigator.getGamepads();
-    if (!gamepads || !gamepads[0]) return;
-    const gp = gamepads[0];
+    const gp = this.gpState;
 
-    const dpadLeft = gp.buttons[14] ? gp.buttons[14].pressed : false;
-    const dpadRight = gp.buttons[15] ? gp.buttons[15].pressed : false;
-    const dpadDown = gp.buttons[13] ? gp.buttons[13].pressed : false;
-    const stickX = gp.axes[0] || 0;
-    const stickY = gp.axes[1] || 0;
+    if (navigator.getGamepads) {
+      const gamepads = navigator.getGamepads();
+      const pad = gamepads && gamepads[0];
 
-    const left = dpadLeft || stickX < -0.3;
-    const right = dpadRight || stickX > 0.3;
-    const down = dpadDown || stickY > 0.5;
+      if (pad) {
+        const dpadLeft = pad.buttons[14] ? pad.buttons[14].pressed : false;
+        const dpadRight = pad.buttons[15] ? pad.buttons[15].pressed : false;
+        const dpadUp = pad.buttons[12] ? pad.buttons[12].pressed : false;
+        const dpadDown = pad.buttons[13] ? pad.buttons[13].pressed : false;
+        const stickX = pad.axes[0] || 0;
+        const stickY = pad.axes[1] || 0;
 
-    // A/Cross = Jump (Button 0)
-    const btnJump = gp.buttons[0] ? gp.buttons[0].pressed : false;
-    // X/Square or RB = Dash (Button 2 or Button 5)
-    const btnDash = (gp.buttons[2] && gp.buttons[2].pressed) || (gp.buttons[5] && gp.buttons[5].pressed);
-    // Start / Options = Pause (Button 9)
-    const btnPause = gp.buttons[9] ? gp.buttons[9].pressed : false;
+        gp.left = dpadLeft || stickX < -0.3;
+        gp.right = dpadRight || stickX > 0.3;
+        gp.up = dpadUp || stickY < -0.5;
+        gp.down = dpadDown || stickY > 0.5;
+        // A/Cross = Jump (Button 0)
+        gp.jump = (pad.buttons[0] && pad.buttons[0].pressed) || gp.up;
+        // X/Square or RB = Dash (Button 2 or Button 5)
+        gp.dash = (pad.buttons[2] && pad.buttons[2].pressed) || (pad.buttons[5] && pad.buttons[5].pressed);
 
-    if (btnJump && !this.lastGamepadButtons.jump) this.pressed.jump = true;
-    if (!btnJump && this.lastGamepadButtons.jump) this.released.jump = true;
-    if (btnDash && !this.lastGamepadButtons.dash) this.pressed.dash = true;
-    if (down && !this.lastGamepadButtons.down) this.pressed.down = true;
-    if (btnPause && !this.lastGamepadButtons.pause) this.pressed.pause = true;
+        // Start / Options = Pause (Button 9), edge-triggered
+        const pauseNow = pad.buttons[9] ? pad.buttons[9].pressed : false;
+        if (pauseNow && !this.gpPauseHeld) this.pressed.pause = true;
+        this.gpPauseHeld = pauseNow;
+      } else {
+        Object.keys(gp).forEach(k => gp[k] = false);
+        this.gpPauseHeld = false;
+      }
+    }
 
-    if (left) this.keys.left = true;
-    if (right) this.keys.right = true;
-    if (down) this.keys.down = true;
-    if (btnJump) this.keys.jump = true;
-    if (btnDash) this.keys.dash = true;
+    this.refresh();
+  }
 
-    this.lastGamepadButtons = { jump: btnJump, dash: btnDash, down, pause: btnPause };
+  // Merge keyboard + touch + gamepad into this.keys and derive edge triggers
+  refresh() {
+    const actions = ["left", "right", "up", "down", "jump", "dash"];
+    for (const a of actions) {
+      const wasDown = this.keys[a];
+      const isDown = this.kbDown(a) || this.touchState[a] || this.gpState[a];
+
+      if (isDown && !wasDown) {
+        if (a === "jump" || a === "dash" || a === "down") this.pressed[a] = true;
+      } else if (!isDown && wasDown) {
+        if (a === "jump") this.released.jump = true;
+      }
+
+      this.keys[a] = isDown;
+    }
   }
 
   // Trigger tactile rumble / haptics if gamepad supports it

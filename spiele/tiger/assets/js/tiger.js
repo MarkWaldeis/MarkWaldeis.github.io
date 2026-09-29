@@ -26,9 +26,11 @@
   var retargetAt = 0;
   var bobPhase = 0;
   var pulseT = 0;
+  var snortT = 0;         /* >0 während Schnaub-Reaktion */
   var now = 0;
 
   var lastFilter = "";
+  var lastW = -1, lastRate = -1;
 
   function rand(a, b) { return a + Math.random() * (b - a); }
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
@@ -66,14 +68,23 @@
       pulse = 1 + Math.sin((1 - pulseT / 0.6) * Math.PI) * 0.06;
     }
 
+    /* Schnauben: kurzer Satz hoch + Kopfschütteln */
+    var hop = 0, shake = 0;
+    if (snortT > 0) {
+      snortT = Math.max(0, snortT - dt);
+      var sp = 1 - snortT / 0.85;              /* 0..1 */
+      hop = Math.sin(Math.min(1, sp * 1.6) * Math.PI) * 16 * depth;
+      shake = Math.sin(sp * Math.PI * 7) * (1 - sp) * 4.5;
+    }
+
     var bob = Math.sin(bobPhase) * (1.5 + speedFactor * 4.5);
     var parX = (mouse.x - 0.5) * 12 * depth;
     var parY = (mouse.y - 0.5) * 7 * depth;
 
-    video.style.width = w + "px";
+    if (w !== lastW) { video.style.width = w + "px"; lastW = w; }
     video.style.bottom = bottomPx + "px";
     video.style.transform =
-      "translate3d(" + (x * W - w / 2 + parX).toFixed(1) + "px, " + (parY + bob * 0.4).toFixed(1) + "px, 0)" +
+      "translate3d(" + (x * W - w / 2 + parX + shake).toFixed(1) + "px, " + (parY + bob * 0.4 - hop).toFixed(1) + "px, 0)" +
       " scaleX(" + dirSmooth.toFixed(3) + ") scale(" + pulse + ")";
 
     var blur = depth < 0.55 ? Math.round((0.55 - depth) * 7) : 0;
@@ -129,6 +140,13 @@
     var speedNorm = Math.min(1, speedFactor / 1.3);
     bobPhase += dt * (5.5 + speedNorm * 7);
 
+    /* Laufgeschwindigkeit im Loop-Video widerspiegeln */
+    var rate = 0.55 + speedNorm * 1.15;
+    if (Math.abs(rate - lastRate) > 0.04) {
+      video.playbackRate = rate;
+      lastRate = rate;
+    }
+
     render(dt);
     requestAnimationFrame(frame);
   }
@@ -150,7 +168,13 @@
       }
     },
     dashTo: function (fx) {
-      if (reduced) return;
+      if (reduced) {
+        /* Reduzierte Bewegung: sofortiges Umsetzen statt Sprint */
+        x = clamp(fx, 0.08, 0.92);
+        targetX = x;
+        render(0.016);
+        return;
+      }
       targetX = clamp(fx, 0.08, 0.92);
       targetDepth = clamp(Math.max(depth, 0.8), 0.28, 1);
       state = "dash";
@@ -158,6 +182,18 @@
       speedFactor = 3.1;
     },
     pulse: function () { pulseT = 0.6; },
+    snort: function () {
+      if (reduced) return;
+      snortT = 0.85;
+      pulseT = Math.max(pulseT, 0.35);
+      if (window.Jungle) {
+        /* Staub/Blätter vor der Nase */
+        var noseX = x * W + dir * baseWidth() * (0.42 + 0.58 * depth) * 0.28;
+        var noseY = H - H * lerp(0.145, 0.045, depth) - 40 * depth;
+        Jungle.burst(noseX, noseY);
+      }
+    },
+    getX: function () { return x; },
     start: function () {
       resize();
       /* Aktive Sektion beim Start direkt bestimmen (IO feuert erst später) */

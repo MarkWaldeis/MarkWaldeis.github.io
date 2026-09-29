@@ -2,13 +2,20 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TIGER — Ein Dschungel erwacht</title>
-<meta name="description" content="Interaktives 3D-Dschungel-Erlebnis: Ein Tiger lebt in der Website, folgt deinem Scroll und reagiert auf jeden Klick.">
+<meta name="description" content="Interaktives Dschungel-Erlebnis: Ein Tiger lebt in der Website, folgt deinem Scroll und reagiert auf jeden Klick.">
+<meta name="theme-color" content="#030a06">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="de_DE">
+<meta property="og:title" content="TIGER — Ein Dschungel erwacht">
+<meta property="og:description" content="Ein Tiger lebt in dieser Website: Er folgt deinem Scroll und kommt auf Klicks angelaufen.">
+<meta property="og:image" content="https://markwaldeis.github.io/spiele/tiger/assets/tiger_poster.webp">
 <link rel="preload" href="assets/fonts/PlayfairDisplay-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/Inter-300.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/fonts/fonts.css">
-<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/fonts/fonts.css?v=6">
+<link rel="stylesheet" href="assets/css/style.css?v=6">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%90%AF%3C/text%3E%3C/svg%3E">
 </head>
 <body>
@@ -34,8 +41,11 @@
 <div class="cursor-dot" aria-hidden="true"></div>
 <div class="cursor-ring" aria-hidden="true"></div>
 
+<a class="skip-link" href="#leben">Direkt ins Dickicht springen</a>
+
 <!-- ===== Hintergrund-Ebenen ===== -->
 <div class="sky" aria-hidden="true"></div>
+<div class="dawn" id="dawn" aria-hidden="true"></div>
 <div class="rays" aria-hidden="true"><i></i><i></i><i></i></div>
 <canvas id="fx-back" aria-hidden="true"></canvas>
 
@@ -84,6 +94,28 @@
   </svg>
 </div>
 
+<!-- seitliche Farnwedel: mittlere Ebene, unscharf -->
+<div class="fringe fringe--l" data-para="0.5" data-para-scroll="0.03" aria-hidden="true">
+  <svg viewBox="0 0 220 1000" preserveAspectRatio="xMinYMid slice">
+    <g fill="#0a1e11">
+      <path d="M60,-10 C112,80 132,195 98,335 C72,215 42,112 10,42 Z"/>
+      <path d="M-20,140 C82,182 142,262 130,405 C82,305 22,232 -20,192 Z" fill="#0d2918"/>
+      <path d="M-20,430 C92,462 152,545 142,695 C92,585 22,505 -20,465 Z" fill="#0a1e11"/>
+      <path d="M-20,710 C80,742 132,820 124,950 C80,850 20,788 -20,748 Z" fill="#0c2516" opacity=".9"/>
+    </g>
+  </svg>
+</div>
+<div class="fringe fringe--r" data-para="0.5" data-para-scroll="0.03" aria-hidden="true">
+  <svg viewBox="0 0 220 1000" preserveAspectRatio="xMinYMid slice">
+    <g fill="#0a1e11">
+      <path d="M60,-10 C112,80 132,195 98,335 C72,215 42,112 10,42 Z"/>
+      <path d="M-20,140 C82,182 142,262 130,405 C82,305 22,232 -20,192 Z" fill="#0d2918"/>
+      <path d="M-20,430 C92,462 152,545 142,695 C92,585 22,505 -20,465 Z" fill="#0a1e11"/>
+      <path d="M-20,710 C80,742 132,820 124,950 C80,850 20,788 -20,748 Z" fill="#0c2516" opacity=".9"/>
+    </g>
+  </svg>
+</div>
+
 <!-- ===== Navigation ===== -->
 <header class="nav" id="nav">
   <a class="brand" href="#hero" aria-label="Zum Anfang">
@@ -96,18 +128,19 @@
     <a href="#galerie">Momente</a>
     <a href="#schutz">Schutz</a>
   </nav>
+  <span class="chapter-label" id="chapterLabel" aria-hidden="true">Prolog</span>
   <div class="nav-progress" aria-hidden="true"><i id="progressBar"></i></div>
 </header>
 
 <main>
   <!-- ===== HERO ===== -->
-  <section class="section hero" id="hero" data-tiger="0.78,0.72">
+  <section class="section hero" id="hero" data-tiger="0.78,0.72" data-title="Prolog">
     <p class="kicker reveal">Ein interaktives Dschungel-Erlebnis</p>
     <h1 class="hero-title reveal" data-i="1">
       <span class="line">WO DAS WILDE</span>
       <span class="line line--accent">LEBT&nbsp;&amp;&nbsp;JAGT</span>
     </h1>
-    <p class="hero-sub reveal" data-i="2">Ein Tiger streift hier nicht durch ein Video —<br>er lebt in dieser Website. Scrolle, und er geht mit.<br>Klicke ins Dickicht, und er kommt zu dir.</p>
+    <p class="hero-sub reveal" data-i="2">Dieser Tiger ist nicht hinter Glas —<br>er lebt in dieser Website. Scrolle, und er geht mit dir.<br>Klicke ins Dickicht, und er kommt angelaufen.</p>
     <div class="hero-cta reveal" data-i="3">
       <a class="btn btn--primary" href="#leben">Expedition beginnen
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 4v14m0 0l-6-6m6 6l6-6"/></svg>
@@ -120,30 +153,30 @@
   </section>
 
   <!-- ===== LEBENSRAUM ===== -->
-  <section class="section leben" id="leben" data-tiger="0.2,0.55">
+  <section class="section leben" id="leben" data-tiger="0.2,0.55" data-num="I" data-title="Kapitel I · Lebensraum">
     <div class="split">
       <div class="split-text">
         <p class="kicker reveal">Kapitel I — Lebensraum</p>
         <h2 class="reveal" data-i="1">Leben im <em>verborgenen</em> Grün</h2>
-        <p class="lead reveal" data-i="2">Wo Lichtbrocken durch das Blachendach fallen und Farn höher wächst als ein Mensch, ist der Tiger zu Hause. Er streift nachts bis zu 20 Kilometer durch sein Revier — unsichtbar, lautlos, immer präsent.</p>
-        <p class="reveal" data-i="3">Genau wie hier: Er ist gerade einmal wieder um die Ecke gebogen.</p>
+        <p class="lead reveal" data-i="2">Wo einzelne Lichtfetzen durchs Blätterdach fallen und Farne höher wachsen als ein Mensch, ist der Tiger zu Hause. Nachts streift er bis zu 20 Kilometer weit durch sein Revier — unsichtbar, lautlos, immer präsent.</p>
+        <p class="reveal" data-i="3">Und hier ist es genauso: Gerade ist er wieder um die Ecke gebogen.</p>
         <div class="stats">
-          <div class="stat reveal" data-i="4"><strong data-count="4500">0</strong><span>wild lebende Tiger</span></div>
-          <div class="stat reveal" data-i="5"><strong data-count="6">0</strong><span>verbleibende Unterarten</span></div>
-          <div class="stat reveal" data-i="6"><strong data-count="93" data-suffix="&nbsp;%">0</strong><span>Verlust des Lebensraums</span></div>
+          <div class="stat reveal" data-i="4"><strong data-count="4500">0</strong><span>Tiger in freier Wildbahn</span></div>
+          <div class="stat reveal" data-i="5"><strong data-count="6">0</strong><span>verbliebene Unterarten</span></div>
+          <div class="stat reveal" data-i="6"><strong data-count="93" data-suffix="&nbsp;%">0</strong><span>seines historischen Lebensraums verloren</span></div>
         </div>
       </div>
       <figure class="split-visual reveal" data-i="2">
         <div class="pose-float tilt">
-          <img src="assets/pose2.webp" alt="Freigestellter Tiger beim langsamen Anschreiten" loading="lazy">
+          <img src="assets/pose2.webp" alt="Freigestellter Tiger beim langsamen Anschreiten" width="640" height="342" loading="lazy" decoding="async">
         </div>
-        <figcaption>Der König selbst — freigestellt aus der Nacht.</figcaption>
+        <figcaption>Der König persönlich — freigestellt aus der Nacht.</figcaption>
       </figure>
     </div>
   </section>
 
   <!-- ===== SINNE ===== -->
-  <section class="section sinne" id="sinne" data-tiger="0.8,0.6">
+  <section class="section sinne" id="sinne" data-tiger="0.8,0.6" data-num="II" data-title="Kapitel II · Superkräfte">
     <p class="kicker reveal">Kapitel II — Superkräfte</p>
     <h2 class="reveal" data-i="1">Meister der <em>Sinne</em></h2>
     <div class="cards">
@@ -162,7 +195,7 @@
       <article class="card tilt reveal" data-i="4">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M3 12c3-6 7-6 9-2s6 4 9-2M3 18c3-6 7-6 9-2s6 4 9-2"/></svg>
         <h3>Schwimmmeister</h3>
-        <p>Anderen Katzen ist Wasser ein Graus — der Tiger schwimmt vergnügt Flüsse und Seen überquert.</p>
+        <p>Andere Katzen scheuen das Wasser — der Tiger durchquert schwimmend mühelos Flüsse und Seen.</p>
         <span class="card-num">∞</span>
       </article>
       <article class="card tilt reveal" data-i="5">
@@ -175,45 +208,48 @@
   </section>
 
   <!-- ===== GALERIE ===== -->
-  <section class="section galerie" id="galerie" data-tiger="0.5,0.38">
+  <section class="section galerie" id="galerie" data-tiger="0.5,0.38" data-num="III" data-title="Kapitel III · Momente">
     <p class="kicker reveal">Kapitel III — Momente</p>
     <h2 class="reveal" data-i="1">Blicke ins <em>Dickicht</em></h2>
     <div class="gallery">
       <figure class="shot reveal" data-i="2">
-        <img src="assets/pose1.webp" alt="Tiger tritt aus der Dunkelheit" loading="lazy">
+        <img src="assets/pose1.webp" alt="Tiger tritt aus der Dunkelheit" width="640" height="342" loading="lazy" decoding="async">
         <figcaption><strong>Erster Kontakt</strong><span>Irgendwo zwischen den Farnen.</span></figcaption>
       </figure>
       <figure class="shot shot--tall reveal" data-i="3">
-        <img src="assets/pose2.webp" alt="Tiger schreitet direkt auf die Kamera zu" loading="lazy">
+        <img src="assets/pose2.webp" alt="Tiger schreitet direkt auf die Kamera zu" width="640" height="342" loading="lazy" decoding="async">
         <figcaption><strong>Der Anmarsch</strong><span>Ruhig, bedächtig, unübersehbar.</span></figcaption>
       </figure>
       <figure class="shot reveal" data-i="4">
-        <img src="assets/pose3.webp" alt="Tiger aus nächster Nähe: Blick direkt in die Kamera" loading="lazy">
+        <img src="assets/pose3.webp" alt="Tiger aus nächster Nähe: Blick direkt in die Kamera" width="640" height="434" loading="lazy" decoding="async">
         <figcaption><strong>Auf Augenhöhe</strong><span>Wenn die Distanz verschwindet.</span></figcaption>
       </figure>
     </div>
   </section>
 
   <!-- ===== SCHUTZ ===== -->
-  <section class="section schutz" id="schutz" data-tiger="0.5,0.92">
+  <section class="section schutz" id="schutz" data-tiger="0.5,0.92" data-num="IV" data-title="Kapitel IV · Zukunft">
     <p class="kicker reveal">Kapitel IV — Zukunft</p>
     <h2 class="reveal" data-i="1">Schützen, was <em>wild</em> bleibt</h2>
-    <p class="lead reveal" data-i="2">Noch leben rund 4.500 wilde Tiger. Noch gibt es Wälder, in die man sich hinein fürchten kann. Was den Tiger bewahrt, bewahrt gleich den ganzen Dschungel — und uns mit ihm.</p>
+    <p class="lead reveal" data-i="2">Noch leben rund 4.500 wilde Tiger. Noch gibt es Wälder, in die man sich hineinfürchten kann. Was den Tiger bewahrt, bewahrt gleich den ganzen Dschungel — und uns mit ihm.</p>
     <div class="hero-cta reveal" data-i="3">
       <button class="btn btn--primary" id="pateBtn" type="button">Symbolisch Tigerpate werden</button>
+      <a class="btn btn--ghost" href="#hero">Zurück zum Anfang
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 20V6m0 0l-6 6m6-6l6 6"/></svg>
+      </a>
     </div>
   </section>
 
   <footer class="footer">
-    <p>TIGER — ein lebendiges Website-Erlebnis · Der Tiger läuft als nahtlose Schleife ohne schwarzen Hintergrund frei durchs Design.</p>
-    <p class="footer-hint">Tipp: Klick irgendwo ins Gras — er kommt angelaufen.</p>
+    <p>TIGER — ein lebendiges Website-Erlebnis · Der Tiger läuft als nahtlose Schleife frei durchs Design.</p>
+    <p class="footer-hint">Psst: Klicke irgendwo ins Gras — er kommt angelaufen. Doppelklick, und er schnaubt. Taste <kbd>T</kbd> ruft ihn.</p>
   </footer>
 </main>
 
 <!-- ===== Tiger (lebt über dem Content, unterm Unterholz) ===== -->
 <div class="tiger-shadow" id="tigerShadow" aria-hidden="true"></div>
 <video id="tiger" src="assets/tiger_loop.mp4" poster="assets/tiger_poster.webp"
-       muted loop playsinline autoplay preload="auto" aria-hidden="true"></video>
+       muted loop playsinline autoplay preload="auto" disablepictureinpicture disableremoteplayback aria-hidden="true"></video>
 
 <noscript>
   <style>
@@ -225,7 +261,7 @@
 </noscript>
 
 <!-- ===== Vordergrund ===== -->
-<div class="undergrowth" data-para="0.8" aria-hidden="true">
+<div class="undergrowth" data-para="0.8" data-para-scroll="0" aria-hidden="true">
   <svg viewBox="0 0 1440 190" preserveAspectRatio="xMidYMax slice">
     <g fill="#04120b">
       <path d="M0,190 L0,120 C60,90 90,130 140,110 C160,140 200,150 240,120 C270,150 320,140 360,110 C400,150 460,150 500,120 C540,150 600,140 640,115 C680,145 740,150 780,120 C820,150 880,145 920,115 C960,145 1020,150 1060,120 C1100,150 1160,145 1200,115 C1240,145 1300,150 1340,120 C1380,145 1420,140 1440,120 L1440,190 Z"/>
@@ -248,13 +284,34 @@
     </g>
   </svg>
 </div>
+<!-- nahe Blattwedel in den Ecken: ganz vorn, tiger streift dahinter vorbei -->
+<div class="fringe-near fringe-near--l" data-para-m="0.9" aria-hidden="true">
+  <svg viewBox="0 0 300 340" preserveAspectRatio="xMinYMax meet">
+    <g>
+      <path class="blade" fill="#071a0e" d="M118,340 C94,218 40,142 -10,98 C72,130 138,216 148,340 Z"/>
+      <path class="blade" fill="#0a2414" d="M150,340 C152,205 192,112 254,62 C214,142 188,240 180,340 Z"/>
+      <path class="blade" fill="#06170d" d="M176,340 C196,242 262,172 310,142 C252,200 216,278 206,340 Z"/>
+      <path class="blade" fill="#0b2a17" d="M96,340 C68,262 20,212 -22,192 C50,216 108,278 118,340 Z"/>
+    </g>
+  </svg>
+</div>
+<div class="fringe-near fringe-near--r" data-para-m="0.9" aria-hidden="true">
+  <svg viewBox="0 0 300 340" preserveAspectRatio="xMinYMax meet">
+    <g>
+      <path class="blade" fill="#071a0e" d="M118,340 C94,218 40,142 -10,98 C72,130 138,216 148,340 Z"/>
+      <path class="blade" fill="#0a2414" d="M150,340 C152,205 192,112 254,62 C214,142 188,240 180,340 Z"/>
+      <path class="blade" fill="#06170d" d="M176,340 C196,242 262,172 310,142 C252,200 216,278 206,340 Z"/>
+      <path class="blade" fill="#0b2a17" d="M96,340 C68,262 20,212 -22,192 C50,216 108,278 118,340 Z"/>
+    </g>
+  </svg>
+</div>
 <canvas id="fx-front" aria-hidden="true"></canvas>
 <div class="vignette" aria-hidden="true"></div>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script src="assets/js/jungle.js"></script>
-<script src="assets/js/tiger.js"></script>
-<script src="assets/js/main.js"></script>
+<script src="assets/js/jungle.js?v=6"></script>
+<script src="assets/js/tiger.js?v=6"></script>
+<script src="assets/js/main.js?v=6"></script>
 </body>
 </html>

@@ -47,10 +47,14 @@ class LuminaPlayer {
     this.runCycle = 0;
     this.wingAnim = 0;
     this.dustTimer = 0;
+    this.idleTime = 0;
+    this.animT = 0;
+    this.prevY = y;
+    // Plasma cape — verlet-style trail points (world coords), anchored to the back
     this.capePoints = [
-      { x: 0, y: 0 },
-      { x: 0, y: 0 },
-      { x: 0, y: 0 }
+      { x: x + 18, y: y + 16 },
+      { x: x + 10, y: y + 24 },
+      { x: x + 4, y: y + 34 }
     ];
   }
 
@@ -68,7 +72,24 @@ class LuminaPlayer {
     this.dashTimer = 0;
     this.dashCooldown = 0;
     this.isPounding = false;
+    this.onWall = 0;
+    this.jumpBuffer = 0;
+    this.coyoteTime = 0;
+    this.idleTime = 0;
+    this.animT = 0;
+    this.prevY = y;
+    this.squash = 0;
+    this.runCycle = 0;
+    this.wingAnim = 0;
+    this.dustTimer = 0;
+    this.hasDoubleJumped = false;
+    this.shieldActive = false;
     this.afterImages = [];
+    this.capePoints = [
+      { x: x + 18, y: y + 16 },
+      { x: x + 10, y: y + 24 },
+      { x: x + 4, y: y + 34 }
+    ];
   }
 
   update(dt, input, engine) {
@@ -141,6 +162,8 @@ class LuminaPlayer {
         this.coyoteTime = 0.12;
         this.canDoubleJump = true;
         this.hasDoubleJumped = false;
+        // Touching ground refreshes the air-dash almost instantly
+        this.dashCooldown = Math.min(this.dashCooldown, 0.08);
       } else {
         this.coyoteTime -= dt;
       }
@@ -185,13 +208,19 @@ class LuminaPlayer {
         engine.particles.spawnBurst(this.x + this.w / 2, this.y + this.h / 2 + 10, "#00f2fe", 16, 200, "spark");
       }
 
-      // Variable Jump Height (Cut jump short on key release)
-      if (input.released.jump && this.vy < -260) {
+      // Variable Jump Height (Cut jump short on key release).
+      // Ignored when a new press edge lands in the same step — a stale release
+      // from the previous press must not clip the fresh jump.
+      if (input.released.jump && !input.pressed.jump && this.vy < -260) {
         this.vy *= 0.45;
       }
 
-      // Gravity Application
-      const gravity = this.isPounding ? 3200 : 2100;
+      // Gravity Application — floaty apex + snappier fall on early release
+      let gravity = this.isPounding ? 3200 : 2100;
+      if (!this.isPounding) {
+        if (this.vy < 0 && !input.keys.jump) gravity *= 1.5;
+        else if (Math.abs(this.vy) < 170 && input.keys.jump) gravity *= 0.62; // apex float
+      }
       this.vy = Math.min(this.vy + gravity * dt, 1150);
 
       // Wall Slide Friction
@@ -201,6 +230,7 @@ class LuminaPlayer {
         if (Math.random() < 0.25) {
           engine.particles.spawnDust(this.x + (this.onWall === -1 ? 0 : this.w), this.y + this.h * 0.7, "#64d2ff");
         }
+        if (Math.random() < 0.06) engine.audio.playSFX("wall_slide");
       }
     }
 
@@ -210,6 +240,7 @@ class LuminaPlayer {
     this.handleHorizontalCollision(engine);
 
     // 4. Move & Vertical Collision
+    this.prevY = this.y;
     this.y += this.vy * dt;
     this.grounded = false;
     this.handleVerticalCollision(engine);
@@ -222,6 +253,8 @@ class LuminaPlayer {
 
     // 6. Running Animation & Dust
     this.runCycle += Math.abs(this.vx) * dt * 0.045;
+    if (this.grounded && Math.abs(this.vx) < 30) this.idleTime += dt;
+    else this.idleTime = 0;
     if (this.grounded && Math.abs(this.vx) > 140) {
       this.dustTimer -= dt;
       if (this.dustTimer <= 0) {
@@ -231,10 +264,29 @@ class LuminaPlayer {
     }
 
     // 7. Update Ghost After-Images
+    if (this.afterImages.length > 14) this.afterImages.splice(0, this.afterImages.length - 14);
     for (let i = this.afterImages.length - 1; i >= 0; i--) {
       const img = this.afterImages[i];
       img.alpha -= dt * 3.5;
       if (img.alpha <= 0) this.afterImages.splice(i, 1);
+    }
+
+    // 8. Plasma Cape Verlet (anchor at back shoulder, segments chase with flutter)
+    this.animT += dt;
+    const anchorX = this.x + this.w / 2 - this.facing * 10;
+    const anchorY = this.y + 14;
+    const wind = Math.sin(this.animT * 7) * 6 + Math.sin(this.animT * 3.1) * 4;
+    const drag = Math.min(1, dt * 16);
+    let px = anchorX, py = anchorY;
+    for (let i = 0; i < this.capePoints.length; i++) {
+      const p = this.capePoints[i];
+      // Target: trail behind the player, sagging down, fluttering with speed
+      const tx = px - this.facing * (10 + Math.abs(this.vx) * 0.02) + (i > 0 ? wind * 0.35 : 0);
+      const ty = py + 9 + Math.min(40, Math.abs(this.vy) * 0.02) + (i > 0 ? wind * 0.2 : 0);
+      p.x += (tx - p.x) * drag;
+      p.y += (ty - p.y) * drag;
+      px = p.x;
+      py = p.y;
     }
   }
 
@@ -253,7 +305,8 @@ class LuminaPlayer {
   }
 
   handleVerticalCollision(engine) {
-    const prevBottom = this.y - this.vy * 0.016 + this.h;
+    // Use the actual pre-integration bottom edge (dt-exact, no hardcoded step)
+    const prevBottom = this.prevY + this.h;
     for (const p of engine.level.platforms) {
       if (!LuminaMath.rectsOverlap(this, p)) continue;
 
@@ -312,6 +365,12 @@ class LuminaPlayer {
       this.y = engine.state.currentCheckpoint.y;
       this.vx = 0;
       this.vy = 0;
+      this.isPounding = false;
+      this.isDashing = false;
+      this.dashTimer = 0;
+      this.onWall = 0;
+      this.afterImages.length = 0;
+      engine.particles.spawnBurst(this.x + this.w / 2, this.y + this.h / 2, "#64d2ff", 16, 200, "spark");
       engine.camera.snapTo(this.x, this.y);
       engine.ui.showToast(`⚡ Funke verloren · ${engine.state.lives} übrig`);
     } else {

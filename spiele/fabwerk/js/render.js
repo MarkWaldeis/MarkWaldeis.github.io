@@ -27,39 +27,60 @@ function makeGradient(){
   return tex;
 }
 
+function chevronPath(g,cx,oy){
+  g.beginPath();
+  g.moveTo(cx,oy);
+  g.lineTo(cx+18,oy+14);
+  g.lineTo(cx+10,oy+14);
+  g.lineTo(cx+10,oy+24);
+  g.lineTo(cx-10,oy+24);
+  g.lineTo(cx-10,oy+14);
+  g.lineTo(cx-18,oy+14);
+  g.closePath();
+}
+
 function makeArrowTexture(staticArrows){
   const cv=document.createElement('canvas');
   cv.width=64; cv.height=64;
   const g=cv.getContext('2d');
-  g.fillStyle='#313a46';
+  // Bandkörper
+  g.fillStyle='#2c333e';
   g.fillRect(0,0,64,64);
-  g.fillStyle='#262f39';
-  g.fillRect(0,0,6,64);
-  g.fillRect(58,0,6,64);
+  // Lauf mittig etwas dunkler
+  g.fillStyle='#272e38';
+  g.fillRect(9,0,46,64);
+  // Seitenschienen
+  g.fillStyle='#1d232c';
+  g.fillRect(0,0,7,64);
+  g.fillRect(57,0,7,64);
+  g.fillStyle='#4a5766';
+  g.fillRect(7,0,2,64);
+  g.fillRect(55,0,2,64);
+  // Nieten
+  g.fillStyle='#39434f';
+  for(const y of [8,24,40,56]){
+    g.fillRect(2,y,3,3);
+    g.fillRect(59,y,3,3);
+  }
   if(!staticArrows){
-    g.fillStyle='#66788c';
-    for(const oy of [6,38]){
-      g.beginPath();
-      g.moveTo(32,oy);
-      g.lineTo(50,oy+14);
-      g.lineTo(42,oy+14);
-      g.lineTo(42,oy+22);
-      g.lineTo(22,oy+22);
-      g.lineTo(22,oy+14);
-      g.lineTo(14,oy+14);
-      g.closePath();
+    for(const oy of [4,36]){
+      g.fillStyle='#161c24';
+      chevronPath(g,32,oy+2);
+      g.fill();
+      g.fillStyle='#a9c0d8';
+      chevronPath(g,32,oy);
       g.fill();
     }
   }else{
-    g.strokeStyle='#262f39';
-    g.lineWidth=13;
     g.lineCap='round';
+    g.strokeStyle='#161c24';
+    g.lineWidth=15;
     g.beginPath();
-    g.moveTo(15,51); g.lineTo(32,34); g.lineTo(32,15);
-    g.moveTo(49,51); g.lineTo(32,34);
+    g.moveTo(15,53); g.lineTo(32,36); g.lineTo(32,15);
+    g.moveTo(49,53); g.lineTo(32,36);
     g.stroke();
-    g.strokeStyle='#8fa3b8';
-    g.lineWidth=7;
+    g.strokeStyle='#a9c0d8';
+    g.lineWidth=9;
     g.beginPath();
     g.moveTo(15,51); g.lineTo(32,34); g.lineTo(32,15);
     g.moveTo(49,51); g.lineTo(32,34);
@@ -76,9 +97,9 @@ function makeGroundTexture(){
   const cv=document.createElement('canvas');
   cv.width=256; cv.height=256;
   const g=cv.getContext('2d');
-  g.fillStyle='#86c264';
+  g.fillStyle='#84c161';
   g.fillRect(0,0,256,256);
-  g.fillStyle='#7db95a';
+  g.fillStyle='#7ab457';
   g.fillRect(0,0,128,128);
   g.fillRect(128,128,128,128);
   g.fillStyle='rgba(60,110,45,0.32)';
@@ -86,7 +107,7 @@ function makeGroundTexture(){
     const x=Math.random()*256,y=Math.random()*256,r=1+Math.random()*2.5;
     g.beginPath(); g.arc(x,y,r,0,7); g.fill();
   }
-  g.strokeStyle='rgba(40,80,35,0.15)';
+  g.strokeStyle='rgba(40,80,35,0.22)';
   g.lineWidth=2;
   g.strokeRect(0,0,256,256);
   g.beginPath(); g.moveTo(128,0); g.lineTo(128,256); g.moveTo(0,128); g.lineTo(256,128); g.stroke();
@@ -593,7 +614,7 @@ export function initRender(container){
     const g=src.clone(true);
     const refs={};
     g.traverse(o=>{
-      if(o.userData.dyn) o.material=o.material.clone();
+      if(o.userData.dyn){ o.material=o.material.clone(); o.userData.ownMat=true; }
       if(o.name){
         if(refs[o.name]){
           if(!Array.isArray(refs[o.name])) refs[o.name]=[refs[o.name]];
@@ -626,6 +647,9 @@ export function initRender(container){
     const k=keyOf(b.x,b.z);
     const rec=meshMap.get(k);
     if(rec){
+      rec.g.traverse(o=>{
+        if(o.userData.ownMat&&o.material&&o.material.dispose) o.material.dispose();
+      });
       buildingGroup.remove(rec.g);
       meshMap.delete(k);
     }
@@ -727,26 +751,40 @@ export function initRender(container){
     }
   }
 
-  let itemMesh=null,itemCap=0;
-  const ITEM_MAX_HARD=60000;
-  const itemGeo=new THREE.BoxGeometry(0.22,0.13,0.22);
+  // Items nach Form getrennt instanziert - auf Bändern besser lesbar
+  const SHAPE_MAX=30000;
+  const SHAPE_GEOS={
+    chunk:new THREE.IcosahedronGeometry(0.14,0),
+    log:new THREE.CylinderGeometry(0.085,0.085,0.3,7),
+    bar:new THREE.BoxGeometry(0.32,0.08,0.16),
+    box:new THREE.BoxGeometry(0.21,0.16,0.21),
+    coil:new THREE.TorusGeometry(0.11,0.05,6,12),
+    gearItem:new THREE.CylinderGeometry(0.15,0.15,0.07,8)
+  };
+  SHAPE_GEOS.log.rotateZ(Math.PI/2);
+  SHAPE_GEOS.coil.rotateX(Math.PI/2);
   const itemMat=new THREE.MeshToonMaterial({color:0xffffff,gradientMap:grad});
+  const itemMeshes={};
 
-  function ensureItemMesh(cap){
-    if(itemMesh){
-      scene.remove(itemMesh);
-      itemMesh.dispose();
+  function ensureShapeMesh(shape,cap){
+    let e=itemMeshes[shape];
+    if(e&&e.cap>=cap) return e;
+    if(e){
+      scene.remove(e.mesh);
+      e.mesh.dispose();
     }
-    itemCap=Math.max(cap,8192);
-    if(itemCap>ITEM_MAX_HARD) itemCap=ITEM_MAX_HARD;
-    itemMesh=new THREE.InstancedMesh(itemGeo,itemMat,itemCap);
-    itemMesh.frustumCulled=false;
-    itemMesh.castShadow=true;
+    cap=Math.min(Math.max(cap,2048),SHAPE_MAX);
+    const mesh=new THREE.InstancedMesh(SHAPE_GEOS[shape],itemMat,cap);
+    mesh.frustumCulled=false;
+    mesh.count=0;
     const c=new THREE.Color(1,1,1);
-    for(let i=0;i<itemCap;i++) itemMesh.setColorAt(i,c);
-    scene.add(itemMesh);
+    for(let i=0;i<cap;i++) mesh.setColorAt(i,c);
+    scene.add(mesh);
+    e={mesh,cap};
+    itemMeshes[shape]=e;
+    return e;
   }
-  ensureItemMesh(8192);
+  for(const s in SHAPE_GEOS) ensureShapeMesh(s,2048);
 
   function pathPoint(cx,cz,exitD,es,t,out){
     const ax=cx+DX[es]*0.5, az=cz+DZ[es]*0.5;
@@ -761,38 +799,48 @@ export function initRender(container){
 
   let curS=null;
 
+  const shapeCount={};
+
   function updateItems(S){
     curS=S;
-    let n=0, needGrow=false;
+    for(const k in itemMeshes) shapeCount[k]=0;
+    let overflow=null;
+    outer:
     for(const b of S.buildings.values()){
       if(!b.items||b.items.length===0) continue;
       if(b.type==='under_in') continue;
       const cx=WX(b.x)+0.5, cz=WX(b.z)+0.5;
       let j=0;
       for(const it of b.items){
-        if(n>=itemCap){ needGrow=true; break; }
+        const def=ITEMS[it.it];
+        const shape=def&&SHAPE_GEOS[def.shape]?def.shape:'box';
+        const e=itemMeshes[shape];
+        const n=shapeCount[shape];
+        if(n>=e.cap){ overflow=shape; break outer; }
         const t=Math.min(Math.max(it.pos,0),1);
         pathPoint(cx,cz,b.dir,it.es,t,tmpV);
         const ang=((b.id*73+j*29)%360)*DEG;
         tmpQ.setFromAxisAngle(YAXIS,ang);
         tmpMat4.compose(tmpV.set(tmpV.x,0.19,tmpV.z),tmpQ,tmpSc);
-        itemMesh.setMatrixAt(n,tmpMat4);
-        const def=ITEMS[it.it];
+        e.mesh.setMatrixAt(n,tmpMat4);
         tmpC.setHex(def?def.color:0xffffff);
-        itemMesh.setColorAt(n,tmpC);
-        n++;
+        e.mesh.setColorAt(n,tmpC);
+        shapeCount[shape]=n+1;
         j++;
       }
-      if(needGrow) break;
     }
-    if(needGrow&&itemCap<ITEM_MAX_HARD){
-      ensureItemMesh(itemCap*2);
-      return updateItems(S);
+    if(overflow){
+      const e=itemMeshes[overflow];
+      if(e.cap<SHAPE_MAX){
+        ensureShapeMesh(overflow,e.cap*2);
+        return updateItems(S);
+      }
     }
-    if(itemMesh){
-      itemMesh.count=n;
-      itemMesh.instanceMatrix.needsUpdate=true;
-      if(itemMesh.instanceColor) itemMesh.instanceColor.needsUpdate=true;
+    for(const k in itemMeshes){
+      const e=itemMeshes[k];
+      e.mesh.count=Math.min(shapeCount[k],e.cap);
+      e.mesh.instanceMatrix.needsUpdate=true;
+      if(e.mesh.instanceColor) e.mesh.instanceColor.needsUpdate=true;
     }
   }
 
@@ -954,6 +1002,35 @@ export function initRender(container){
       inst(crystalGeo,new THREE.MeshToonMaterial({color:RES_COLOR[code],gradientMap:grad}),
         arr,(o,[x,z])=>{o.position.set(x,0.16,z);o.scale.setScalar(0.8+rng()*0.5);o.rotation.set(rng()*0.4,rng()*3,rng()*0.4);});
     }
+    // Boden-Tönung unter Vorkommen - Felder aus der Distanz lesbar
+    const resTiles=[];
+    for(let z=1;z<GRID-1;z++){
+      for(let x=1;x<GRID-1;x++){
+        const code=S.res[z*GRID+x];
+        if(code>0) resTiles.push([WX(x)+0.5,WX(z)+0.5,code]);
+      }
+    }
+    if(resTiles.length){
+      const dGeo=new THREE.CircleGeometry(0.56,18);
+      dGeo.rotateX(-Math.PI/2);
+      const dMat=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:0.42,depthWrite:false});
+      const dm=new THREE.InstancedMesh(dGeo,dMat,resTiles.length);
+      const o=new THREE.Object3D();
+      resTiles.forEach((a,i)=>{
+        o.position.set(a[0],0.013,a[1]);
+        o.rotation.set(0,rng()*Math.PI,0);
+        const s=0.86+rng()*0.22;
+        o.scale.set(s,1,s);
+        o.updateMatrix();
+        dm.setMatrixAt(i,o.matrix);
+        tmpC.setHex(RES_COLOR[a[2]]).multiplyScalar(0.78);
+        dm.setColorAt(i,tmpC);
+      });
+      dm.instanceColor.needsUpdate=true;
+      dm.receiveShadow=true;
+      dm.frustumCulled=false;
+      decorGroup.add(dm);
+    }
   }
 
   const camCtl={
@@ -1084,6 +1161,22 @@ export function initRender(container){
   spanBox.visible=false;
   ghostGroup.add(spanBox);
 
+  const delGroup=new THREE.Group();
+  const delEdges=new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(1.04,1.1,1.04)),
+    new THREE.LineBasicMaterial({color:0xe05656,toneMapped:false})
+  );
+  delEdges.position.y=0.55;
+  delGroup.add(delEdges);
+  const delFill=new THREE.Mesh(
+    new THREE.BoxGeometry(1.0,0.06,1.0),
+    new THREE.MeshBasicMaterial({color:0xe05656,transparent:true,opacity:0.3,depthWrite:false,toneMapped:false})
+  );
+  delFill.position.y=0.03;
+  delGroup.add(delFill);
+  delGroup.visible=false;
+  ghostGroup.add(delGroup);
+
   function tintGroup(g,ok){
     g.traverse(o=>{if(o.isMesh)o.material=ok?ghostOK:ghostBAD;});
   }
@@ -1092,7 +1185,13 @@ export function initRender(container){
     for(const t in ghostSingle) ghostSingle[t].visible=false;
     for(const m of pathPool) m.visible=false;
     spanBox.visible=false;
+    delGroup.visible=false;
     if(!desc||desc.mode==='none') return;
+    if(desc.mode==='del'){
+      delGroup.visible=true;
+      delGroup.position.set(WX(desc.x)+0.5,0,WX(desc.z)+0.5);
+      return;
+    }
     if(desc.mode==='single'){
       const g=ghostSingle[desc.type];
       if(!g) return;

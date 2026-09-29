@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚂</text></svg>" />
 <title>Sunset Steam — Cinematic Three.js Valley Express</title>
 <style>
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#1a0f0a;font-family:'Segoe UI',system-ui,sans-serif;}
@@ -52,7 +53,6 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /* ============================================================
    0. RENDERER / SCENE / CAMERA / CONTROLS
@@ -64,12 +64,12 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
+renderer.toneMappingExposure = 1.08;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0xd98a52, 0.0032);
+scene.fog = new THREE.FogExp2(0xcf8350, 0.0026);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 2000);
 // Elevated high 3/4 front angle looking down along the curve
@@ -82,6 +82,16 @@ controls.maxPolarAngle = Math.PI / 2.05;
 controls.minDistance = 12;
 controls.maxDistance = 220;
 controls.update();
+
+// Slow cinematic auto-orbit; pauses on interaction, resumes when idle
+controls.autoRotate = true;
+controls.autoRotateSpeed = -0.35;
+let orbitIdle;
+controls.addEventListener('start', ()=>{ controls.autoRotate=false; clearTimeout(orbitIdle); });
+controls.addEventListener('end', ()=>{
+  clearTimeout(orbitIdle);
+  orbitIdle = setTimeout(()=>{ controls.autoRotate=true; }, 6000);
+});
 
 /* ============================================================
    1. SUN / SKY / LIGHTS  (Golden hour)
@@ -383,8 +393,8 @@ let waterMat;
       uTime:{value:0},
       uSunDir:{value:sunDir.clone()},
       uSunColor:{value:new THREE.Color(0xff8a2e)},
-      uSkyColor:{value:new THREE.Color(0x7a4a6a)},
-      uDeep:{value:new THREE.Color(0x1d2f3d)},
+      uSkyColor:{value:new THREE.Color(0xc97e52)},
+      uDeep:{value:new THREE.Color(0x22333e)},
       uShallow:{value:new THREE.Color(0xc97a3a)},
       uCam:{value:camera.position},
     },
@@ -576,13 +586,6 @@ const steelWheel=new THREE.MeshStandardMaterial({color:0x1c1e22,metalness:0.85,r
 
 const train={ group:new THREE.Group(), cars:[], drivers:[], rods:[], smallWheels:[] };
 scene.add(train.group);
-// Optional external model: tries once, falls back silently to procedural (self-contained).
-{
-  const loader=new GLTFLoader();
-  loader.load('flying-scotsman.glb',
-    ()=>{ /* if a model existed we would swap it in; procedural stays as fallback */ },
-    undefined, ()=>{ /* expected in standalone mode — procedural used */ });
-}
 
 function makeDriver(radius){
   const g=new THREE.Group();
@@ -819,6 +822,33 @@ const stackSmoke=createSmokeSystem({count:260,color:0x2b2320,sunTint:0xff9a4a,
   size:5,opacity:0.55,rise:2.6,spread:1.1,wind:new THREE.Vector3(-2.2,0.6,-0.8),life:5.5});
 const cylSteam=createSmokeSystem({count:90,color:0xcfc8c2,sunTint:0xffc890,
   size:2.2,opacity:0.4,rise:1.0,spread:0.8,wind:new THREE.Vector3(-1.5,0.4,-0.4),life:2.2});
+// glowing cinders spat from the stack — additive sparks fading fast
+const embers=createSmokeSystem({count:70,color:0xff4a12,sunTint:0xffd98a,
+  size:0.5,opacity:0.95,rise:3.6,spread:0.7,wind:new THREE.Vector3(-3.0,0.9,-1.0),life:1.5});
+embers.pts.material.blending=THREE.AdditiveBlending;
+
+/* ============================================================
+   RIVER MIST — soft blotches drifting just above the water
+============================================================ */
+const mists=[];
+{
+  const mistMat=(op)=>new THREE.MeshBasicMaterial({map:smokeTex,color:0xffd9b4,
+    transparent:true,opacity:op,depthWrite:false,fog:true});
+  const gp=new THREE.Vector3();
+  for(let i=0;i<6;i++){
+    const u=0.08+i*0.16+Math.random()*0.06;
+    riverCurve.getPointAt(u,gp);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),mistMat(0.10+Math.random()*0.08));
+    m.rotation.x=-Math.PI/2;
+    m.rotation.z=Math.random()*Math.PI*2;
+    m.position.set(gp.x+(Math.random()-0.5)*10,1.0+Math.random()*1.6,gp.z+(Math.random()-0.5)*10);
+    const s=26+Math.random()*30;
+    m.scale.set(s,s*0.8,1);
+    m.renderOrder=3;
+    m.userData={ph:Math.random()*7,rs:(Math.random()-0.5)*0.05,base:m.material.opacity};
+    scene.add(m); mists.push(m);
+  }
+}
 
 function updateSmoke(sys, dt, time, emitPos, trainVel, puffRate){
   const {P,geo,count}=sys;
@@ -859,7 +889,7 @@ function updateSmoke(sys, dt, time, emitPos, trainVel, puffRate){
 ============================================================ */
 const composer=new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,camera));
-const bloom=new UnrealBloomPass(new THREE.Vector2(window.innerWidth,window.innerHeight), 0.45, 0.6, 0.8);
+const bloom=new UnrealBloomPass(new THREE.Vector2(window.innerWidth,window.innerHeight), 0.32, 0.55, 0.85);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -935,6 +965,12 @@ function animate(){
   cylWorld.x+=Math.sin(t*2)*0.5;
   updateSmoke(stackSmoke, dt, t, chimneyWorld, trainVel);
   updateSmoke(cylSteam, dt, t, cylWorld, trainVel);
+  updateSmoke(embers, dt, t, chimneyWorld, trainVel);
+  // river mist — slow swirl + breathing opacity
+  for(const m of mists){
+    m.rotation.z+=m.userData.rs*dt;
+    m.material.opacity=m.userData.base*(0.75+0.25*Math.sin(t*0.4+m.userData.ph));
+  }
 
   // --- water + lamp flicker ---
   waterMat.uniforms.uTime.value=t;

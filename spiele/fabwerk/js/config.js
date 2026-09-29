@@ -66,12 +66,12 @@ export const BUILDINGS = {
   belt:       { name: 'Förderband',    cost: 5,   cat: 'logistics',  desc: 'Transportiert Items. Ziehen zum Verlegen.' },
   splitter:   { name: 'Verteiler',      cost: 15,  cat: 'logistics',  desc: 'Verteilt Items abwechselnd auf zwei Ausgänge.' },
   underground:{ name: 'Unterführung',  cost: 40,  cat: 'logistics',  desc: 'Gerader Tunnel 2-6 Kacheln. Kreuzt andere Bänder.' },
-  inserter:   { name: 'Greifer',        cost: 40,  cat: 'logistics',  desc: 'Move Items von der Kachel hinten nach vorne.' },
+  inserter:   { name: 'Greifer',        cost: 40,  cat: 'logistics',  desc: 'Trägt Items von der Kachel hinter sich nach vorne.' },
   extractor:  { name: 'Extraktor',      cost: 100, cat: 'production', desc: 'Auf eine Ressource setzen. Fördert endlos.' },
   furnace:    { name: 'Schmelzofen',    cost: 150, cat: 'production', desc: 'Schmilzt Erze zu Barren. Ausgang zeigt aufs Band.' },
   assembler:  { name: 'Montage',        cost: 400, cat: 'production', tech: 'assembly', desc: 'Fertigt Bauteile nach Rezept.' },
   market:     { name: 'Markt',          cost: 300, cat: 'economy',    desc: 'Verkauft gelieferte Items für Münzen.' },
-  lab:        { name: 'Forschungslabor',cost: 600, cat: 'economy',    desc: 'Verbraucht Schaltkreise/Motoren/Computer/Roboter für Forschung.' }
+  lab:        { name: 'Forschungslabor',cost: 600, cat: 'economy',    desc: 'Belohnt jede Lieferung mit Münzen UND Forschung. Wertvolle Waren geben mehr.' }
 };
 
 export const BASE_BUILDINGS = ['belt','splitter','underground','inserter','extractor','furnace','market','lab'];
@@ -104,6 +104,13 @@ export const UPGRADEABLE_TYPES = ['extractor','furnace','assembler','lab','inser
 export const RES_ITEM = [null,'iron_ore','copper_ore','stone','coal','wood'];
 export const RES_NAME = [null,'Eisen','Kupfer','Stein','Kohle','Holz'];
 export const RES_COLOR = [0,0x9aa2ad,0xd98a52,0xb9b6a8,0x474751,0x4d9950];
+
+// Garantierte Vorkommen in Spawnnähe: [code, Entfernung, Blob-Größe]
+export const STARTER_PATCHES = [
+  { code: 1, dist: 9,  size: 20 },
+  { code: 2, dist: 12, size: 14 },
+  { code: 4, dist: 13, size: 11 }
+];
 
 export const LAB_ORDER = ['circuit','motor','computer','robot'];
 export const LAB_SET = new Set(LAB_ORDER);

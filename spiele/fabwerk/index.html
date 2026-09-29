@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f141b'/%3E%3Cpath d='M12 50V32l10 6v-6l10 6v-6l10 6v14z' fill='%23ffb84d'/%3E%3Crect x='44' y='16' width='6' height='16' fill='%23ffb84d'/%3E%3Crect x='14' y='44' width='36' height='3' fill='%2335d0ba'/%3E%3C/svg%3E">
 <title>FABWERK - Fabrik-Aufbau 3D</title>
 <style>
   :root{
@@ -55,6 +56,31 @@
   }
   .logo{font-weight:800;letter-spacing:0.16em;font-size:13.5px;color:var(--accent);}
   .stat{display:flex;align-items:center;gap:6px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .statCol{display:flex;flex-direction:column;line-height:1.05;min-width:0;}
+  .rate{font-size:9.5px;font-weight:600;color:var(--dim);min-height:10px;letter-spacing:0.02em;}
+  .rate.pos{color:var(--teal);}
+  .rate.neg{color:var(--red);}
+  #pauseBadge{
+    color:#241a06;background:var(--accent);border-radius:99px;
+    padding:3px 10px;font-size:11px;font-weight:800;letter-spacing:0.07em;
+  }
+  #dragInfo,#tileTip{
+    position:fixed;left:0;top:0;z-index:30;pointer-events:none;
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:4px 10px;font-size:12px;font-weight:600;color:var(--text);
+    transform:translate(-50%,-115%);display:none;white-space:nowrap;
+    box-shadow:0 6px 18px rgba(0,0,0,0.4);
+  }
+  #dragInfo.bad{color:#ff9d9d;border-color:rgba(224,86,86,0.55);}
+  #tileTip{color:var(--dim);font-weight:500;}
+  #tileTip b{color:var(--text);font-weight:600;}
+  .chipKey{
+    position:absolute;right:5px;bottom:4px;min-width:14px;text-align:center;
+    font-size:9px;font-weight:700;color:var(--dim);
+    background:#1a222c;border:1px solid var(--line);border-radius:4px;padding:0 3px;
+  }
+  .chip.locked .chipKey{display:none;}
+  .techCount{font-size:12px;color:var(--dim);font-weight:600;}
   .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:0 0 auto;}
   .dot.gold{background:radial-gradient(circle at 35% 30%,#ffe08a,#f6c453 60%,#c99b32);}
   .dot.rp{background:radial-gradient(circle at 35% 30%,#8ef2e4,#35d0ba 60%,#1f9c8b);}
@@ -374,8 +400,8 @@
 <div id="topbar">
   <span class="logo">FABWERK</span>
   <div class="sep"></div>
-  <span class="stat" title="Münzen"><span class="dot gold"></span><span id="coinsVal">0</span></span>
-  <span class="stat" title="Forschungspunkte"><span class="dot rp"></span><span id="rpVal">0</span></span>
+  <span class="stat" title="Münzen"><span class="dot gold"></span><span class="statCol"><span id="coinsVal">0</span><span class="rate" id="coinsRate"></span></span></span>
+  <span class="stat" title="Forschungspunkte"><span class="dot rp"></span><span class="statCol"><span id="rpVal">0</span><span class="rate" id="rpRate"></span></span></span>
   <div class="sep"></div>
   <div id="speedGrp">
     <button id="btnPause" title="Pause (Leertaste)">II</button>
@@ -383,6 +409,7 @@
     <button id="btnSp2" title="Doppelte Geschwindigkeit">2x</button>
     <button id="btnSp3" title="Dreifache Geschwindigkeit">3x</button>
   </div>
+  <span id="pauseBadge" class="hidden">Pausiert</span>
   <div class="sep"></div>
   <button id="btnTech">Technologie (T)</button>
   <button id="btnHelp">Hilfe</button>
@@ -400,7 +427,7 @@
     <ul id="tutList"></ul>
   </div>
   <div id="hintBar">
-    <b>Bauen:</b> Werkzeug wählen, klicken &middot; <b>R</b> drehen &middot;
+    <b>Bauen:</b> Werkzeug <b>1-9</b> oder klicken &middot; <b>R</b> drehen &middot;
     Band: <b>ziehen</b> &middot; <b>Rechtsklick</b> Abbrechen &middot;
     <b>Q/E</b> Kamera drehen &middot; Mausrad Zoom
   </div>
@@ -420,6 +447,8 @@
   </div>
 </div>
 
+<div id="dragInfo"></div>
+<div id="tileTip"></div>
 <div id="toasts"></div>
 
 <div id="techModal" class="modalBack hidden">
@@ -427,6 +456,7 @@
     <div class="modalHead">
       <h2>Forschung</h2>
       <div class="headRight">
+        <span class="techCount" id="techCount"></span>
         <span class="fpChip"><span class="dot sm rp"></span><span id="techRp">0</span>&nbsp;FP</span>
         <button id="techClose">Schließen</button>
       </div>
@@ -461,6 +491,7 @@
       <h3>Steuerung - Desktop</h3>
       <div class="ctrlTable">
         <span class="k"><kbd>Linksklick</kbd></span><span>Setzen / Auswählen</span>
+        <span class="k"><kbd>1</kbd>-<kbd>9</kbd></span><span>Werkzeug der aktiven Kategorie wählen</span>
         <span class="k"><kbd>Ziehen</kbd></span><span>Bandkette oder Unterführung verlegen</span>
         <span class="k"><kbd>R</kbd></span><span>Gebäude / Ghost drehen</span>
         <span class="k"><kbd>X</kbd></span><span>Abriss-Werkzeug</span>
