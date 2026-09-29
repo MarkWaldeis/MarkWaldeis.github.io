@@ -1,5 +1,5 @@
 import {
-  GRID, START_COINS, ITEMS, RECIPE_BY_ID, BUILDINGS,
+  GRID, START_COINS, ITEMS, RECIPE_BY_ID, BUILDINGS, CONTRACTS,
   RES_ITEM, keyOf, UNDER_MIN, STARTER_PATCHES
 } from './config.js';
 
@@ -266,7 +266,7 @@ export function loadState(obj){
   S.rp=typeof obj.rp==='number'?obj.rp:0;
   S.nextId=obj.nextId||1;
   S.researched=new Set((obj.researched||[]).filter(id=>typeof id==='string'));
-  S.orderIdx=Math.max(0,obj.orderIdx|0);
+  S.orderIdx=Math.max(0,Math.min(obj.orderIdx|0,CONTRACTS.length));
   S.victory=!!obj.victory;
   if(obj.stats) S.stats=Object.assign(S.stats,obj.stats);
   if(!S.stats.delivered||typeof S.stats.delivered!=='object') S.stats.delivered={};

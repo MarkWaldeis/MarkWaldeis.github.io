@@ -861,7 +861,9 @@ export function initRender(container,assets){
         const n=shapeCount[shape];
         if(n>=e.cap){ overflow=shape; break outer; }
         const t=Math.min(Math.max(it.pos,0),1);
-        pathPoint(cx,cz,b.dir,it.es,t,tmpV);
+        // Sorter: gefilterte Items biegen sichtbar nach links ab
+        const ed=(b.type==='sorter'&&b.filter&&it.it===b.filter)?left(b.dir):b.dir;
+        pathPoint(cx,cz,ed,it.es,t,tmpV);
         const ang=((b.id*73+j*29)%360)*DEG;
         tmpQ.setFromAxisAngle(YAXIS,ang);
         tmpMat4.compose(tmpV.set(tmpV.x,0.19,tmpV.z),tmpQ,tmpSc);
