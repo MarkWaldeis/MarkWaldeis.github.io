@@ -3,7 +3,7 @@ import {
   RES_ITEM, RES_NAME, keyOf, recipesFor, fmt, techName, isUnlockedBuilding
 } from './config.js';
 import { getB, makeBuilding, addBuilding, removeBuilding } from './world.js';
-import { isBeltLike } from './sim.js';
+import { isBeltLike, isConveyor } from './sim.js';
 
 export function initInput(dom, ctx){
 
@@ -31,6 +31,23 @@ export function initInput(dom, ctx){
     if(tileTipEl) tileTipEl.style.display='none';
   }
 
+  // Schwebender Ressourcen-Hinweis, wenn kein Werkzeug aktiv ist
+  function updateTileTip(tile){
+    if(!tileTipEl||!state.lastPx) return;
+    const S=ctx.getS&&ctx.getS();
+    if(!S||state.tool||(state.path&&state.path.active)||!tile){ hideTileTip(); return; }
+    const code=S.res[keyOf(tile.x,tile.z)];
+    if(!code){ hideTileTip(); return; }
+    const ex=getB(S,tile.x,tile.z);
+    const name=RES_NAME[code]||'Ressource';
+    tileTipEl.innerHTML=ex
+      ?`<b>${name}-Vorkommen</b> - Feld belegt`
+      :`<b>${name}-Vorkommen</b> - Extraktor darauf setzen`;
+    tileTipEl.style.left=state.lastPx.x+'px';
+    tileTipEl.style.top=state.lastPx.y+'px';
+    tileTipEl.style.display='block';
+  }
+
   function tileFromEvent(e){
     return ctx.render.screenToTile(e.clientX,e.clientY);
   }
@@ -39,19 +56,21 @@ export function initInput(dom, ctx){
     state.tool=type;
     ctx.ui.setActiveTool(type);
     if(!type){ ctx.render.setGhost(null); hideDragInfo(); }
+    hideTileTip();
     ctx.closeInspector();
+    if(ctx.sfx) ctx.sfx('tool');
   }
   state.setTool=setTool;
 
   function rotateGhost(){
     state.ghostDir=(state.ghostDir+1)&3;
     updateGhost();
+    if(ctx.sfx) ctx.sfx('rotate');
   }
 
   function existingReplaceable(b,type){
     if(!b) return true;
-    if(isBeltLike(b.type)&&['belt','splitter'].includes(type)) return true;
-    if(isBeltLike(b.type)&&!['belt','splitter'].includes(type)) return true;
+    if(isConveyor(b.type)) return true;
     return false;
   }
 
@@ -85,11 +104,12 @@ export function initInput(dom, ctx){
       }
       const a=res.cells[0], b=res.cells[len-1];
       for(let i=1;i<len-1;i++){
-        if(getB(S,res.cells[i].x,res.cells[i].z)) return res;
+        const mid=getB(S,res.cells[i].x,res.cells[i].z);
+        if(mid&&!isConveyor(mid.type)) return res;
       }
       for(const c of [a,b]){
         const ex=getB(S,c.x,c.z);
-        if(ex&&!isBeltLike(ex.type)) return res;
+        if(ex&&!isConveyor(ex.type)) return res;
       }
       res.ends=[a,b];
       res.valid=true;
@@ -122,7 +142,7 @@ export function initInput(dom, ctx){
     }
     res.valid=res.cells.every(c=>{
       const ex=getB(S,c.x,c.z);
-      return !ex||isBeltLike(ex.type);
+      return !ex||isConveyor(ex.type);
     });
     return res;
   }
@@ -181,14 +201,14 @@ export function initInput(dom, ctx){
       ctx.render.setGhost({mode:'del',x:state.hover.x,z:state.hover.z});
       return;
     }
-    if(['belt','splitter','underground'].includes(state.tool)){
-      if(state.tool==='splitter'){
+    if(['belt','splitter','sorter','underground'].includes(state.tool)){
+      if(state.tool==='splitter'||state.tool==='sorter'){
         ctx.render.setGhost({
           mode:'single',
-          type:'splitter',
+          type:state.tool,
           x:state.hover.x,z:state.hover.z,
           dir:state.ghostDir,
-          valid:canPlaceAt(S,'splitter',state.hover.x,state.hover.z).ok&&S.coins>=costOf('splitter')
+          valid:canPlaceAt(S,state.tool,state.hover.x,state.hover.z).ok&&S.coins>=costOf(state.tool)
         });
         return;
       }
@@ -240,6 +260,7 @@ export function initInput(dom, ctx){
     removeBuilding(S,b);
     ctx.render.buildingRemoved(b,S);
     if(ctx.selected()===b) ctx.closeInspector();
+    if(ctx.sfx) ctx.sfx('demolish');
     return true;
   }
 
@@ -260,6 +281,7 @@ export function initInput(dom, ctx){
     ctx.render.buildingAdded(b,S);
     if(type==='extractor'&&!RES_ITEM[resCode]){ b.res=0; }
     changed();
+    if(ctx.sfx) ctx.sfx('place');
   }
 
   function commitPath(){
@@ -294,8 +316,14 @@ export function initInput(dom, ctx){
       ctx.render.buildingAdded(uin,S);
       ctx.render.buildingAdded(uout,S);
     }else{
-      const total=p.cur.cells.length*BUILDINGS.belt.cost;
-      if(S.coins<total){
+      // Nur neu/anders zu bauende Felder kosten - identische Baender werden uebersprungen
+      let needed=0;
+      for(const c of p.cur.cells){
+        const ex=getB(S,c.x,c.z);
+        if(ex&&ex.type==='belt'&&ex.dir===c.dir) continue;
+        needed+=BUILDINGS.belt.cost;
+      }
+      if(S.coins<needed){
         ctx.ui.toast('Nicht genug Münzen',true);
         state.path=null;
         ctx.render.setGhost(null);
@@ -314,12 +342,14 @@ export function initInput(dom, ctx){
     changed();
     state.path=null;
     updateGhost();
+    if(ctx.sfx) ctx.sfx(p.type==='underground'?'place':'belt');
   }
 
   function trySelect(tile){
     const S=ctx.getS();
     const b=tile?getB(S,tile.x,tile.z):null;
     ctx.selectBuilding(b);
+    if(b&&ctx.sfx) ctx.sfx('select');
   }
 
   dom.addEventListener('pointerdown',e=>{
@@ -337,6 +367,7 @@ export function initInput(dom, ctx){
     }
     const tile=tileFromEvent(e);
     state.downInfo={x:e.clientX,y:e.clientY,t:performance.now(),btn:e.button,moved:false};
+    state.lastPx={x:e.clientX,y:e.clientY};
     if(e.button===1){
       state.panBtn={x:e.clientX,y:e.clientY};
       return;
@@ -351,9 +382,9 @@ export function initInput(dom, ctx){
       changed();
       return;
     }
-    if(state.tool&&['belt','splitter','underground'].includes(state.tool)){
-      if(state.tool==='splitter'){
-        placeSingle('splitter',tile.x,tile.z);
+    if(state.tool&&['belt','splitter','sorter','underground'].includes(state.tool)){
+      if(state.tool==='splitter'||state.tool==='sorter'){
+        placeSingle(state.tool,tile.x,tile.z);
         return;
       }
       state.path={active:true,sx:tile.x,sz:tile.z,type:state.tool,cur:null};
@@ -368,6 +399,7 @@ export function initInput(dom, ctx){
   });
 
   dom.addEventListener('pointermove',e=>{
+    state.lastPx={x:e.clientX,y:e.clientY};
     const rec=state.pointers.get(e.pointerId);
     if(rec){
       e.dx=e.clientX-rec.x;
@@ -395,8 +427,15 @@ export function initInput(dom, ctx){
       ctx.render.cam.pan(e.dx,e.dy);
       return;
     }
+    // Touch/Pen: 1-Finger-Ziehen schwenkt die Kamera (ohne aktives Werkzeug)
+    if(state.downInfo&&state.downInfo.btn===0&&state.downInfo.moved
+      &&!state.tool&&e.pointerType!=='mouse'&&!(state.path&&state.path.active)){
+      ctx.render.cam.pan(e.dx,e.dy);
+      return;
+    }
     const tile=tileFromEvent(e);
     state.hover=tile;
+    updateTileTip(tile);
     if(state.delDrag&&tile){
       removeAt(ctx.getS(),tile.x,tile.z);
       changed();
@@ -462,6 +501,15 @@ export function initInput(dom, ctx){
   addEventListener('keydown',e=>{
     if(e.repeat) return;
     if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return;
+    if(ctx.menuOpen&&ctx.menuOpen()){
+      if(e.code==='Escape'&&ctx.modalOpen()) ctx.closeModals();
+      return;
+    }
+    // Bei offenem Modal nur Escape durchlassen - keine Werkzeug-/Kamerakeys
+    if(ctx.modalOpen&&ctx.modalOpen()){
+      if(e.code==='Escape') ctx.closeModals();
+      return;
+    }
     state.keys.add(e.code);
     switch(e.code){
       case 'KeyR':{
@@ -473,9 +521,11 @@ export function initInput(dom, ctx){
       case 'Escape':
         if(ctx.modalOpen()) ctx.closeModals();
         else if(state.tool) setTool(null);
-        else ctx.closeInspector();
+        else if(ctx.selected()) ctx.closeInspector();
+        else ctx.togglePauseMenu();
         break;
       case 'KeyT': ctx.toggleTech(); break;
+      case 'KeyG': ctx.toggleOrders&&ctx.toggleOrders(); break;
       case 'Space': e.preventDefault(); ctx.togglePause(); break;
       case 'Delete': ctx.deleteSelected(); break;
       case 'KeyQ': ctx.render.cam.rotateSnap(-1); break;
@@ -488,11 +538,26 @@ export function initInput(dom, ctx){
         if(t==='bulldoze') ctx.ui.toast('Abriss-Werkzeug aktiv');
         break;
       }
+      default:{
+        const m=e.code.match(/^(?:Digit|Numpad)([1-9])$/);
+        if(m&&ctx.ui.toolAt){
+          const t=ctx.ui.toolAt(parseInt(m[1],10)-1);
+          if(t){
+            if(!isUnlockedBuilding(ctx.getS(),t)){
+              ctx.ui.toast('Erfordert Forschung: '+techName(BUILDINGS[t].tech),true);
+            }else{
+              setTool(t);
+            }
+          }
+        }
+      }
     }
   });
   addEventListener('keyup',e=>state.keys.delete(e.code));
 
   function update(dt){
+    if(ctx.menuOpen&&ctx.menuOpen()) return;
+    if(ctx.modalOpen&&ctx.modalOpen()){ state.keys.clear(); return; }
     const k=state.keys;
     let dx=0,dy=0;
     if(k.has('KeyA')||k.has('ArrowLeft'))dx-=1;

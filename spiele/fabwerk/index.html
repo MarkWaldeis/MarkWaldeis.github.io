@@ -110,6 +110,10 @@
     content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;
     background:var(--accent);border-radius:2px;
   }
+  #tabBulldoze{margin-left:auto;color:#d98a8a;}
+  #tabBulldoze:hover:not(:disabled){color:#f0a0a0;background:rgba(224,86,86,0.08);}
+  #tabBulldoze.active{color:var(--red);background:rgba(224,86,86,0.13);}
+  #tabBulldoze.active::after{background:var(--red);}
   #buildChips{
     display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;
     padding:1px 1px 3px;
@@ -385,6 +389,117 @@
   @media (max-width:520px){
     #btnSave{display:none;}
   }
+
+  /* ---------- Hauptmenü ---------- */
+  #menuOverlay{
+    position:fixed;inset:0;z-index:35;
+    display:flex;align-items:center;justify-content:center;
+    background:#0a0f15;
+  }
+  #menuArt{
+    position:absolute;inset:0;
+    background-image:linear-gradient(rgba(8,12,18,0.25),rgba(8,12,18,0.78)),url('assets/menu_art.jpg');
+    background-size:cover;background-position:center;
+  }
+  #menuCard{
+    position:relative;text-align:center;padding:44px 52px 34px;
+    background:rgba(10,15,22,0.72);border:1px solid rgba(255,255,255,0.1);
+    border-radius:22px;backdrop-filter:blur(10px);
+    box-shadow:0 40px 120px rgba(0,0,0,0.6);
+    max-width:min(92vw,480px);width:100%;
+  }
+  #menuCard h1{
+    font-size:52px;letter-spacing:0.22em;color:var(--accent);
+    text-shadow:0 4px 30px rgba(255,184,77,0.35);margin-bottom:4px;
+  }
+  #menuCard .sub{color:var(--dim);font-size:14px;letter-spacing:0.06em;margin-bottom:26px;}
+  #menuCard .menuBtns{display:flex;flex-direction:column;gap:10px;align-items:center;}
+  #menuCard .menuBtns button{
+    width:230px;padding:11px 18px;font-size:15px;font-weight:700;border-radius:11px;
+  }
+  #menuCard .menuBtns .row2{display:flex;gap:10px;}
+  #menuCard .menuBtns .row2 button{width:110px;padding:9px;font-size:13px;font-weight:600;}
+  #menuSaveInfo{margin-top:18px;font-size:12px;color:var(--dim);line-height:1.6;}
+  #menuSaveInfo b{color:var(--teal);font-variant-numeric:tabular-nums;}
+  #menuFoot{margin-top:14px;font-size:10.5px;color:#5a6a7a;letter-spacing:0.05em;}
+
+  /* ---------- Aufträge ---------- */
+  #ordersList{padding:18px 22px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;}
+  .orderRow{
+    display:flex;align-items:center;gap:14px;
+    background:#1c2530;border:1px solid var(--line);border-radius:11px;
+    padding:11px 15px;
+  }
+  .orderRow.done{opacity:0.6;}
+  .orderRow.done .orderItem::after{content:" \2713";color:var(--teal);font-weight:800;}
+  .orderRow.current{border-color:rgba(255,184,77,0.55);background:#232e3b;
+    box-shadow:0 0 16px rgba(255,184,77,0.08);}
+  .orderRow.future{opacity:0.75;}
+  .orderNum{
+    width:26px;height:26px;flex:0 0 auto;border-radius:50%;
+    background:#232d3a;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--dim);
+  }
+  .orderRow.done .orderNum{background:rgba(53,208,186,0.15);color:var(--teal);border-color:rgba(53,208,186,0.4);}
+  .orderRow.current .orderNum{background:rgba(255,184,77,0.15);color:var(--accent);border-color:rgba(255,184,77,0.5);}
+  .orderMid{flex:1;min-width:0;}
+  .orderItem{display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;}
+  .orderItem i{width:11px;height:11px;border-radius:3px;flex:0 0 auto;}
+  .orderBar{height:7px;background:#141b24;border-radius:99px;overflow:hidden;margin-top:7px;max-width:340px;}
+  .orderBar div{height:100%;background:linear-gradient(90deg,var(--teal),#7ce8d9);}
+  .orderProg{font-size:11.5px;color:var(--dim);margin-top:4px;font-variant-numeric:tabular-nums;}
+  .orderReward{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex:0 0 auto;}
+  .rw{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .rw.gold{color:var(--accent);}
+  .rw.rp{color:var(--teal);}
+  .rw i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .rw.gold i{background:radial-gradient(circle at 35% 30%,#ffe08a,#f6c453 60%,#c99b32);}
+  .rw.rp i{background:radial-gradient(circle at 35% 30%,#8ef2e4,#35d0ba 60%,#1f9c8b);}
+
+  /* ---------- Ziel-Tracker ---------- */
+  #goalCard{
+    background:var(--panel);border:1px solid rgba(255,184,77,0.35);border-radius:var(--radius);
+    padding:10px 13px;backdrop-filter:blur(8px);width:252px;cursor:pointer;
+    transition:border-color .15s ease;
+  }
+  #goalCard:hover{border-color:rgba(255,184,77,0.7);}
+  #goalCard h4{
+    font-size:10.5px;letter-spacing:0.13em;text-transform:uppercase;color:var(--accent);
+    margin-bottom:6px;display:flex;justify-content:space-between;
+  }
+  #goalCard .goalTxt{font-size:12.5px;line-height:1.5;}
+  #goalCard .goalBar{height:6px;background:#161d26;border-radius:99px;overflow:hidden;margin-top:7px;}
+  #goalCard .goalBar div{height:100%;background:linear-gradient(90deg,var(--accent),#ffd98a);}
+  #goalCard .goalSub{font-size:10.5px;color:var(--dim);margin-top:5px;font-variant-numeric:tabular-nums;}
+
+  /* ---------- Sieg ---------- */
+  #victoryModal .modal{max-width:640px;text-align:center;}
+  #victoryModal .modalBody{padding:26px 30px;overflow-y:auto;}
+  #victoryModal h2{font-size:34px;letter-spacing:0.1em;color:var(--accent);margin-bottom:4px;}
+  #victoryModal .vSub{color:var(--dim);margin-bottom:20px;font-size:14px;}
+  .statGrid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 auto 22px;max-width:520px;
+  }
+  .statCell{background:#1c2530;border:1px solid var(--line);border-radius:11px;padding:12px 8px;}
+  .statCell b{display:block;font-size:19px;font-variant-numeric:tabular-nums;color:var(--text);}
+  .statCell span{font-size:11px;color:var(--dim);letter-spacing:0.04em;}
+  #victoryModal .helpFoot{justify-content:center;}
+
+  /* ---------- Confirm / Pause ---------- */
+  #confirmModal .modal,#pauseModal .modal{max-width:400px;text-align:center;}
+  .confirmBody{padding:22px 26px;font-size:14.5px;line-height:1.6;}
+  .confirmFoot{padding:0 26px 22px;display:flex;gap:10px;justify-content:center;}
+  .confirmFoot button{min-width:120px;padding:9px 14px;}
+  #pauseModal h2{padding:20px 26px 0;font-size:20px;letter-spacing:0.12em;text-align:center;}
+  #pauseModal .pauseBtns{display:flex;flex-direction:column;gap:9px;padding:22px 26px 26px;}
+  #pauseModal .pauseBtns button{padding:10px;font-size:14px;font-weight:600;}
+
+  @media (max-width:720px){
+    #menuCard h1{font-size:38px;}
+    #menuCard{padding:30px 22px 24px;}
+    .statGrid{grid-template-columns:repeat(2,1fr);}
+    #goalCard{display:none;}
+  }
 </style>
 <script type="importmap">
 {
@@ -411,9 +526,11 @@
   </div>
   <span id="pauseBadge" class="hidden">Pausiert</span>
   <div class="sep"></div>
+  <button id="btnOrders" title="Aufträge (G)">Aufträge</button>
   <button id="btnTech">Technologie (T)</button>
   <button id="btnHelp">Hilfe</button>
   <button id="btnSave">Speichern</button>
+  <button id="btnAudio" title="Ton an/aus">&#128266;</button>
 </div>
 
 <div id="buildMenu">
@@ -426,10 +543,16 @@
     <h4>Erste Schritte <button id="tutClose" title="Checkliste ausblenden">X</button></h4>
     <ul id="tutList"></ul>
   </div>
+  <div id="goalCard" title="Auftragsliste öffnen (G)">
+    <h4>Aktueller Auftrag <span id="goalNum"></span></h4>
+    <div class="goalTxt" id="goalTxt"></div>
+    <div class="goalBar"><div id="goalBarFill"></div></div>
+    <div class="goalSub" id="goalSub"></div>
+  </div>
   <div id="hintBar">
     <b>Bauen:</b> Werkzeug <b>1-9</b> oder klicken &middot; <b>R</b> drehen &middot;
-    Band: <b>ziehen</b> &middot; <b>Rechtsklick</b> Abbrechen &middot;
-    <b>Q/E</b> Kamera drehen &middot; Mausrad Zoom
+    Band: <b>ziehen</b> &middot; <b>X</b> Abriss &middot; <b>G</b> Aufträge &middot;
+    <b>Q/E</b> Kamera &middot; <b>Esc</b> Menü
   </div>
 </div>
 
@@ -499,9 +622,10 @@
         <span class="k"><kbd>Q</kbd> / <kbd>E</kbd></span><span>Kamera in 90&deg;-Schritten drehen</span>
         <span class="k"><kbd>Mausrad</kbd></span><span>Zoom zum Cursor</span>
         <span class="k"><kbd>T</kbd></span><span>Technologiebaum</span>
+        <span class="k"><kbd>G</kbd></span><span>Auftragsliste</span>
         <span class="k"><kbd>Leertaste</kbd></span><span>Pause</span>
         <span class="k"><kbd>Entf</kbd></span><span>Ausgewähltes Gebäude löschen</span>
-        <span class="k"><kbd>Esc</kbd></span><span>Abbrechen</span>
+        <span class="k"><kbd>Esc</kbd></span><span>Abbrechen / Pausenmenü</span>
       </div>
       <h3>Steuerung - Touch</h3>
       <div class="ctrlTable">
@@ -510,18 +634,97 @@
         <span class="k"><kbd>2 Finger ziehen</kbd></span><span>Drehen und Zoomen (rastet bei 90&deg; ein)</span>
         <span class="k"><kbd>Buttons</kbd></span><span>Unten rechts: Kamera drehen, Zoom, Werkzeug abbrechen</span>
       </div>
+      <h3>Aufträge &amp; Ziel</h3>
+      Erfülle die <b>Auftragsliste</b> (Taste G): Liefere die geforderten Waren an
+      Markt oder Labor und kassiere Münzen + Forschungspunkte als Belohnung.
+      Wer den letzten Auftrag - Roboter bauen - schafft, gewinnt die Kampagne.
+      Die Fabrik darf danach natürlich weiterlaufen.
       <h3>Spezialbausteine</h3>
       <div class="specList">
         <div><b>Verteiler</b> gibt Items abwechselnd nach links und geradeaus weiter.</div>
+        <div><b>Sorter</b> (Forschung): schickt ein gewähltes Item nach links, alles andere geradeaus.</div>
         <div><b>Unterführung</b>: geradeaus ziehen (2-6 Kacheln). Der Tunnel kreuzt andere Bänder.</div>
         <div><b>Greifer</b> nimmt Items von der Kachel hinter sich und legt sie vor sich ab.</div>
         <div><b>Upgrades</b>: Im Inspektor ausbauen, bis Stufe IV - jede Stufe +50% Arbeitstempo.</div>
       </div>
+      <h3>Warenwerte</h3>
+      <p style="font-size:12.5px;color:var(--dim)">Markt zahlt den vollen Wert, das Labor 60% + Forschungspunkte:</p>
+      <div class="specList" id="helpItems"></div>
     </div>
     <div class="helpFoot">
       <button id="helpNew">Neues Spiel</button>
       <button onclick="document.getElementById('helpModal').classList.add('hidden')">Loslegen</button>
     </div>
+  </div>
+</div>
+
+<div id="ordersModal" class="modalBack hidden">
+  <div class="modal" style="max-width:720px">
+    <div class="modalHead">
+      <h2>Aufträge</h2>
+      <div class="headRight">
+        <span class="techCount" id="ordersCount"></span>
+        <button id="ordersClose">Schließen</button>
+      </div>
+    </div>
+    <div id="ordersList"></div>
+  </div>
+</div>
+
+<div id="victoryModal" class="modalBack hidden">
+  <div class="modal">
+    <div class="modalBody">
+      <h2>Fabrik-Meister!</h2>
+      <div class="vSub">Alle Aufträge erfüllt - deine Fabrik produziert Roboter.</div>
+      <div class="statGrid" id="victoryStats"></div>
+      <div class="helpFoot" style="border:none;padding:0">
+        <button id="victoryNew">Neues Spiel</button>
+        <button id="victoryContinue" class="primary">Weiterbauen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="confirmModal" class="modalBack hidden">
+  <div class="modal">
+    <div class="modalHead"><h2 id="confirmTitle">Sicher?</h2></div>
+    <div class="confirmBody" id="confirmText"></div>
+    <div class="confirmFoot">
+      <button id="confirmNo">Abbrechen</button>
+      <button id="confirmYes" class="danger">Ja</button>
+    </div>
+  </div>
+</div>
+
+<div id="pauseModal" class="modalBack hidden">
+  <div class="modal">
+    <h2>Pausiert</h2>
+    <div class="pauseBtns">
+      <button id="pauseResume" class="primary">Weiterspielen</button>
+      <button id="pauseOrders">Aufträge</button>
+      <button id="pauseHelp">Hilfe</button>
+      <button id="pauseSave">Speichern</button>
+      <button id="pauseMenu">Zum Hauptmenü</button>
+      <button id="pauseNew" class="danger">Neues Spiel</button>
+    </div>
+  </div>
+</div>
+
+<div id="menuOverlay" class="hidden">
+  <div id="menuArt"></div>
+  <div id="menuCard">
+    <h1>FABWERK</h1>
+    <div class="sub">3D-Fabrik-Aufbau &amp; Automatisierung</div>
+    <div class="menuBtns">
+      <button id="btnContinue" class="primary hidden">Weiterspielen</button>
+      <button id="btnNewGame">Neues Spiel</button>
+      <div class="row2">
+        <button id="btnMenuHelp">Hilfe</button>
+        <button id="btnMenuAudio">Ton: An</button>
+      </div>
+    </div>
+    <div id="menuSaveInfo"></div>
+    <div id="menuFoot">Liefere alle Aufträge, bis Roboter vom Band laufen.</div>
   </div>
 </div>
 

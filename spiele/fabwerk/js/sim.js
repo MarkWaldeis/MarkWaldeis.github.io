@@ -9,6 +9,11 @@ export function isBeltLike(t){
   return t==='belt'||t==='splitter'||t==='under_in'||t==='under_out';
 }
 
+// Föder-Elemente im weiteren Sinn (inkl. Sorter) - für Platzier-/Routing-Regeln
+export function isConveyor(t){
+  return isBeltLike(t)||t==='sorter';
+}
+
 function beltRoom(b){
   const its=b.items;
   return its.length===0||its[its.length-1].pos>ITEM_SPACING;
@@ -32,7 +37,8 @@ export function tryDeliver(S,nx,nz,mv,item,evt,dry,intoMachines=true){
       if(!dry) b.items.push({it:item,pos:0,es:opp(mv)});
       return true;
     }
-    case 'splitter':{
+    case 'splitter':
+    case 'sorter':{
       const es=opp(mv);
       if(es===b.dir||es===left(b.dir)) return false;
       if(!beltRoom(b)) return false;
@@ -85,6 +91,10 @@ function exitLimit(S,x,z,b,item,sp){
     }
     return 1;
   }
+  if(b.type==='sorter'){
+    const d=(b.filter&&item===b.filter)?left(b.dir):b.dir;
+    return tryDeliver(S,x+DX[d],z+DZ[d],d,item,null,true) ? 1+sp : 1;
+  }
   return tryDeliver(S,x+DX[mv],z+DZ[mv],mv,item,null,true) ? 1+sp : 1;
 }
 
@@ -104,6 +114,14 @@ function doExitTransfer(S,x,z,b,evt){
         b.pref=!b.pref;
         return true;
       }
+    }
+    return false;
+  }
+  if(b.type==='sorter'){
+    const d=(b.filter&&item===b.filter)?left(b.dir):b.dir;
+    if(tryDeliver(S,x+DX[d],z+DZ[d],d,item,evt,false)){
+      b.items.shift();
+      return true;
     }
     return false;
   }
@@ -191,9 +209,9 @@ function drainOut(S,m,evt){
     if(evt&&evt.sell) evt.sell(m.outItem,v);
     return;
   }
-  if(nb.type!=='belt'&&nb.type!=='splitter'&&nb.type!=='under_in') return;
+  if(nb.type!=='belt'&&nb.type!=='splitter'&&nb.type!=='sorter'&&nb.type!=='under_in') return;
   if(nb.type==='belt'&&nb.dir===opp(m.dir)) return;
-  if(nb.type==='splitter'){
+  if(nb.type==='splitter'||nb.type==='sorter'){
     const es=opp(m.dir);
     if(es===nb.dir||es===left(nb.dir)) return;
   }
@@ -288,6 +306,7 @@ function pickFromSource(S,n,item){
   switch(src.type){
     case 'belt':
     case 'splitter':
+    case 'sorter':
     case 'under_out':{
       const its=src.items;
       for(let i=0;i<its.length;i++){
@@ -338,6 +357,7 @@ export function updateSim(S,dt,evt){
     switch(b.type){
       case 'belt':
       case 'splitter':
+      case 'sorter':
       case 'under_in':
       case 'under_out':
         updateBeltTile(S,b.x,b.z,b,dt,evt);

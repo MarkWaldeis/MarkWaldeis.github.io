@@ -192,7 +192,7 @@ function makeOutArrowGeo(){
   return geo;
 }
 
-export function initRender(container){
+export function initRender(container,assets){
 
   const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
@@ -585,6 +585,28 @@ export function initRender(container){
     return g;
   }
 
+  // Prozeduraler Fallback fuer den Sorter (nur falls GLB fehlt)
+  function tplSorter(){
+    const g=new THREE.Group();
+    const mD=toon(M.dark),mW=toon(0x55606e),mO=toon(M.gold),mT=toon(M.teal);
+    g.add(box(0.94,0.1,0.94,mD,0,0.05,0));
+    g.add(box(0.7,0.035,0.9,toon(0x272e38),0.02,0.115,0));
+    for(const sz of [-0.36,0.36]) g.add(box(0.16,0.6,0.14,mW,0.02,0.4,sz));
+    g.add(box(0.18,0.16,0.86,mW,0.02,0.76,0));
+    const eye=new THREE.Mesh(new THREE.SphereGeometry(0.09,10,8),
+      new THREE.MeshBasicMaterial({color:M.gold}));
+    eye.position.set(0.02,0.62,0);
+    eye.name='eye';
+    eye.userData.dyn=true;
+    eye.userData.noShadow=true;
+    g.add(eye);
+    g.add(box(0.06,0.3,0.06,mT,0.34,0.2,-0.4));
+    g.add(box(0.1,0.1,0.06,mT,0.34,0.38,-0.4));
+    g.userData.anim=['eye'];
+    addOutArrow(g);
+    return g;
+  }
+
   templates.extractor=tplExtractor();
   templates.furnace=tplFurnace();
   templates.assembler=tplAssembler();
@@ -593,6 +615,23 @@ export function initRender(container){
   templates.inserter=tplInserter();
   templates.under_in=tplUnder(M.gold);
   templates.under_out=tplUnder(M.teal);
+
+  // Sorter: Blender-GLB bevorzugt, sonst prozeduraler Fallback
+  if(assets&&assets.sorter){
+    const g=assets.sorter;
+    g.traverse(o=>{
+      if(o.isMesh){
+        const c=o.material&&o.material.color?o.material.color.getHex():0x8b95a3;
+        o.material=new THREE.MeshToonMaterial({color:c,gradientMap:grad});
+        o.castShadow=true; o.receiveShadow=true;
+        if(o.name==='eye') o.userData.dyn=true;
+      }
+    });
+    templates.sorter=g;
+    addOutArrow(templates.sorter);
+  }else{
+    templates.sorter=tplSorter();
+  }
 
   function tplBeltGhost(split){
     const g=new THREE.Group();
@@ -632,9 +671,11 @@ export function initRender(container){
   }
 
   const meshMap=new Map();
+  let beltDirty=false;
 
   function buildingAdded(b,S){
-    if(isBeltLike(b.type)) { rebuildBelts(S||curS); return; }
+    if(S) curS=S;
+    if(isBeltLike(b.type)) { beltDirty=true; return; }
     if(meshMap.has(keyOf(b.x,b.z))) return;
     const g=cloneTemplate(b.type);
     g.position.set(WX(b.x)+0.5,0,WX(b.z)+0.5);
@@ -644,6 +685,7 @@ export function initRender(container){
   }
 
   function buildingRemoved(b,S){
+    if(S) curS=S;
     const k=keyOf(b.x,b.z);
     const rec=meshMap.get(k);
     if(rec){
@@ -654,13 +696,13 @@ export function initRender(container){
       meshMap.delete(k);
     }
     emitters.delete(b.id);
-    if(isBeltLike(b.type)) rebuildBelts(S||curS);
+    if(isBeltLike(b.type)) beltDirty=true;
   }
 
   function setRotationOf(b){
     const rec=meshMap.get(keyOf(b.x,b.z));
     if(rec) rec.g.rotation.y=yawOf(b.dir);
-    if(isBeltLike(b.type)) rebuildBelts(null);
+    if(isBeltLike(b.type)) beltDirty=true;
   }
 
   const beltGeoBody=new THREE.BoxGeometry(0.94,0.09,0.94);
@@ -699,6 +741,7 @@ export function initRender(container){
     const nb=S.buildings.get(keyOf(x+DX[s],z+DZ[s]));
     if(!nb) return false;
     if(nb.type==='belt'||nb.type==='splitter'||nb.type==='under_out') return nb.dir===opp(s);
+    if(nb.type==='sorter') return s===nb.dir||s===left(nb.dir);
     if(nb.type==='extractor'||nb.type==='furnace'||nb.type==='assembler') return nb.dir===opp(s);
     return false;
   }
@@ -1330,6 +1373,7 @@ export function initRender(container){
 
   function frame(S,dtS,dtR){
     animClock+=dtS;
+    if(beltDirty){ beltDirty=false; rebuildBelts(S); }
     camCtl.update(dtR);
     sun.position.set(camCtl.focus.x+26,46,camCtl.focus.z-18);
     sun.target.position.copy(camCtl.focus);
@@ -1410,6 +1454,13 @@ export function initRender(container){
           if(hd){
             hd.visible=!!b.hold;
             if(b.hold) hd.material.color.setHex(ITEMS[b.hold].color);
+          }
+          break;
+        }
+        case 'sorter':{
+          const eye=refs.eye;
+          if(eye&&eye.material&&eye.material.color){
+            eye.material.color.setHSL(0.12,0.9,0.42+0.2*Math.sin(animClock*5+b.id));
           }
           break;
         }

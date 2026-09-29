@@ -22,7 +22,9 @@ export function newState(seed){
     coins:START_COINS,
     rp:0,
     researched:new Set(),
-    stats:{earned:0,sold:0,rpEarned:0,peakCoins:START_COINS},
+    orderIdx:0,
+    victory:false,
+    stats:{earned:0,sold:0,rpEarned:0,peakCoins:START_COINS,delivered:{},playTime:0},
     tut:{dismissed:false}
   };
 }
@@ -33,7 +35,7 @@ export function genTerrain(S){
   const res=S.res;
   const cx=size/2, cz=size/2;
   const plan=[
-    [1,5],[2,5],[3,4],[4,4],[5,7]
+    [1,5],[2,5],[3,4],[4,4],[5,7],[6,4]
   ];
   for(const [code,count] of plan){
     for(let p=0;p<count;p++){
@@ -100,6 +102,10 @@ export function makeBuilding(S,type,x,z,dir,resCode){
     case 'splitter':
       b.items=[];
       b.pref=false;
+      break;
+    case 'sorter':
+      b.items=[];
+      b.filter=null;
       break;
     case 'extractor':
     case 'furnace':
@@ -181,6 +187,7 @@ function serB(b){
   if(b.buf) o.buf=b.buf.slice();
   if(b.link!==undefined) o.lk=b.link;
   if(b.pref!==undefined) o.pf=b.pref?1:0;
+  if(b.filter!==undefined) o.fl=b.filter;
   if(b.recipe!==undefined) o.rc=b.recipe;
   if(b.inputs!==undefined) o.inp=b.inputs;
   if(b.outItem!==undefined){o.oi=b.outItem;o.oc=b.outCount;}
@@ -208,6 +215,7 @@ function deserB(S,o){
   if(o.buf&&b.buf) b.buf=o.buf.filter(i=>ITEMS[i]);
   if(o.lk!==undefined&&b.link!==undefined) b.link=o.lk;
   if(o.pf!==undefined&&b.pref!==undefined) b.pref=!!o.pf;
+  if(o.fl!==undefined&&b.filter!==undefined&&ITEMS[o.fl]) b.filter=o.fl;
   if(o.rc&&b.recipe!==undefined){
     const r=RECIPE_BY_ID[o.rc];
     if(r&&r.machine===o.t) b.recipe=o.rc;
@@ -235,19 +243,21 @@ function deserB(S,o){
 
 export function serialize(S){
   return {
-    v:1,
+    v:2,
     seed:S.seed,
     coins:S.coins,
     rp:S.rp,
     nextId:S.nextId,
     researched:[...S.researched],
+    orderIdx:S.orderIdx||0,
+    victory:!!S.victory,
     stats:S.stats,
     tut:S.tut,
     buildings:[...S.buildings.values()].map(serB)
   };
 }
 
-const VALID_TYPES=new Set([...Object.keys(BUILDINGS),'under_in','under_out']);
+const VALID_TYPES=new Set([...Object.keys(BUILDINGS),'under_in','under_out','sorter']);
 
 export function loadState(obj){
   const S=newState(obj.seed??(Math.random()*1e9|0));
@@ -256,7 +266,11 @@ export function loadState(obj){
   S.rp=typeof obj.rp==='number'?obj.rp:0;
   S.nextId=obj.nextId||1;
   S.researched=new Set((obj.researched||[]).filter(id=>typeof id==='string'));
+  S.orderIdx=Math.max(0,obj.orderIdx|0);
+  S.victory=!!obj.victory;
   if(obj.stats) S.stats=Object.assign(S.stats,obj.stats);
+  if(!S.stats.delivered||typeof S.stats.delivered!=='object') S.stats.delivered={};
+  S.stats.playTime=S.stats.playTime||0;
   if(obj.tut) S.tut=Object.assign(S.tut,obj.tut);
   if(Array.isArray(obj.buildings)){
     for(const o of obj.buildings){

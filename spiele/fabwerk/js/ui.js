@@ -1,5 +1,5 @@
 import {
-  ITEMS, BUILDINGS, CATS, TECHS, RECIPE_BY_ID,
+  ITEMS, BUILDINGS, CATS, TECHS, RECIPE_BY_ID, CONTRACTS,
   isUnlockedBuilding, recipesFor,
   techName, fmt, OUT_CAP, INPUT_CAP, RES_NAME,
   MAX_LEVEL, UPGRADEABLE_TYPES, upgradeCost,
@@ -20,6 +20,13 @@ export function initUI(hooks){
     techModal:el('techModal'),
     techList:el('techList'),
     helpModal:el('helpModal'),
+    ordersModal:el('ordersModal'),
+    ordersList:el('ordersList'),
+    victoryModal:el('victoryModal'),
+    confirmModal:el('confirmModal'),
+    pauseModal:el('pauseModal'),
+    menuOverlay:el('menuOverlay'),
+    goalCard:el('goalCard'),
     toasts:el('toasts'),
     tut:el('tutCard'),
     tutList:el('tutList'),
@@ -34,6 +41,7 @@ export function initUI(hooks){
     let v='success';
     if(bad===true) v='bad';
     else if(bad==='info'||bad==='bad'||bad==='success') v=bad;
+    if(v==='bad'&&hooks.sfx) hooks.sfx('error');
     const d=document.createElement('div');
     d.className='toast '+v;
     d.textContent=msg;
@@ -93,6 +101,8 @@ export function initUI(hooks){
     else applyActive();
   }
 
+  let bulldozeBtn=null;
+
   function buildMenu(){
     ui.menu.innerHTML='';
     const tabs=document.createElement('div');
@@ -106,6 +116,14 @@ export function initUI(hooks){
       });
       tabs.appendChild(tb);
     }
+    bulldozeBtn=document.createElement('button');
+    bulldozeBtn.id='tabBulldoze';
+    bulldozeBtn.title='Abriss-Werkzeug (X) - Gebäude entfernen, 50% Erstattung';
+    bulldozeBtn.textContent='Abriss';
+    bulldozeBtn.addEventListener('click',()=>{
+      hooks.setTool(activeTool==='bulldoze'?null:'bulldoze');
+    });
+    tabs.appendChild(bulldozeBtn);
     ui.menu.appendChild(tabs);
     chipRow=document.createElement('div');
     chipRow.id='buildChips';
@@ -119,6 +137,7 @@ export function initUI(hooks){
     ui.menu.querySelectorAll('.chip').forEach(c=>{
       c.classList.toggle('active',c.dataset.type===activeTool);
     });
+    if(bulldozeBtn) bulldozeBtn.classList.toggle('active',activeTool==='bulldoze');
   }
 
   ui.refreshMenu=S=>{
@@ -195,24 +214,197 @@ export function initUI(hooks){
     ui.speedBtns[2]=mk('btnSp2',()=>hooks.setSpeed(2));
     ui.speedBtns[3]=mk('btnSp3',()=>hooks.setSpeed(3));
     mk('btnTech',()=>ui.toggleTech());
+    mk('btnOrders',()=>ui.toggleOrders());
     mk('btnHelp',()=>ui.toggleHelp());
     mk('btnSave',()=>hooks.saveGame());
+    mk('btnAudio',()=>hooks.toggleAudio());
   }
+
+  // ---------- Modale Fenster ----------
+  let confirmYes=null;
+
+  ui.ordersOpen=()=>!ui.ordersModal.classList.contains('hidden');
+  ui.techOpen=()=>!ui.techModal.classList.contains('hidden');
+  ui.helpOpen=()=>!ui.helpModal.classList.contains('hidden');
+  ui.pauseOpen=()=>!ui.pauseModal.classList.contains('hidden');
+  ui.confirmOpen=()=>!ui.confirmModal.classList.contains('hidden');
+  ui.victoryOpen=()=>!ui.victoryModal.classList.contains('hidden');
+  ui.menuOpen=()=>!ui.menuOverlay.classList.contains('hidden');
+  ui.anyModalOpen=()=>ui.techOpen()||ui.helpOpen()||ui.ordersOpen()||ui.pauseOpen()||ui.confirmOpen()||ui.victoryOpen();
 
   ui.closeModals=()=>{
     ui.techModal.classList.add('hidden');
     ui.helpModal.classList.add('hidden');
+    ui.ordersModal.classList.add('hidden');
+    ui.confirmModal.classList.add('hidden');
+    ui.victoryModal.classList.add('hidden');
+    confirmYes=null;
   };
-  ui.techOpen=()=>!ui.techModal.classList.contains('hidden');
+
   ui.toggleTech=()=>{
-    ui.helpModal.classList.add('hidden');
-    ui.techModal.classList.toggle('hidden');
-    if(!ui.techModal.classList.contains('hidden')) hooks.refreshTech();
+    const willOpen=ui.techModal.classList.contains('hidden');
+    ui.closeModals();
+    ui.techModal.classList.toggle('hidden',!willOpen);
+    if(willOpen) hooks.refreshTech();
   };
   ui.toggleHelp=()=>{
-    ui.techModal.classList.add('hidden');
-    ui.helpModal.classList.toggle('hidden');
+    const willOpen=ui.helpModal.classList.contains('hidden');
+    ui.closeModals();
+    ui.helpModal.classList.toggle('hidden',!willOpen);
   };
+  ui.toggleOrders=()=>{
+    const willOpen=ui.ordersModal.classList.contains('hidden');
+    ui.closeModals();
+    ui.ordersModal.classList.toggle('hidden',!willOpen);
+    if(willOpen) ui.refreshOrders(hooks.getS());
+  };
+
+  // ---------- Confirm ----------
+  ui.confirm=(title,text,onYes)=>{
+    confirmYes=onYes||null;
+    el('confirmTitle').textContent=title||'Sicher?';
+    el('confirmText').innerHTML=text||'';
+    ui.confirmModal.classList.remove('hidden');
+  };
+  el('confirmYes').addEventListener('click',()=>{
+    const fn=confirmYes;
+    ui.confirmModal.classList.add('hidden');
+    confirmYes=null;
+    if(fn) fn();
+  });
+  el('confirmNo').addEventListener('click',()=>{
+    ui.confirmModal.classList.add('hidden');
+    confirmYes=null;
+    if(hooks.sfx) hooks.sfx('click');
+  });
+
+  // ---------- Pause-Menü ----------
+  ui.openPause=()=>{
+    ui.closeModals();
+    ui.pauseModal.classList.remove('hidden');
+  };
+  ui.closePause=()=>ui.pauseModal.classList.add('hidden');
+
+  el('pauseResume').addEventListener('click',()=>hooks.togglePauseMenu());
+  el('pauseOrders').addEventListener('click',()=>{
+    hooks.togglePauseMenu();
+    ui.toggleOrders();
+  });
+  el('pauseHelp').addEventListener('click',()=>{
+    hooks.togglePauseMenu();
+    ui.toggleHelp();
+  });
+  el('pauseSave').addEventListener('click',()=>hooks.saveGame());
+  el('pauseMenu').addEventListener('click',()=>hooks.toMainMenu());
+  el('pauseNew').addEventListener('click',()=>{
+    hooks.requestNewGame();
+  });
+
+  // ---------- Hauptmenü ----------
+  ui.showMenu=(S,hasSave)=>{
+    ui.menuOverlay.classList.remove('hidden');
+    const btnC=el('btnContinue');
+    btnC.classList.toggle('hidden',!hasSave);
+    const info=el('menuSaveInfo');
+    if(hasSave&&S){
+      const done=Math.min(S.orderIdx||0,CONTRACTS.length);
+      info.innerHTML=`Spielstand: <b>${fmt(S.coins)}</b> Münzen &middot; <b>${fmt(S.rp)}</b> FP &middot; Auftrag <b>${done}/${CONTRACTS.length}</b> &middot; ${fmtTime(S.stats.playTime||0)} gespielt`;
+    }else{
+      info.innerHTML='Kein Spielstand vorhanden - baue deine erste Fabrik.';
+    }
+  };
+  ui.hideMenu=()=>ui.menuOverlay.classList.add('hidden');
+  ui.syncAudioBtns=muted=>{
+    el('btnAudio').innerHTML=muted?'&#128263;':'&#128266;';
+    const mb=el('btnMenuAudio');
+    if(mb) mb.textContent='Ton: '+(muted?'Aus':'An');
+  };
+  el('btnContinue').addEventListener('click',()=>hooks.continueGame());
+  el('btnNewGame').addEventListener('click',()=>hooks.requestNewGame());
+  el('btnMenuHelp').addEventListener('click',()=>ui.toggleHelp());
+  el('btnMenuAudio').addEventListener('click',()=>hooks.toggleAudio());
+
+  // ---------- Sieg ----------
+  ui.showVictory=S=>{
+    const cells=[
+      [fmtTime(S.stats.playTime||0),'Spielzeit'],
+      [fmt(S.stats.sold||0),'Ware verkauft'],
+      [fmt(S.stats.earned||0),'Münzen verdient'],
+      [fmt(S.stats.rpEarned||0),'Forschung gesamt'],
+      [fmt(S.buildings.size),'Gebäude'],
+      [S.researched.size+'/'+TECHS.length,'Technologien']
+    ];
+    el('victoryStats').innerHTML=cells.map(([v,l])=>`<div class="statCell"><b>${v}</b><span>${l}</span></div>`).join('');
+    ui.victoryModal.classList.remove('hidden');
+  };
+  el('victoryContinue').addEventListener('click',()=>{
+    ui.victoryModal.classList.add('hidden');
+    if(hooks.sfx) hooks.sfx('click');
+  });
+  el('victoryNew').addEventListener('click',()=>hooks.requestNewGame());
+
+  function fmtTime(sec){
+    sec=Math.floor(sec||0);
+    const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
+    if(h>0) return h+'h '+String(m).padStart(2,'0')+'m';
+    if(m>0) return m+' min '+s+' s';
+    return s+' s';
+  }
+  ui.fmtTime=fmtTime;
+
+  // ---------- Aufträge ----------
+  ui.refreshOrders=S=>{
+    if(!S) return;
+    const oc=el('ordersCount');
+    if(oc) oc.textContent=Math.min(S.orderIdx||0,CONTRACTS.length)+'/'+CONTRACTS.length+' erfüllt';
+    const del=S.stats.delivered||{};
+    let html='';
+    CONTRACTS.forEach((c,i)=>{
+      const item=ITEMS[c.item];
+      const have=Math.min(del[c.item]||0,c.n);
+      const done=i<(S.orderIdx||0);
+      const cur=i===(S.orderIdx||0);
+      const col='#'+item.color.toString(16).padStart(6,'0');
+      html+=`<div class="orderRow ${done?'done':cur?'current':'future'}">
+        <div class="orderNum">${done?'&#10003;':i+1}</div>
+        <div class="orderMid">
+          <div class="orderItem"><i style="background:${col}"></i>${c.n}× ${item.name}${c.final?' <span class="tag new">Final</span>':''}</div>
+          <div class="orderBar"><div style="width:${(have/c.n*100).toFixed(1)}%"></div></div>
+          <div class="orderProg">${done?'Erfüllt':`Geliefert: ${fmt(have)} / ${c.n} - an Markt oder Labor liefern`}</div>
+        </div>
+        <div class="orderReward">
+          <span class="rw gold"><i></i>+${fmt(c.coins)}</span>
+          <span class="rw rp"><i></i>+${c.rp} FP</span>
+        </div>
+      </div>`;
+    });
+    ui.ordersList.innerHTML=html;
+  };
+
+  ui.refreshGoal=S=>{
+    if(!S) return;
+    const idx=S.orderIdx||0;
+    const gN=el('goalNum'),gT=el('goalTxt'),gF=el('goalBarFill'),gS=el('goalSub');
+    if(!gT) return;
+    if(idx>=CONTRACTS.length){
+      gN.textContent='✓';
+      gT.innerHTML='<b>Alle Aufträge erfüllt!</b> Die Fabrik läuft weiter.';
+      gF.style.width='100%';
+      gS.textContent=S.victory?'Kampagne abgeschlossen':'';
+      return;
+    }
+    const c=CONTRACTS[idx];
+    const item=ITEMS[c.item];
+    const have=Math.min((S.stats.delivered||{})[c.item]||0,c.n);
+    const col='#'+item.color.toString(16).padStart(6,'0');
+    gN.textContent=(idx+1)+'/'+CONTRACTS.length;
+    gT.innerHTML=`Liefere <b>${c.n}× <i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${col};margin-right:3px"></i>${item.name}</b>`;
+    gF.style.width=(have/c.n*100).toFixed(1)+'%';
+    gS.textContent=`${fmt(have)} / ${c.n} · Lohn: ${fmt(c.coins)} M + ${c.rp} FP`;
+  };
+
+  el('ordersClose').addEventListener('click',()=>ui.toggleOrders());
+  ui.goalCard.addEventListener('click',()=>ui.toggleOrders());
 
   function effectTags(t){
     const tags=[];
@@ -356,6 +548,14 @@ export function initUI(hooks){
       rows.push(`<div class="row"><span>Hält</span><b id="inspHeld">-</b></div>`);
       rows.push('<div class="hint">Nimmt von der Kachel hinter sich und legt vor sich ab.</div>');
     }
+    if(b.type==='sorter'){
+      let sel='<option value="">- kein Filter -</option>';
+      for(const k in ITEMS){
+        sel+=`<option value="${k}"${b.filter===k?' selected':''}>${ITEMS[k].name}</option>`;
+      }
+      rows.push(`<div class="row col"><span>Filter-Item</span><select id="inspFilter">${sel}</select></div>`);
+      rows.push('<div class="hint">Das gewählte Item geht nach LINKS ab, alles andere geradeaus.</div>');
+    }
     if(b.items){
       rows.push(`<div class="row"><span>Auf Band</span><b id="inspItems">0</b></div>`);
     }
@@ -364,7 +564,13 @@ export function initUI(hooks){
     el('inspClose').addEventListener('click',()=>hooks.closeInspector());
     const rs=el('inspRecipe');
     if(rs) rs.addEventListener('change',()=>hooks.setRecipe(b,rs.value));
-    el('inspRotate').addEventListener('click',()=>hooks.rotateSel());
+    const fs=el('inspFilter');
+    if(fs) fs.addEventListener('change',()=>{
+      b.filter=fs.value||null;
+      hooks.onChange();
+      if(hooks.sfx) hooks.sfx('click');
+    });
+    el('inspRotate').addEventListener('click',()=>hooks.rotateSelected());
     el('inspDel').addEventListener('click',()=>hooks.deleteSelected());
     inspRefs={
       prog:el('inspProg'),
@@ -506,9 +712,23 @@ export function initUI(hooks){
     ui.tut.classList.toggle('hidden',all);
   };
 
+  // Warenwert-Tabelle im Hilfe-Dialog (aus config generiert, bleibt konsistent)
+  function buildItemTable(){
+    const host=el('helpItems');
+    if(!host) return;
+    const rows=Object.entries(ITEMS)
+      .sort((a,b)=>a[1].value-b[1].value)
+      .map(([k,it])=>{
+        const col='#'+it.color.toString(16).padStart(6,'0');
+        return `<div><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${col};margin-right:6px;vertical-align:-1px"></i><b>${it.name}</b> - ${it.value} M / ${it.sci} FP</div>`;
+      });
+    host.innerHTML=rows.join('');
+  }
+
   initTopbar();
   buildMenu();
   buildTut();
+  buildItemTable();
 
   el('techClose').addEventListener('click',()=>ui.toggleTech());
   el('helpClose').addEventListener('click',()=>ui.toggleHelp());
@@ -516,7 +736,7 @@ export function initUI(hooks){
     ui.tutDismiss();
     hooks.dismissTutorial();
   });
-  el('helpNew').addEventListener('click',()=>hooks.newGame());
+  el('helpNew').addEventListener('click',()=>hooks.requestNewGame());
 
   return ui;
 }
