@@ -1,5 +1,5 @@
 /**
- * BUILDERMENT 3D - USER INTERFACE & MODAL CONTROLLER
+ * FORGEFRONT 3D - USER INTERFACE & MODAL CONTROLLER
  */
 
 class UIManager {
@@ -69,6 +69,10 @@ class UIManager {
             const enabled = window.soundEngine.toggle();
             document.getElementById('btn-audio').innerText = enabled ? '🔊' : '🔇';
             this.showToast(enabled ? "🔊 Sound aktiviert" : "🔇 Sound stummgeschaltet");
+        });
+
+        document.getElementById('btn-pause').addEventListener('click', () => {
+            if (window.gameApp) window.gameApp.togglePause();
         });
 
         document.getElementById('btn-settings').addEventListener('click', () => {
@@ -142,7 +146,10 @@ class UIManager {
             else if (e.key === 'k' || e.key === 'K') { this.openModal('codex-modal'); this.renderCodex(); }
             else if (e.key === 'm' || e.key === 'M') document.getElementById('btn-audio').click();
             else if (e.key === 'c' || e.key === 'C') this.engine.toggleIsometric();
-            else if (e.key === 'Escape') this.closeAllModals();
+            else if (e.key === 'Escape') {
+                if (this.activeModal) this.closeAllModals();
+                else if (window.gameApp) window.gameApp.togglePause();
+            }
             else if (e.key === ' ') { e.preventDefault(); this.engine.resetCameraToVault(); }
         });
     }
@@ -212,10 +219,49 @@ class UIManager {
         // Update Inspector if open
         if (this.sim.selectedBuilding) this.updateInspectorLive();
         this.updateObjective();
+        this.renderContracts();
         if (this.sim.victoryAchieved && !this.victoryShown) {
             this.victoryShown = true;
-            this.showToast('🏆 Kampagne abgeschlossen: Der erste Earth Token wurde ausgeliefert!');
+            if (window.gameApp) window.gameApp.onVictory();
         }
+    }
+
+    /** Contracts mini-panel: signature-cached rebuild, so it is cheap per HUD tick. */
+    renderContracts() {
+        const mgr = window.gameApp && window.gameApp.contracts;
+        const panel = document.getElementById('contracts-panel');
+        if (!panel) return;
+        if (!mgr || !mgr.unlockedOnce) {
+            if (this._contractSig !== 'hidden') {
+                this._contractSig = 'hidden';
+                panel.classList.remove('visible');
+            }
+            return;
+        }
+        const list = document.getElementById('contracts-list');
+        const sig = mgr.contracts.map(c =>
+            `${c.id}:${Math.round(mgr.progressOf(c) * 40)}`).join('|') || 'empty';
+        if (sig === this._contractSig) return;
+        this._contractSig = sig;
+        panel.classList.add('visible');
+        document.getElementById('contracts-count').innerText =
+            `${mgr.contracts.length}/${mgr.maxActive} · ✅ ${mgr.completedCount || 0}`;
+        list.innerHTML = '';
+        if (mgr.contracts.length === 0) {
+            list.innerHTML = '<div class="contract-row"><div class="c-top"><span>Keine Aufträge — neue kommen automatisch.</span></div></div>';
+            return;
+        }
+        mgr.contracts.forEach(c => {
+            const p = mgr.progressOf(c);
+            const delivered = Math.min(c.qty, Math.max(0, ((this.sim.deliveredCounts || {})[c.item] || 0) - c.base));
+            const row = document.createElement('div');
+            row.className = 'contract-row' + (p >= 1 ? ' done' : '');
+            const name = window.itemLabel ? window.itemLabel(c.item) : c.item;
+            row.innerHTML = `
+                <div class="c-top"><span>${Math.floor(delivered)}/${c.qty}× ${name}</span><span class="c-reward">+🪙 ${c.reward}</span></div>
+                <div class="c-bar"><i style="width:${Math.min(100, p * 100)}%"></i></div>`;
+            list.appendChild(row);
+        });
     }
 
     refreshToolLocks() {
@@ -265,8 +311,9 @@ class UIManager {
             manufacturer: '🔮', earth_teleporter: '🌐', gem_tree: '💎', splitter: '🔀', belt: '➡️', underground: '🚇'
         };
 
+        const machineName = window.machineLabel ? window.machineLabel(building.type) : building.type;
         document.getElementById('inspect-icon').innerText = icons[building.type] || '🏭';
-        document.getElementById('inspect-title').innerText = `${building.type.toUpperCase()} (Tier ${building.level})`;
+        document.getElementById('inspect-title').innerText = `${machineName} (Tier ${building.level})`;
         document.getElementById('inspect-coords').innerText = `Position: (${building.gx}, ${building.gz}) | Richtung: ${DIRS[building.dir].name}`;
 
         // Logistics pieces have no recipes or upgrades — hide those sections
@@ -287,8 +334,9 @@ class UIManager {
                 btn.type = 'button';
                 btn.disabled = !unlocked;
                 btn.className = `recipe-opt-btn ${building.activeRecipe && building.activeRecipe.id === rec.id ? 'selected' : ''}`;
-                const inputsStr = rec.inputs.map(i => `${i.amount}x ${i.item}`).join(' + ');
-                btn.innerHTML = `<span>${unlocked ? '' : '🔒 '}${inputsStr} ➔ <strong>${rec.output}</strong></span> <span>⏱️ ${rec.time}s</span>`;
+                const inputsStr = rec.inputs.map(i => `${i.amount}x ${window.itemLabel ? window.itemLabel(i.item) : i.item}`).join(' + ');
+                const outName = window.itemLabel ? window.itemLabel(rec.output) : rec.output;
+                btn.innerHTML = `<span>${unlocked ? '' : '🔒 '}${inputsStr} ➔ <strong>${outName}</strong></span> <span>⏱️ ${rec.time}s</span>`;
                 btn.addEventListener('click', () => {
                     if (!unlocked) return;
                     building.activeRecipe = rec;
@@ -312,11 +360,12 @@ class UIManager {
 
         // Active Recipe text
         if (b.activeRecipe) {
-            const inputsStr = b.activeRecipe.inputs.map(i => `${i.amount}x ${i.item}`).join(' + ');
+            const L = window.itemLabel || (n => n);
+            const inputsStr = b.activeRecipe.inputs.map(i => `${i.amount}x ${L(i.item)}`).join(' + ');
             document.getElementById('inspect-recipe-flow').innerHTML = `
                 <span class="rec-in">${inputsStr}</span>
                 <span class="rec-arrow">➔</span>
-                <span class="rec-out">${b.activeRecipe.output}</span>
+                <span class="rec-out">${L(b.activeRecipe.output)}</span>
             `;
             document.getElementById('inspect-rate-text').innerText = `${(60 / b.activeRecipe.time * b.speedMultiplier).toFixed(1)} / Min`;
         } else if (b.type === 'extractor' || b.type === 'gem_tree') {
@@ -415,19 +464,22 @@ class UIManager {
     renderCodex(query = '') {
         const list = document.getElementById('codex-list');
         const normalizedQuery = query.trim().toLowerCase();
+        const L = window.itemLabel || (n => n);
+        const ML = window.machineLabel || (n => n);
         const recipesByOutput = new Map((window.GAME_RECIPES || []).map(recipe => [recipe.output_id, recipe]));
         const icons = ['🪨','🔩','⚙️','🧲','🔋','🔬','💠','📦'];
         const filtered = (window.GAME_ITEMS || []).filter(item => {
             const recipe = recipesByOutput.get(item.id);
-            return !normalizedQuery || `${item.name} ${item.produced_in} ${recipe?.machine || ''}`.toLowerCase().includes(normalizedQuery);
+            const de = L(item.name);
+            return !normalizedQuery || `${item.name} ${de} ${item.produced_in} ${ML(recipe?.machine || '')}`.toLowerCase().includes(normalizedQuery);
         });
         list.innerHTML = '';
         filtered.forEach((item, index) => {
             const recipe = recipesByOutput.get(item.id);
-            const inputs = recipe ? recipe.inputs.map(input => `${input.amount}× ${ITEM_NAME_BY_ID[input.item] || input.item}`).join(' + ') : 'Natürliches Vorkommen';
+            const inputs = recipe ? recipe.inputs.map(input => `${input.amount}× ${L(ITEM_NAME_BY_ID[input.item] || input.item)}`).join(' + ') : 'Natürliches Vorkommen';
             const card = document.createElement('article');
             card.className = 'codex-card';
-            card.innerHTML = `<span class="codex-icon">${icons[index % icons.length]}</span><div><h4>${item.name}</h4><p>${inputs} → ${recipe?.machine || 'Extraktor'} · ${recipe ? `${recipe.rate_per_min}/Min` : `${item.base_output_per_min}/Min`}</p></div><span class="codex-value">🪙 ${item.gold_value}</span>`;
+            card.innerHTML = `<span class="codex-icon">${icons[index % icons.length]}</span><div><h4>${L(item.name)}</h4><p>${inputs} → ${ML(recipe?.machine) || 'Bohrer'} · ${recipe ? `${recipe.rate_per_min}/Min` : `${item.base_output_per_min}/Min`}</p></div><span class="codex-value">🪙 ${item.gold_value}</span>`;
             list.appendChild(card);
         });
         document.getElementById('codex-count').innerText = `${filtered.length} / ${(window.GAME_ITEMS || []).length} Einträge`;
@@ -453,10 +505,11 @@ class UIManager {
         if (entries.length === 0) {
             list.innerHTML = `<div class="res-breakdown-row"><span>Noch keine Produktion — baue Bohrer & Maschinen.</span><strong>—</strong></div>`;
         } else {
+            const L = window.itemLabel || (n => n);
             entries.forEach(([name, count]) => {
                 const delivered = (this.sim.deliveredCounts || {})[name] || 0;
                 const value = (ITEM_DATA[name] || {}).gold || 1;
-                rows.push(`<div class="res-breakdown-row"><span>${name}</span><strong>${count}× produziert · ${delivered}× geliefert · 🪙${value}</strong></div>`);
+                rows.push(`<div class="res-breakdown-row"><span>${L(name)}</span><strong>${count}× produziert · ${delivered}× geliefert · 🪙${value}</strong></div>`);
             });
             rows.push(`<div class="res-breakdown-row"><span>Gold-Generierung</span><strong>🪙 ${this.sim.goldPerMin} / Min</strong></div>`);
             list.innerHTML = rows.join('');

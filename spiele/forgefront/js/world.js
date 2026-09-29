@@ -1,5 +1,5 @@
 /**
- * BUILDERMENT 3D - WORLD & ENVIRONMENT GENERATOR
+ * FORGEFRONT 3D - WORLD & ENVIRONMENT GENERATOR
  */
 
 /** Deterministic PRNG (mulberry32): deposit layout must be identical every session,
@@ -32,6 +32,15 @@ class WorldGenerator {
     }
 
     createCentralGoldCitadel() {
+        // Prefer the Blender-built citadel (vault.glb); procedural fallback below.
+        if (window.modelLib) {
+            const glb = window.modelLib.instantiate('vault');
+            if (glb) {
+                glb.position.set(0, 0, 0);
+                this.scene.add(glb);
+                return;
+            }
+        }
         const vaultGroup = new THREE.Group();
 
         // 1. Octagonal Citadel Stone Foundation
@@ -137,7 +146,7 @@ class WorldGenerator {
 
                 const depositMesh = cluster.isForest
                     ? this.createTreeMesh()
-                    : this.createOreBoulderMesh(cluster.color, cluster.glow, cluster.isCrystal);
+                    : this.createOreDepositMesh(cluster);
 
                 depositMesh.position.set(gx * this.cellSize, 0, gz * this.cellSize);
                 this.scene.add(depositMesh);
@@ -149,6 +158,36 @@ class WorldGenerator {
                 });
             }
         });
+    }
+
+    /** Ore deposit: Blender-built boulder tinted per resource, procedural fallback. */
+    createOreDepositMesh(cluster) {
+        if (window.modelLib) {
+            const glb = window.modelLib.instantiate('ore_boulder');
+            if (glb) {
+                const base = new THREE.Color(cluster.color);
+                const glow = new THREE.Color(cluster.glow);
+                glb.traverse(o => {
+                    if (!o.isMesh) return;
+                    o.material = o.material.clone(); // tint is per-deposit, not shared
+                    if (o.name.toLowerCase().includes('shard')) {
+                        o.material.color.copy(base);
+                        o.material.emissive = base.clone();
+                        o.material.emissiveIntensity = cluster.isCrystal ? 0.75 : 0.45;
+                        o.material.metalness = 0.85;
+                        o.material.roughness = 0.12;
+                    } else {
+                        o.material.color.copy(glow).lerp(base, 0.35);
+                        o.material.emissive = glow.clone();
+                        o.material.emissiveIntensity = 0.35;
+                    }
+                });
+                glb.userData.sharedAssets = false; // materials were cloned — safe to dispose
+                glb.rotation.y = this.rand() * Math.PI * 2;
+                return glb;
+            }
+        }
+        return this.createOreBoulderMesh(cluster.color, cluster.glow, cluster.isCrystal);
     }
 
     createOreBoulderMesh(colorHex, glowHex, isCrystal = false) {

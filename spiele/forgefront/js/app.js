@@ -1,6 +1,9 @@
 /**
- * BUILDERMENT 3D - MASTER APPLICATION & GAME LOOP
+ * FORGEFRONT 3D - MASTER APPLICATION & GAME LOOP
  */
+
+const SAVE_KEY = 'forgefront_save_v2';
+const LEGACY_SAVE_KEY = 'builderment3d_save';
 
 class BuildermentApp {
     constructor() {
@@ -9,6 +12,11 @@ class BuildermentApp {
         this.world = null;
         this.tech = null;
         this.ui = null;
+        this.contracts = null;
+
+        this.state = 'boot';   // boot -> menu -> playing (paused flag extra)
+        this.paused = false;
+        this.playSeconds = 0;  // active playtime for stats & victory screen
 
         this.isDragging = false;
         this.lastDragGx = null;
@@ -20,6 +28,7 @@ class BuildermentApp {
         this.ghostKey = null;      // "tool:dir" the ghost was built for
         this.ghostMat = null;
         this.keysDown = new Set(); // WASD / arrows / QE camera keys
+        this._autosaveTimer = null;
     }
 
     toolCost(tool) {
@@ -51,36 +60,198 @@ class BuildermentApp {
         return { ok: true };
     }
 
-    start() {
+    async start() {
         // 1. Initialize 3D Engine
         this.engine.init();
+        this.bindMenuControls();
 
-        // 2. Initialize World & Simulation
+        // 2. Load Blender-built GLB models (falls back to procedural silently)
+        const statusEl = document.getElementById('menu-load-status');
+        const modelNames = ['extractor', 'furnace', 'workshop', 'forge', 'machine_shop',
+            'industrial_factory', 'manufacturer', 'earth_teleporter', 'gem_tree', 'vault', 'ore_boulder'];
+        let loadedCount = 0;
+        if (window.modelLib) {
+            loadedCount = await window.modelLib.load(modelNames);
+        }
+        if (statusEl) {
+            statusEl.classList.add('ok');
+            statusEl.textContent = loadedCount > 0
+                ? `✔ ${loadedCount}/${modelNames.length} Fabrikmodule geladen`
+                : '✔ Prozedurale Fabrikmodule aktiv';
+        }
+
+        // 3. Initialize World & Simulation
         this.world = new window.WorldGenerator(this.engine.scene, 2);
         this.world.generateWorld();
 
         this.sim = new window.FactorySimulation(this.engine.scene, 2);
         this.sim.deposits = this.world.deposits;
         this.tech = new window.TechTreeManager(this.sim);
+        this.contracts = new window.ContractManager(this.sim, this.tech);
         this.ui = new window.UIManager(this.sim, this.tech, this.world, this.engine);
         window.uiManager = this.ui;
 
-        // 3. Create 3D Hover Cursor
+        // 4. Create 3D Hover Cursor & bind input
         this.createHoverCursor();
-
-        // 4. Bind Mouse & Touch Interaction
         this.bindInteractions();
 
         // 5. Load Saved Game (if exists)
-        this.loadGame();
+        const hadSave = this.loadGame();
         this.ui.refreshToolLocks();
+        this.refreshMenuButtons(hadSave);
 
         // 6. Start Game Loop & Auto-Save
         this.animate();
-        setInterval(() => this.saveGame(), 10000);
-        window.addEventListener('beforeunload', () => this.saveGame());
+        this._autosaveTimer = setInterval(() => {
+            if (this.state === 'playing' && !this.paused) this.saveGame();
+        }, 10000);
+        window.addEventListener('beforeunload', () => {
+            if (this.state === 'playing') this.saveGame();
+        });
 
-        this.ui.showToast("🚀 Willkommen bei Forgefront! Verbinde einen Bohrer mit dem Orbitaltresor.");
+        // Skip straight into the game when "Neue Fabrik" requested a reload-free fresh start
+        if (sessionStorage.getItem('ff_autostart') === '1') {
+            sessionStorage.removeItem('ff_autostart');
+            this.enterGame();
+            return;
+        }
+        this.state = 'menu';
+        document.body.classList.add('in-menu');
+    }
+
+    // ----------------------------------------------------
+    // MENU / PAUSE / VICTORY FLOW
+    // ----------------------------------------------------
+
+    refreshMenuButtons(hadSave) {
+        const cont = document.getElementById('menu-continue');
+        const fresh = document.getElementById('menu-new');
+        if (cont) cont.style.display = hadSave ? '' : 'none';
+        if (fresh) fresh.innerHTML = hadSave ? '🏭 Neue Fabrik (Spielstand löschen)' : '🏭 Fabrik aufbauen';
+    }
+
+    enterGame() {
+        if (!this.sim || !this.ui) return; // still loading
+        this.state = 'playing';
+        this.paused = false;
+        document.body.classList.remove('in-menu');
+        document.body.classList.remove('is-paused');
+        document.getElementById('menu-overlay').classList.remove('active');
+        document.getElementById('pause-overlay').classList.remove('active');
+        document.getElementById('help-overlay').classList.remove('active');
+        this.engine.resetCameraToVault();
+        this.ui.showToast(this.sim.totalDelivered > 0
+            ? '🏭 Willkommen zurück — die Fabrik läuft weiter.'
+            : '🚀 Verbinde einen Bohrer über Förderbänder mit dem goldenen Tresor!');
+    }
+
+    togglePause() {
+        if (this.state !== 'playing') return;
+        this.setPaused(!this.paused);
+    }
+
+    setPaused(on) {
+        if (this.state !== 'playing') return;
+        this.paused = on;
+        document.body.classList.toggle('is-paused', on);
+        document.getElementById('pause-overlay').classList.toggle('active', on);
+        if (on) this.saveGame();
+    }
+
+    onVictory() {
+        // gold fountain burst at the vault
+        for (let i = 0; i < 30; i++) {
+            setTimeout(() => this.engine.spawnSparks(0, 4 + Math.random() * 2, 0), i * 40);
+        }
+        if (window.soundEngine) window.soundEngine.playVictory();
+        const fmtTime = s => {
+            const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+            return h > 0 ? `${h}h ${m}m` : `${m}:${String(Math.floor(s % 60)).padStart(2, '0')} min`;
+        };
+        document.getElementById('v-time').innerText = fmtTime(this.playSeconds);
+        document.getElementById('v-delivered').innerText = this.sim.totalDelivered.toLocaleString('de-DE');
+        document.getElementById('v-gold').innerText = `🪙 ${Math.floor(this.sim.totalGoldEarned).toLocaleString('de-DE')}`;
+        document.getElementById('v-buildings').innerText = Math.max(0, this.sim.buildings.size - 9);
+        document.getElementById('victory-overlay').classList.add('active');
+        this.saveGame();
+    }
+
+    /** Wipes the save and rebuilds an empty factory — no reload needed. */
+    resetFactory() {
+        localStorage.removeItem(SAVE_KEY);
+        localStorage.removeItem(LEGACY_SAVE_KEY);
+
+        // remove all non-vault buildings (also reveals covered deposits)
+        const keys = [...this.sim.buildings.keys()];
+        keys.forEach(k => {
+            const b = this.sim.buildings.get(k);
+            if (b && !b.isVault) this.sim.removeBuilding(b.gx, b.gz);
+        });
+        // drop in-flight items back to the pool
+        this.sim.itemsOnBelts.forEach(it => this.sim._recycleItemMesh(it.mesh));
+        this.sim.itemsOnBelts.length = 0;
+
+        // economy & progress reset
+        this.sim.gold = 250;
+        this.sim.totalDelivered = 0;
+        this.sim.totalGoldEarned = 0;
+        this.sim.goldPerMin = 0;
+        this.sim.itemsPerMin = 0;
+        this.sim.goldRecentHistory = [];
+        this.sim.itemsRecentHistory = [];
+        this.sim.producedCounts = {};
+        this.sim.deliveredCounts = {};
+        this.sim.victoryAchieved = false;
+        this.sim.conveyorTier = 1;
+        this.sim.extractorTier = 1;
+        this.playSeconds = 0;
+
+        this.tech.techs = []; // setter rebuilds defaults
+        this.contracts = new window.ContractManager(this.sim, this.tech);
+        if (this.ui) {
+            this.ui.victoryShown = false;
+            this.ui._contractSig = null;
+            this.ui.refreshToolLocks();
+            this.ui.closeAllModals();
+        }
+        document.getElementById('victory-overlay').classList.remove('active');
+        this.engine.resetCameraToVault();
+    }
+
+    bindMenuControls() {
+        const $ = id => document.getElementById(id);
+        $('menu-continue').addEventListener('click', () => { if (window.soundEngine) window.soundEngine.playClick(); this.enterGame(); });
+        $('menu-new').addEventListener('click', () => {
+            if (window.soundEngine) window.soundEngine.playClick();
+            if (!this.sim || !this.ui) return;
+            const hasSave = Boolean(localStorage.getItem(SAVE_KEY) || localStorage.getItem(LEGACY_SAVE_KEY));
+            const hasFactory = this.sim.buildings.size > 9;
+            if (hasSave && hasFactory) {
+                if (!confirm('Vorhandene Fabrik wird zurückgesetzt. Wirklich neu starten?')) return;
+                this.resetFactory();
+                this.saveGame();
+            }
+            this.enterGame();
+        });
+        $('menu-help').addEventListener('click', () => { if (window.soundEngine) window.soundEngine.playClick(); $('help-overlay').classList.add('active'); });
+        $('help-close').addEventListener('click', () => { if (window.soundEngine) window.soundEngine.playClick(); $('help-overlay').classList.remove('active'); });
+
+        $('pause-resume').addEventListener('click', () => { if (window.soundEngine) window.soundEngine.playClick(); this.setPaused(false); });
+        $('pause-save').addEventListener('click', () => { this.saveGame(); if (window.soundEngine) window.soundEngine.playClick(); this.ui.showToast('💾 Spielstand gespeichert.'); });
+        $('pause-settings').addEventListener('click', () => { this.setPaused(false); this.ui.openModal('settings-modal'); });
+        $('pause-menu').addEventListener('click', () => { this.saveGame(); location.reload(); });
+
+        $('victory-continue').addEventListener('click', () => {
+            document.getElementById('victory-overlay').classList.remove('active');
+            if (window.soundEngine) window.soundEngine.playClick();
+        });
+        $('victory-new').addEventListener('click', () => {
+            if (confirm('Kampagne abgeschlossen! Neue Fabrik auf leerem Feld starten?')) {
+                this.resetFactory();
+                document.getElementById('victory-overlay').classList.remove('active');
+            }
+        });
+        $('btn-back-to-menu').addEventListener('click', () => { this.saveGame(); location.reload(); });
     }
 
     createHoverCursor() {
@@ -355,6 +526,7 @@ class BuildermentApp {
         });
 
         const saveData = {
+            version: 2,
             gold: this.sim.gold,
             totalDelivered: this.sim.totalDelivered,
             totalGoldEarned: this.sim.totalGoldEarned,
@@ -363,15 +535,19 @@ class BuildermentApp {
             producedCounts: this.sim.producedCounts,
             deliveredCounts: this.sim.deliveredCounts,
             victoryAchieved: this.sim.victoryAchieved,
+            contracts: this.contracts ? this.contracts.serialize() : null,
+            playSeconds: Math.floor(this.playSeconds),
+            savedAt: Date.now(),
             buildings: buildingsData
         };
 
-        localStorage.setItem('builderment3d_save', JSON.stringify(saveData));
+        localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
     }
 
     loadGame() {
-        const raw = localStorage.getItem('builderment3d_save');
-        if (!raw) return;
+        // Current key first, legacy key as fallback (then migrated on next save)
+        const raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem(LEGACY_SAVE_KEY);
+        if (!raw) return false;
 
         try {
             const data = JSON.parse(raw);
@@ -383,6 +559,12 @@ class BuildermentApp {
             this.sim.producedCounts = data.producedCounts || {};
             this.sim.deliveredCounts = data.deliveredCounts || {};
             this.sim.victoryAchieved = data.victoryAchieved === true;
+            this.playSeconds = data.playSeconds || 0;
+            if (this.contracts && typeof this.contracts.restore === 'function') {
+                this.contracts.restore(data.contracts);
+            }
+            // A completed campaign must not re-trigger the victory ceremony after reload
+            if (this.ui) this.ui.victoryShown = this.sim.victoryAchieved;
 
             if (data.buildings && Array.isArray(data.buildings)) {
                 data.buildings.forEach(b => {
@@ -399,8 +581,10 @@ class BuildermentApp {
                     }
                 });
             }
+            return true;
         } catch (e) {
             console.error("Error loading save:", e);
+            return false;
         }
     }
 
@@ -423,8 +607,15 @@ class BuildermentApp {
         // 1. Update World Animations (Tree swaying, Citadel coins)
         this.world.animate(elapsed);
 
-        // 2. Update Factory Simulation (Extractors, Belts, Crafting)
-        this.sim.update(delta, this.world.deposits, this.engine);
+        // 2. Update Factory Simulation (Extractors, Belts, Crafting) — frozen while paused;
+        //    keeps running behind the main menu as a live backdrop (not saved there).
+        if (!this.paused && this.state !== 'boot') {
+            this.sim.update(delta, this.world.deposits, this.engine);
+            if (this.state === 'playing') {
+                this.playSeconds += delta;
+                if (this.contracts) this.contracts.update(delta);
+            }
+        }
 
         // 3. Update Particles
         this.engine.updateParticles(delta);

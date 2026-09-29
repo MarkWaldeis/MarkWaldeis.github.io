@@ -1,5 +1,6 @@
 /**
  * FORGEFRONT 3D - THREE.JS RENDER PIPELINE & CAMERA ENGINE
+ * Industrial night-sky frontier: stars, deep fog, cinematic lighting.
  */
 
 class RenderEngine {
@@ -159,6 +160,47 @@ class RenderEngine {
         grid.material.transparent = true;
         grid.material.opacity = 0.35;
         this.scene.add(grid);
+
+        this.setupStarfield();
+    }
+
+    /** Distant starfield dome — points ignore fog so they stay crisp. */
+    setupStarfield() {
+        const STAR_COUNT = 650;
+        const positions = new Float32Array(STAR_COUNT * 3);
+        const colors = new Float32Array(STAR_COUNT * 3);
+        const c = new THREE.Color();
+        for (let i = 0; i < STAR_COUNT; i++) {
+            // upper hemisphere shell, radius 300-460
+            const r = 300 + Math.random() * 160;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI * 0.48; // only above horizon
+            positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+            positions[i * 3 + 1] = r * Math.cos(phi) + 4;
+            positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+            // mostly cool white, some cyan/gold sparkles
+            const pick = Math.random();
+            if (pick < 0.72) c.setHSL(0.58, 0.15, 0.7 + Math.random() * 0.3);
+            else if (pick < 0.9) c.setHSL(0.52, 0.6, 0.62);
+            else c.setHSL(0.12, 0.75, 0.6);
+            colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const mat = new THREE.PointsMaterial({
+            size: 1.6,
+            vertexColors: true,
+            sizeAttenuation: true,
+            transparent: true,
+            opacity: 0.9,
+            depthWrite: false
+        });
+        mat.fog = false; // stars shine through the fog
+        const stars = new THREE.Points(geo, mat);
+        stars.name = 'starfield';
+        this.scene.add(stars);
+        this._stars = stars;
     }
 
     // ----------------------------------------------------
@@ -256,6 +298,8 @@ class RenderEngine {
                 this.particles.splice(i, 1);
             }
         }
+        // ultra-slow celestial drift
+        if (this._stars) this._stars.rotation.y += delta * 0.004;
     }
 
     // ----------------------------------------------------

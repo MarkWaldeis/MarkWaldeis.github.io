@@ -1,5 +1,5 @@
 /**
- * BUILDERMENT 3D - FACTORY SIMULATION & LOGISTICS ENGINE
+ * FORGEFRONT 3D - FACTORY SIMULATION & LOGISTICS ENGINE
  */
 
 // angle rotates a model's local +X axis onto the travel direction (dx, dz).
@@ -91,15 +91,40 @@ function makeDirArrowGeometry(radius = 0.3, length = 0.62, segments = 4) {
     return geo;
 }
 
-/** Dispose a building mesh's unique geometries & materials. */
+const _outArrowGeo = makeDirArrowGeometry(0.2, 0.45, 4);
+const _outArrowMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+/** Small yellow chevron on the +X cell edge showing where items exit. */
+function attachOutputArrow(group, y = 0.2) {
+    const arrow = new THREE.Mesh(_outArrowGeo, _outArrowMat);
+    arrow.position.set(0.78, y, 0);
+    arrow.userData.shared = true;
+    group.add(arrow);
+    return arrow;
+}
+
+/**
+ * Dispose a building mesh's unique geometries & materials.
+ * GLB clones share geometry/material across instances — those are flagged
+ * userData.sharedAssets and must NOT be disposed or every clone breaks.
+ */
 function disposeObject3D(root) {
+    if (root.userData && root.userData.sharedAssets) return;
     root.traverse(obj => {
+        if (obj.userData && obj.userData.shared) return; // shared cached asset (e.g. out-arrow)
         if (obj.geometry) obj.geometry.dispose();
         if (obj.material) {
             if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
             else obj.material.dispose();
         }
     });
+}
+
+/** Try to instantiate a Blender-built GLB template; returns null when unavailable. */
+function tryGLB(name) {
+    if (!window.modelLib || typeof window.modelLib.instantiate !== 'function') return null;
+    const clone = window.modelLib.instantiate(name);
+    if (clone) clone.userData.sharedAssets = true;
+    return clone;
 }
 
 class FactorySimulation {
@@ -119,6 +144,7 @@ class FactorySimulation {
         // Game World Entities
         this.buildings = new Map(); // key: "gx,gz" -> building object
         this.itemsOnBelts = [];     // Array of items moving on belts
+        this.itemPool = [];         // recycled item meshes (shared geo/mat caches)
         this.selectedBuilding = null;
         this.deposits = null;       // set by app (world.deposits) for hiding ore under extractors
 
@@ -343,23 +369,42 @@ class FactorySimulation {
     }
 
     createGemTreeMesh(gx, gz, dir) {
-            const group = new THREE.Group();
-            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.38, 1.5, 7), new THREE.MeshStandardMaterial({ color: 0x312e81, metalness: 0.6 }));
-            trunk.position.y = 0.75;
-            group.add(trunk);
-            for (let i = 0; i < 7; i++) {
-                const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.42, 0), new THREE.MeshStandardMaterial({ color: i % 2 ? 0x67e8f9 : 0xc084fc, emissive: 0x4c1d95, emissiveIntensity: 0.7, metalness: 0.75, roughness: 0.12 }));
-                crystal.position.set(Math.cos(i * 2.4) * 0.75, 1.35 + (i % 3) * 0.42, Math.sin(i * 2.4) * 0.75);
-                crystal.name = i === 0 ? 'drillBit' : '';
-                group.add(crystal);
-            }
-            group.position.set(gx * this.cellSize, 0, gz * this.cellSize);
-            group.rotation.y = DIRS[dir].angle;
-            this.scene.add(group);
-            return group;
+        const glb = tryGLB('gem_tree');
+        if (glb) {
+            glb.position.set(gx * this.cellSize, 0, gz * this.cellSize);
+            glb.rotation.y = DIRS[dir].angle;
+            this.scene.add(glb);
+            return glb;
         }
+        const group = new THREE.Group();
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.38, 1.5, 7), new THREE.MeshStandardMaterial({ color: 0x312e81, metalness: 0.6 }));
+        trunk.position.y = 0.75;
+        group.add(trunk);
+        for (let i = 0; i < 7; i++) {
+            const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.42, 0), new THREE.MeshStandardMaterial({ color: i % 2 ? 0x67e8f9 : 0xc084fc, emissive: 0x4c1d95, emissiveIntensity: 0.7, metalness: 0.75, roughness: 0.12 }));
+            crystal.position.set(Math.cos(i * 2.4) * 0.75, 1.35 + (i % 3) * 0.42, Math.sin(i * 2.4) * 0.75);
+            crystal.name = i === 0 ? 'drillBit' : '';
+            group.add(crystal);
+        }
+        group.position.set(gx * this.cellSize, 0, gz * this.cellSize);
+        group.rotation.y = DIRS[dir].angle;
+        this.scene.add(group);
+        return group;
+    }
 
-        createExtractorMesh(gx, gz, dir) {
+    createExtractorMesh(gx, gz, dir) {
+        const glb = tryGLB('extractor');
+        if (glb) {
+            glb.position.set(gx * this.cellSize, 0, gz * this.cellSize);
+            glb.rotation.y = DIRS[dir].angle;
+            attachOutputArrow(glb, 0.2);
+            this.scene.add(glb);
+            return glb;
+        }
+        return this.createExtractorMeshFallback(gx, gz, dir);
+    }
+
+    createExtractorMeshFallback(gx, gz, dir) {
         const group = new THREE.Group();
 
         // Base Scaffolding
@@ -395,12 +440,7 @@ class FactorySimulation {
         group.add(beacon);
 
         // Output direction marker on the cell edge
-        const outArrow = new THREE.Mesh(
-            makeDirArrowGeometry(0.22, 0.5, 4),
-            new THREE.MeshBasicMaterial({ color: 0xfde047 })
-        );
-        outArrow.position.set(0.72, 0.35, 0);
-        group.add(outArrow);
+        attachOutputArrow(group, 0.35);
 
         group.position.set(gx * this.cellSize, 0, gz * this.cellSize);
         group.rotation.y = DIRS[dir].angle;
@@ -409,6 +449,18 @@ class FactorySimulation {
     }
 
     createMachineMesh(type, gx, gz, dir) {
+        const glb = tryGLB(type);
+        if (glb) {
+            glb.position.set(gx * this.cellSize, 0, gz * this.cellSize);
+            glb.rotation.y = DIRS[dir].angle;
+            attachOutputArrow(glb, 0.2);
+            this.scene.add(glb);
+            return glb;
+        }
+        return this.createMachineMeshFallback(type, gx, gz, dir);
+    }
+
+    createMachineMeshFallback(type, gx, gz, dir) {
         const group = new THREE.Group();
 
         const colors = {
@@ -487,12 +539,7 @@ class FactorySimulation {
         }
 
         // Output direction marker on the cell edge
-        const outArrow = new THREE.Mesh(
-            makeDirArrowGeometry(0.2, 0.45, 4),
-            new THREE.MeshBasicMaterial({ color: 0xfde047 })
-        );
-        outArrow.position.set(0.78, 0.2, 0);
-        group.add(outArrow);
+        attachOutputArrow(group, 0.2);
 
         group.position.set(gx * this.cellSize, 0, gz * this.cellSize);
         group.rotation.y = DIRS[dir].angle;
@@ -501,15 +548,32 @@ class FactorySimulation {
     }
 
     // ----------------------------------------------------
-    // SPAWN ITEM ON BELT
+    // SPAWN ITEM ON BELT (meshes pooled — no churn on busy lines)
     // ----------------------------------------------------
+
+    _takeItemMesh() {
+        const mesh = this.itemPool.pop();
+        if (mesh) {
+            mesh.visible = true;
+            this.scene.add(mesh);
+            return mesh;
+        }
+        return new THREE.Mesh();
+    }
+
+    _recycleItemMesh(mesh) {
+        this.scene.remove(mesh);
+        mesh.visible = false;
+        if (this.itemPool.length < 400) this.itemPool.push(mesh);
+    }
 
     spawnItem(itemName, startX, startZ, targetGx, targetGz) {
         const itemInfo = ITEM_DATA[itemName] || { color: 0xf8fafc, geo: 'box', metal: 0.3, rough: 0.4 };
-        const geo = getItemGeometry(itemInfo.geo);
-        const mesh = new THREE.Mesh(geo, getItemMaterial(itemName, itemInfo));
+        const mesh = this._takeItemMesh();
+        mesh.geometry = getItemGeometry(itemInfo.geo);
+        mesh.material = getItemMaterial(itemName, itemInfo);
         mesh.position.set(startX, 0.42, startZ);
-        this.scene.add(mesh);
+        mesh.rotation.set(0, 0, 0);
 
         const speed = 1.6 * this.conveyorTier;
 
@@ -629,7 +693,7 @@ class FactorySimulation {
                 const targetBuilding = this.buildings.get(targetKey);
 
                 if (!targetBuilding) {
-                    this.scene.remove(item.mesh);
+                    this._recycleItemMesh(item.mesh);
                     this.itemsOnBelts.splice(i, 1);
                     continue;
                 }
@@ -642,7 +706,7 @@ class FactorySimulation {
 
                 // A. Reached Central Gold Vault
                 if (targetBuilding.isVault) {
-                    this.scene.remove(item.mesh);
+                    this._recycleItemMesh(item.mesh);
                     this.itemsOnBelts.splice(i, 1);
 
                     const value = ITEM_DATA[item.name] ? ITEM_DATA[item.name].gold : 1;
@@ -663,7 +727,7 @@ class FactorySimulation {
                 // B. Reached Crafting Machine
                 if (['furnace', 'workshop', 'forge', 'machine_shop', 'industrial_factory', 'manufacturer', 'earth_teleporter'].includes(targetBuilding.type)) {
                     targetBuilding.inventory[item.name] = (targetBuilding.inventory[item.name] || 0) + 1;
-                    this.scene.remove(item.mesh);
+                    this._recycleItemMesh(item.mesh);
                     this.itemsOnBelts.splice(i, 1);
                     continue;
                 }
@@ -708,7 +772,7 @@ class FactorySimulation {
                     item.undergroundHop = true;
                     item.mesh.visible = false;
                 } else {
-                    this.scene.remove(item.mesh);
+                    this._recycleItemMesh(item.mesh);
                     this.itemsOnBelts.splice(i, 1);
                 }
             }

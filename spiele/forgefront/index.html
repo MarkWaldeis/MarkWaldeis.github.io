@@ -65,6 +65,7 @@
                 <button class="icon-btn" id="btn-codex" title="Produktions-Kodex öffnen (K)">📚</button>
                 <button class="icon-btn" id="btn-stats" title="Produktionsstatistik öffnen (P)">📊</button>
                 <button class="icon-btn" id="btn-audio" title="Sound umschalten (M)">🔊</button>
+                <button class="icon-btn" id="btn-pause" title="Pause (Esc)">⏸️</button>
                 <button class="icon-btn" id="btn-settings" title="Einstellungen & Speichern">⚙️</button>
             </div>
         </header>
@@ -75,9 +76,15 @@
         <!-- QUICK BUILD CONTROLS INFO (Top-Left under topbar) -->
         <div id="campaign-objective" class="glass-card">
             <span class="objective-kicker">AKTUELLE MISSION</span>
-            <strong id="objective-title">Versorge den Orbitalhafen</strong>
-            <span id="objective-detail">Baue einen Extraktor und liefere 10 Rohstoffe.</span>
+            <strong id="objective-title">Erste Lieferlinie</strong>
+            <span id="objective-detail">Liefere 10 Rohstoffe an den zentralen Tresor.</span>
             <div class="objective-progress"><i id="objective-progress-fill"></i></div>
+        </div>
+
+        <!-- ACTIVE DELIVERY CONTRACTS (under mission card) -->
+        <div id="contracts-panel" class="glass-card">
+            <div class="contracts-head"><span>📋 AUFTRÄGE</span><span id="contracts-count"></span></div>
+            <div id="contracts-list"></div>
         </div>
 
         <div id="quick-controls-hint" class="glass-card">
@@ -358,7 +365,81 @@
 
                 <div class="settings-actions">
                     <button class="action-btn" id="btn-export-save">💾 Spielstand als JSON exportieren</button>
+                    <button class="action-btn" id="btn-back-to-menu">🏠 Zurück zum Hauptmenü</button>
                     <button class="action-btn danger" id="btn-reset-game">⚠️ Fabrik zurücksetzen (Neustart)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- OVERLAY: HAUPTMENÜ -->
+        <div id="menu-overlay" class="screen-overlay active">
+            <div class="menu-backdrop"></div>
+            <div class="menu-card glass-panel">
+                <img class="menu-logo" src="assets/img/logo-emblem.png" alt="Forgefront Emblem">
+                <h1 class="menu-title">FORGEFRONT <span>3D</span></h1>
+                <p class="menu-subtitle">Fabrik-Automation auf dem Frontier-Planeten.<br>Baue Förderlinien, erforsche Technologien und versorge die Heimat.</p>
+                <div class="menu-buttons">
+                    <button class="menu-btn primary" id="menu-continue">▶️ Fortsetzen</button>
+                    <button class="menu-btn" id="menu-new">🏭 Neue Fabrik</button>
+                    <button class="menu-btn ghost" id="menu-help">❓ Anleitung</button>
+                </div>
+                <div class="menu-load-status" id="menu-load-status">Lade Fabrikmodule …</div>
+                <div class="menu-foot">
+                    <span>🖱️ Links: Bauen · Rechts: Drehen · WASD: Kamera</span>
+                    <span class="menu-version">Automation Campaign · v2.0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- OVERLAY: ANLEITUNG -->
+        <div id="help-overlay" class="screen-overlay">
+            <div class="menu-backdrop"></div>
+            <div class="menu-card glass-panel help-card">
+                <h2 class="menu-help-title">❓ Anleitung</h2>
+                <div class="help-grid">
+                    <div class="help-row"><strong>⛏️ 1.</strong> Setze einen <b>Bohrer</b> auf ein farbiges Vorkommen (Erz, Holz, Stein).</div>
+                    <div class="help-row"><strong>➡️ 2.</strong> Ziehe mit gedrückter linker Maustaste <b>Förderbänder</b> zum goldenen Tresor in der Mitte.</div>
+                    <div class="help-row"><strong>🪙 3.</strong> Alles, was im Tresor ankommt, wird zu Gold. Gold finanziert Gebäude & Forschung.</div>
+                    <div class="help-row"><strong>🔥 4.</strong> <b>Maschinen</b> veredeln Rohstoffe zu wertvolleren Gütern — wähle das Rezept per Klick aufs Gebäude.</div>
+                    <div class="help-row"><strong>🔬 5.</strong> Der <b>Forschungsbaum</b> (T) schaltet neue Maschinen, schnellere Bänder und bessere Bohrer frei.</div>
+                    <div class="help-row"><strong>📋 6.</strong> Erfülle <b>Aufträge</b> für Bonus-Gold und arbeite auf die <b>Earth-Token-Synthese</b> hin — der Sieg der Kampagne.</div>
+                    <div class="help-row"><strong>⌨️</strong> Kürzel: [R] Drehen · [X] Abriss · [C] Iso · [Leertaste] Zentrum · [Esc] Pause</div>
+                </div>
+                <button class="menu-btn primary" id="help-close">Verstanden</button>
+            </div>
+        </div>
+
+        <!-- OVERLAY: PAUSE -->
+        <div id="pause-overlay" class="screen-overlay">
+            <div class="menu-backdrop"></div>
+            <div class="menu-card glass-panel pause-card">
+                <h2 class="menu-help-title">⏸️ Pause</h2>
+                <p class="menu-subtitle small">Die Fabrik ruht. Der Spielstand wurde gesichert.</p>
+                <div class="menu-buttons">
+                    <button class="menu-btn primary" id="pause-resume">▶️ Weiterspielen</button>
+                    <button class="menu-btn" id="pause-save">💾 Speichern</button>
+                    <button class="menu-btn" id="pause-settings">⚙️ Einstellungen</button>
+                    <button class="menu-btn ghost" id="pause-menu">🏠 Hauptmenü</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- OVERLAY: SIEG -->
+        <div id="victory-overlay" class="screen-overlay">
+            <div class="menu-backdrop victory"></div>
+            <div class="menu-card glass-panel victory-card">
+                <img class="menu-logo" src="assets/img/logo-emblem.png" alt="Forgefront Emblem">
+                <h2 class="victory-title">🏆 Kampagne abgeschlossen!</h2>
+                <p class="menu-subtitle">Der erste <b>Earth Token</b> wurde zum Heimatplaneten teleportiert.<br>Deine Fabrik ist ein Erfolg — baue sie zur Megafabrik aus!</p>
+                <div class="victory-stats">
+                    <div class="vstat"><span>Spielzeit</span><strong id="v-time">–</strong></div>
+                    <div class="vstat"><span>Gelieferte Güter</span><strong id="v-delivered">–</strong></div>
+                    <div class="vstat"><span>Gold verdient</span><strong id="v-gold">–</strong></div>
+                    <div class="vstat"><span>Gebäude</span><strong id="v-buildings">–</strong></div>
+                </div>
+                <div class="menu-buttons">
+                    <button class="menu-btn primary" id="victory-continue">🚀 Weiterbauen</button>
+                    <button class="menu-btn" id="victory-new">🏭 Neue Fabrik</button>
                 </div>
             </div>
         </div>
@@ -368,9 +449,11 @@
     <script src="js/content.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/engine.js"></script>
+    <script src="js/assets.js"></script>
     <script src="js/world.js"></script>
     <script src="js/simulation.js"></script>
     <script src="js/tech_tree.js"></script>
+    <script src="js/contracts.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/app.js"></script>
 </body>
