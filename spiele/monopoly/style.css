@@ -340,3 +340,13 @@ input, select {
 }
 
 #btn-leave-game { align-self: center; }
+
+/* Besitzrechtkarte */
+.deed-card { width: 240px; background: var(--paper); border: 2px solid #222; box-shadow: 0 14px 40px rgba(0,0,0,.6); font-family: Georgia, serif; }
+.deed-head { padding: 10px 8px 8px; text-align: center; color: #fff; border-bottom: 2px solid #222; }
+.deed-name { font-weight: 700; text-transform: uppercase; font-size: 14px; letter-spacing: .5px; }
+.deed-sub { font-size: 8px; letter-spacing: 2px; opacity: .85; margin-top: 2px; }
+.deed-body { padding: 10px 12px; font-size: 12px; color: #222; }
+.deed-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #999; }
+.deed-row.center { justify-content: center; }
+.deed-row.muted { font-size: 10px; color: #555; border-bottom: none; padding-top: 6px; }

@@ -249,11 +249,35 @@ function spaceDesc(i) {
 function onSpaceClick(i) {
   const s = E.S[i];
   if (!s) return;
+  if (s.t === 'prop' || s.t === 'bahn' || s.t === 'werk') { showDeed(i); return; }
+  toast(spaceDesc(i), 3500);
+}
+
+function showDeed(i) {
+  const s = E.S[i];
   const p = cur && cur.props && cur.props[i];
-  let info = spaceDesc(i);
-  if (p && p.owner) info += `\nBesitzer: ${esc((cur.players[p.owner] || {}).name)}`;
-  if (p && p.mortgaged) info += '\n(Hypothek)';
-  toast(info, 4500);
+  const col = s.group ? E.GROUP_CSS[s.group] : (s.t === 'bahn' ? '#333' : '#4a90c2');
+  $('deed-card').querySelector('.deed-head').style.background = col;
+  $('deed-card').querySelector('.deed-name').textContent = s.name;
+  let body = '';
+  if (s.t === 'prop') {
+    body += `<div class="deed-row center"><b>MIETE ${s.rent[0]} €</b></div>`;
+    body += ['1 Haus', '2 Häuser', '3 Häuser', '4 Häuser'].map((l, k) =>
+      `<div class="deed-row"><span>Mit ${l}</span><span>${s.rent[k + 1]} €</span></div>`).join('');
+    body += `<div class="deed-row"><span>Mit HOTEL</span><span>${s.rent[5]} €</span></div>`;
+    body += `<div class="deed-row muted">Häuser kosten je ${s.house} €</div>`;
+  } else if (s.t === 'bahn') {
+    body += '<div class="deed-row center"><b>MIETE</b></div>';
+    body += [['1 Bahnhof', 25], ['2 Bahnhöfe', 50], ['3 Bahnhöfe', 100], ['4 Bahnhöfe', 200]]
+      .map(([l, v]) => `<div class="deed-row"><span>${l}</span><span>${v} €</span></div>`).join('');
+  } else {
+    body += `<div class="deed-row muted">Hat ein Spieler beide Versorgungswerke, zahlt der Mieter das 10-fache der gewürfelten Augenzahl; besitzt er nur eins, das 4-fache.</div>`;
+  }
+  body += `<div class="deed-row muted">Hypothekswert ${Math.floor(s.price / 2)} €</div>`;
+  if (p && p.owner) body += `<div class="deed-row"><span>Besitzer</span><b>${esc((cur.players[p.owner] || {}).name)}${p.mortgaged ? ' (Hypothek)' : ''}</b></div>`;
+  else body += `<div class="deed-row"><span>Preis</span><b>${s.price} €</b></div>`;
+  $('deed-card').querySelector('.deed-body').innerHTML = body;
+  show('modal-deed');
 }
 
 // ---------- Render ----------
@@ -573,6 +597,7 @@ function init() {
   $('btn-accept-trade').onclick = () => { sendAction({ t: 'accept' }); hide('modal-trade-in'); };
   $('btn-decline-trade').onclick = () => { sendAction({ t: 'decline' }); hide('modal-trade-in'); };
   $('modal-card').addEventListener('click', () => hide('modal-card'));
+  $('modal-deed').addEventListener('click', () => hide('modal-deed'));
   $('btn-again').onclick = async () => {
     hide('modal-end');
     if (isHost && cur) {
