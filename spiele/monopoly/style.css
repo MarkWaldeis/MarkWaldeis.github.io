@@ -209,7 +209,8 @@ input, select {
 .edge-left .s-icon { transform: rotate(90deg); }
 .edge-bottom .s-name, .edge-bottom .s-price, .edge-bottom .s-icon { transform: rotate(180deg); }
 .edge-right .s-name, .edge-left .s-name { align-self: stretch; }
-.edge-right, .edge-left { font-size: clamp(5px, .9vw, 8px); }
+.edge-right, .edge-left { font-size: clamp(4px, .8vw, 7.5px); }
+.edge-right .s-name, .edge-left .s-name { hyphens: none; }
 .edge-bottom, .edge-top { font-size: clamp(5px, .95vw, 9px); }
 .s-icon.qmark { color: #e8890c; font-weight: 900; font-size: clamp(12px, 2.6vw, 26px); }
 .t-community .s-icon { color: #1a6fc9; }
