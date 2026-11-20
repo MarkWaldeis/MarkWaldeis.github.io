@@ -433,6 +433,12 @@ function renderGame() {
       }).join('')
     : '';
 
+  // Feld des aktiven Spielers aufleuchten
+  if (cur.status === 'playing' && !cur.out[active] && $('space-' + cur.pos[active])) {
+    $('space-' + cur.pos[active]).classList.add('flash');
+    setTimeout(() => { const e = $('space-' + cur.pos[active]); e && e.classList.remove('flash'); }, 1200);
+  }
+
   // Auktions-Modal
   if (cur.auction) renderAuction();
   else hide('modal-auction');
@@ -627,6 +633,10 @@ function init() {
   $('btn-decline-trade').onclick = () => { sendAction({ t: 'decline' }); hide('modal-trade-in'); };
   $('modal-card').addEventListener('click', () => hide('modal-card'));
   $('modal-deed').addEventListener('click', () => hide('modal-deed'));
+  $('my-props').addEventListener('click', e => {
+    const row = e.target.closest('.my-prop');
+    if (row) showDeed(+row.dataset.i);
+  });
   $('btn-again').onclick = async () => {
     hide('modal-end');
     if (isHost && cur) {
