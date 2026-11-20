@@ -49,6 +49,18 @@
       "href": "spiele/uno/index.html"
     },
     {
+      "id": "monopoly",
+      "title": "Monopoly — Multiplayer",
+      "kind": "Spiel",
+      "featured": true,
+      "tags": [
+        "Brettspiel",
+        "Multiplayer"
+      ],
+      "blurb": "Monopoly online mit Freunden: Raum-Code teilen und losspielen. Deutsche Original-Felder, Häuser, Auktionen und Handel.",
+      "href": "spiele/monopoly/index.html"
+    },
+    {
       "id": "jet-v2",
       "title": "Fight Jet 3D v2",
       "kind": "Spiel",
