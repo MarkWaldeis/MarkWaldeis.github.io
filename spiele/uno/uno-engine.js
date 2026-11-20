@@ -86,6 +86,7 @@ const UnoEngine = (() => {
   }
 
   function applyAction(state, pid, action) {
+    state.uno = state.uno || {}; // RTDB löscht leere Objekte
     if (action.t === 'uno') {
       if (!state.players[pid]) return { ok: false, err: 'Kein Spieler' };
       state.uno[pid] = true;

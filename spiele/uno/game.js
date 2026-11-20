@@ -136,10 +136,13 @@ function subscribeRoom() {
 async function drainActions() {
   if (draining) return;
   draining = true;
+  try {
   while (actionQueue.length) {
     const snap = actionQueue.shift();
     const a = snap.val();
-    const r = E.applyAction(cur, a.pid, a);
+    let r;
+    try { r = E.applyAction(cur, a.pid, a); }
+    catch (e) { r = { ok: false, err: 'Fehler: ' + e.message }; }
     if (r.ok) {
       try { await fb.set(roomRef, cur); } catch (e) { /* Verbindung weg — nächster Sync korrigiert */ }
     } else {
@@ -147,7 +150,7 @@ async function drainActions() {
     }
     await fb.remove(snap.ref).catch(() => {});
   }
-  draining = false;
+  } finally { draining = false; }
 }
 
 function sendAction(a) {

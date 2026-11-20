@@ -1,12 +1,10 @@
 // Firebase-Konfiguration für den Online-Modus.
-// Aus der Firebase-Konsole kopieren (Projekteinstellungen → Deine Apps → Web-App).
-// Solange hier null steht, läuft das Spiel im lokalen Modus (an einem Gerät).
-window.UNO_FIREBASE_CONFIG = null;
-// Beispiel:
-// window.UNO_FIREBASE_CONFIG = {
-//   apiKey: "AIza...",
-//   authDomain: "dein-projekt.firebaseapp.com",
-//   databaseURL: "https://dein-projekt-default-rtdb.europe-west1.firebasedatabase.app",
-//   projectId: "dein-projekt",
-//   appId: "1:...:web:..."
-// };
+window.UNO_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDPwQGf3sBVHIiWNfNBdmF0Sr6vS9EH-Vw",
+  authDomain: "uno-spiel-6781b.firebaseapp.com",
+  databaseURL: "https://uno-spiel-6781b-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "uno-spiel-6781b",
+  storageBucket: "uno-spiel-6781b.firebasestorage.app",
+  messagingSenderId: "1083177827157",
+  appId: "1:1083177827157:web:cfb06c039b411521bd4ddc"
+};
