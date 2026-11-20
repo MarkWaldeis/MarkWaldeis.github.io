@@ -207,6 +207,20 @@ function iconFor(i) {
   return TYPE_ICON[E.S[i].t] || '';
 }
 
+const prevPos = {};
+const walkAnim = {};
+function stepToken(pid, target) {
+  setTimeout(() => {
+    if (walkAnim[pid] === undefined) return;
+    walkAnim[pid] = (walkAnim[pid] + 1) % 40;
+    const tok = document.querySelector(`[data-tok="${pid}"]`);
+    const cell = $('space-' + walkAnim[pid]);
+    if (tok && cell) cell.querySelector('.s-tokens').appendChild(tok);
+    if (walkAnim[pid] !== target) stepToken(pid, target);
+    else delete walkAnim[pid];
+  }, 170);
+}
+
 let boardBuilt = false;
 function buildBoard() {
   const board = $('board');
@@ -296,12 +310,16 @@ function renderGame() {
   renderDie('die1', cur.dice && cur.dice[0]);
   renderDie('die2', cur.dice && cur.dice[1]);
 
-  // Felder aktualisieren
+  // Felder aktualisieren (Figuren laufen animiert zum Zielfeld)
   const tokenMap = {};
   cur.order.forEach(pid => {
     if (cur.out[pid]) return;
-    const pos = cur.pos[pid];
-    (tokenMap[pos] = tokenMap[pos] || []).push(pid);
+    const target = cur.pos[pid];
+    const dist = ((target - prevPos[pid]) + 40) % 40;
+    const shown = walkAnim[pid] !== undefined ? walkAnim[pid]
+      : (prevPos[pid] !== undefined && prevPos[pid] !== target && dist > 0 && dist <= 12
+          ? prevPos[pid] : target);
+    (tokenMap[shown] = tokenMap[shown] || []).push(pid);
   });
   for (let i = 0; i < 40; i++) {
     const el = $('space-' + i);
@@ -320,10 +338,21 @@ function renderGame() {
     const tk = el.querySelector('.s-tokens');
     tk.innerHTML = (tokenMap[i] || []).map(pid => {
       const oi = cur.order.indexOf(pid);
-      return `<span class="token" title="${esc((cur.players[pid] || {}).name)}" style="text-shadow:0 0 3px ${TOKEN_COLORS[oi % TOKEN_COLORS.length]}">${TOKENS[oi % TOKENS.length]}</span>`;
+      return `<span class="token" data-tok="${pid}" title="${esc((cur.players[pid] || {}).name)}" style="text-shadow:0 0 3px ${TOKEN_COLORS[oi % TOKEN_COLORS.length]}">${TOKENS[oi % TOKENS.length]}</span>`;
     }).join('');
     el.classList.toggle('mortgaged', !!(p && p.mortgaged));
   }
+  // Lauf-Animation starten
+  cur.order.forEach(pid => {
+    if (cur.out[pid]) return;
+    const target = cur.pos[pid];
+    const dist = prevPos[pid] !== undefined ? ((target - prevPos[pid]) + 40) % 40 : 0;
+    if (prevPos[pid] !== undefined && prevPos[pid] !== target && dist > 0 && dist <= 12 && walkAnim[pid] === undefined) {
+      walkAnim[pid] = prevPos[pid];
+      stepToken(pid, target);
+    }
+    prevPos[pid] = target;
+  });
 
   // Mitte
   const st = $('center-status');
