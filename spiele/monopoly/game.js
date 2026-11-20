@@ -199,7 +199,13 @@ function gridPos(i) {
   if (i <= 29) return { row: 1, col: i - 19, edge: 'bottom' };
   return { row: i - 29, col: 11, edge: 'left' };
 }
-const TYPE_ICON = { bahn: '🚂', werk: '💡', tax: '💰', chance: '❓', community: '📦', free: '🅿️', go: '➡️', goToJail: '👮', jail: '🔒' };
+const TYPE_ICON = { bahn: '🚂', tax: '💰', chance: '?', community: '📦', free: '🅿️', go: '⬅', gotojail: '👮', jail: '🔒' };
+function iconFor(i) {
+  if (i === 12) return '⚡';   // Elektrizitätswerk
+  if (i === 27) return '🚰';   // Wasserwerk
+  if (i === 38) return '⭐';   // Zusatzsteuer
+  return TYPE_ICON[E.S[i].t] || '';
+}
 
 let boardBuilt = false;
 function buildBoard() {
@@ -208,7 +214,7 @@ function buildBoard() {
   E.S.forEach((s, i) => {
     const g = gridPos(i);
     const d = document.createElement('div');
-    d.className = 'space t-' + s.t + ' edge-' + g.edge + (i % 10 === 0 ? ' corner' : '');
+    d.className = 'space t-' + s.t + ' edge-' + g.edge + (i % 10 === 0 ? ' corner c-' + s.t : '');
     d.id = 'space-' + i;
     d.style.gridRow = g.row;
     d.style.gridColumn = g.col;
@@ -217,7 +223,8 @@ function buildBoard() {
     inner += `<div class="s-name">${esc(s.name)}</div>`;
     if (s.price) inner += `<div class="s-price">${s.price} €</div>`;
     if (s.t === 'tax') inner += `<div class="s-price">${s.amount} €</div>`;
-    if (TYPE_ICON[s.t]) inner += `<div class="s-icon">${TYPE_ICON[s.t]}</div>`;
+    const icon = iconFor(i);
+    if (icon) inner += `<div class="s-icon${icon === '?' ? ' qmark' : ''}">${icon}</div>`;
     inner += '<div class="s-houses"></div><div class="s-owner"></div><div class="s-tokens"></div>';
     d.innerHTML = inner;
     d.addEventListener('click', () => onSpaceClick(i));
