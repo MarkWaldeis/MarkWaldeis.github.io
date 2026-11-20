@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>UNO — Multiplayer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Start -->
+    <section id="screen-start" class="screen">
+      <h1 class="logo">UNO</h1>
+      <p class="subtitle">Multiplayer über Firebase</p>
+      <div class="card-panel">
+        <label class="field-label" for="input-name">Dein Name</label>
+        <input id="input-name" maxlength="16" placeholder="z. B. Mark" autocomplete="off">
+        <div id="online-block">
+          <button id="btn-create" class="btn primary">Neues Spiel erstellen</button>
+          <div class="or-line"><span>oder</span></div>
+          <label class="field-label" for="input-code">Raum-Code</label>
+          <div class="join-row">
+            <input id="input-code" maxlength="4" placeholder="ABCD" autocomplete="off" autocapitalize="characters">
+            <button id="btn-join" class="btn">Beitreten</button>
+          </div>
+        </div>
+        <div id="local-block" class="hidden">
+          <p class="hint">Kein Firebase eingerichtet — lokal auf diesem Gerät spielen:</p>
+          <div id="local-names"></div>
+          <div class="join-row">
+            <button id="btn-add-local" class="btn small">+ Spieler</button>
+            <button id="btn-local" class="btn primary">Lokal spielen</button>
+          </div>
+        </div>
+        <p id="start-error" class="error"></p>
+      </div>
+    </section>
+
+    <!-- Lobby -->
+    <section id="screen-lobby" class="screen hidden">
+      <h2>Lobby</h2>
+      <div class="code-box">
+        <span>Raum-Code:</span>
+        <strong id="lobby-code">----</strong>
+        <button id="btn-copy" class="btn small">Link kopieren</button>
+      </div>
+      <ul id="lobby-players" class="player-list"></ul>
+      <button id="btn-start-game" class="btn primary hidden">Spiel starten</button>
+      <p id="lobby-wait" class="hint">Warte auf den Host …</p>
+      <button id="btn-leave-lobby" class="btn ghost">Verlassen</button>
+    </section>
+
+    <!-- Spiel -->
+    <section id="screen-game" class="screen hidden">
+      <div id="opponents"></div>
+      <div id="table">
+        <div id="pile" class="card back" title="Ziehen"><span class="deck-count"></span></div>
+        <div id="discard-wrap"></div>
+        <div id="color-dot"></div>
+      </div>
+      <div id="log-line"></div>
+      <div id="turn-banner"></div>
+      <div id="hand-bar">
+        <button id="btn-uno" class="btn uno hidden">UNO!</button>
+        <div id="hand"></div>
+      </div>
+      <div class="game-actions">
+        <button id="btn-pass" class="btn small hidden">Weiter</button>
+        <button id="btn-leave-game" class="btn small ghost">Verlassen</button>
+      </div>
+    </section>
+
+    <!-- Overlay: Farbe wählen -->
+    <div id="modal-color" class="overlay hidden">
+      <div class="overlay-box">
+        <p>Farbe wählen</p>
+        <div class="color-pick">
+          <button data-color="r" style="background:#e0453a"></button>
+          <button data-color="y" style="background:#f5b91f"></button>
+          <button data-color="g" style="background:#3da642"></button>
+          <button data-color="b" style="background:#2277dd"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overlay: Weitergabe (Lokalmodus) -->
+    <div id="modal-curtain" class="overlay hidden">
+      <div class="overlay-box">
+        <p>Weitergeben an</p>
+        <h2 id="curtain-name">—</h2>
+        <button id="btn-reveal" class="btn primary">Bereit</button>
+      </div>
+    </div>
+
+    <!-- Overlay: Spielende -->
+    <div id="modal-end" class="overlay hidden">
+      <div class="overlay-box">
+        <h2 id="end-title">🏆</h2>
+        <button id="btn-again" class="btn primary">Nochmal spielen</button>
+        <button id="btn-end-leave" class="btn ghost">Zur Lobby / Start</button>
+      </div>
+    </div>
+
+    <div id="toast" class="hidden"></div>
+  </div>
+
+  <script src="firebase-config.js"></script>
+  <script src="uno-engine.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
