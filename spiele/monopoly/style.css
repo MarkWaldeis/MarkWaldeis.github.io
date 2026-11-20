@@ -350,3 +350,17 @@ input, select {
 .deed-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted #999; }
 .deed-row.center { justify-content: center; }
 .deed-row.muted { font-size: 10px; color: #555; border-bottom: none; padding-top: 6px; }
+
+/* Mobile: Tap-Feedback + kein Zoom-Delay */
+.space { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button, input, select { touch-action: manipulation; }
+
+/* Gefängnis-Ecke: orange Zelle mit Gitter */
+.c-jail {
+  background:
+    linear-gradient(to top, var(--felt) 0%, var(--felt) 34%, transparent 34%),
+    repeating-linear-gradient(to right, #b3541e 0 4px, #e07b39 4px 10px);
+}
+.c-jail { display: flex; flex-direction: column; justify-content: flex-end; }
+.c-jail .s-icon { margin-top: auto; font-size: clamp(12px, 2.4vw, 26px); }
+.c-jail .s-name { background: var(--felt); }
