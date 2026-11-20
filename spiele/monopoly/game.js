@@ -209,6 +209,7 @@ function iconFor(i) {
 
 const prevPos = {};
 const walkAnim = {};
+let prevDice = '';
 function stepToken(pid, target) {
   setTimeout(() => {
     if (walkAnim[pid] === undefined) return;
@@ -309,6 +310,13 @@ function renderGame() {
   // Würfel
   renderDie('die1', cur.dice && cur.dice[0]);
   renderDie('die2', cur.dice && cur.dice[1]);
+  const diceKey = (cur.dice || []).join('-');
+  if (cur.dice && diceKey !== prevDice) {
+    $('dice-row').classList.remove('shake');
+    void $('dice-row').offsetWidth;
+    $('dice-row').classList.add('shake');
+  }
+  prevDice = diceKey;
 
   // Felder aktualisieren (Figuren laufen animiert zum Zielfeld)
   const tokenMap = {};
