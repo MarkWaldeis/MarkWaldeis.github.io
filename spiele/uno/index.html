@@ -2,9 +2,10 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>UNO — Multiplayer</title>
-  <link rel="stylesheet" href="style.css?v=2">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d2221">
+  <title>UNO · Der digitale Kartentisch</title>
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div id="app">
@@ -12,29 +13,35 @@
     <!-- Start -->
     <section id="screen-start" class="screen">
       <a class="library-back" href="../" target="_top">← Spielebibliothek</a>
-      <h1 class="logo">UNO</h1>
-      <p class="subtitle">Multiplayer über Firebase</p>
+      <div class="hero-cards" aria-hidden="true">
+        <span class="hero-card hero-left">7</span><span class="hero-card hero-right">+2</span>
+        <span class="hero-card hero-front"><span>UNO</span></span>
+      </div>
+      <h1 class="visually-hidden">UNO</h1>
+      <p class="eyebrow">Der digitale Kartentisch</p>
+      <p class="subtitle">Gleiche Farbe, gleiche Zahl – und los!</p>
       <div class="card-panel">
         <label class="field-label" for="input-name">Dein Name</label>
         <input id="input-name" maxlength="16" placeholder="z. B. Mark" autocomplete="off">
+        <button id="btn-bots" class="btn primary">Gegen Bots spielen <span aria-hidden="true">→</span></button>
         <div id="online-block">
-          <button id="btn-create" class="btn primary">Neues Spiel erstellen</button>
-          <div class="or-line"><span>oder</span></div>
+          <div class="or-line"><span>Mit Freunden online</span></div>
+          <button id="btn-create" class="btn secondary">Raum erstellen</button>
           <label class="field-label" for="input-code">Raum-Code</label>
           <div class="join-row">
             <input id="input-code" maxlength="4" placeholder="ABCD" autocomplete="off" autocapitalize="characters">
             <button id="btn-join" class="btn">Beitreten</button>
           </div>
         </div>
-        <div id="local-block" class="hidden">
-          <p class="hint">Kein Firebase eingerichtet — lokal auf diesem Gerät spielen:</p>
+        <details id="local-block">
+          <summary>Am selben Gerät spielen</summary>
           <div id="local-names"></div>
           <div class="join-row">
             <button id="btn-add-local" class="btn small">+ Spieler</button>
             <button id="btn-local" class="btn primary">Lokal spielen</button>
           </div>
-        </div>
-        <p id="start-error" class="error"></p>
+        </details>
+        <p id="start-error" class="error" role="alert"></p>
       </div>
     </section>
 
@@ -54,39 +61,64 @@
 
     <!-- Spiel -->
     <section id="screen-game" class="screen hidden">
-      <div id="opponents"></div>
-      <div id="table">
-        <div id="pile" class="card back" title="Ziehen"><span class="deck-count"></span></div>
-        <div id="discard-wrap"></div>
-        <div id="color-dot"></div>
-      </div>
-      <div id="log-line"></div>
-      <div id="turn-banner"></div>
-      <div id="hand-bar">
-        <button id="btn-uno" class="btn uno hidden">UNO!</button>
-        <div id="hand"></div>
-      </div>
-      <div class="game-actions">
-        <button id="btn-pass" class="btn small hidden">Weiter</button>
+      <header class="game-header">
+        <span class="wordmark" aria-label="UNO">UNO<span>.</span></span>
+        <span id="mode-label" class="eyebrow"></span>
         <button id="btn-leave-game" class="btn small ghost">Verlassen</button>
+      </header>
+      <div class="arena">
+        <div id="opponents" aria-label="Mitspieler"></div>
+        <div class="table" aria-label="Spieltisch">
+          <div id="table-meta" class="table-meta">
+            <span id="current-color" class="table-chip"><span id="color-dot"></span><span id="color-name"></span></span>
+            <span id="direction" class="table-chip table-direction"></span>
+          </div>
+          <div class="piles">
+            <div class="pile-group">
+              <div class="draw-stack">
+                <span class="card back deck-layer layer-bottom"></span>
+                <span class="card back deck-layer layer-middle"></span>
+                <button id="pile" class="card back" type="button" aria-label="Karte ziehen"><span class="back-mark" aria-hidden="true">UNO</span></button>
+              </div>
+              <span id="draw-caption" class="pile-caption">Ziehen</span>
+            </div>
+            <div class="pile-group">
+              <div id="discard-wrap" class="discard-stack"></div>
+              <span class="pile-caption">Ablage</span>
+            </div>
+          </div>
+          <div id="move-effect" class="move-effect hidden" aria-hidden="true"></div>
+          <p id="log-line" aria-live="polite"></p>
+        </div>
       </div>
+      <footer id="hand-bar">
+        <div class="turn-row">
+          <div id="turn-banner" class="turn-banner" role="status"></div>
+          <button id="btn-pass" class="btn small hidden">Passen</button>
+        </div>
+        <div class="hand-meta"><span id="hand-label">Deine Hand</span><span id="hand-count"></span></div>
+        <div id="hand" aria-label="Deine Karten"></div>
+      </footer>
     </section>
 
     <!-- Overlay: Farbe wählen -->
-    <div id="modal-color" class="overlay hidden">
+    <div id="modal-color" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="color-title">
       <div class="overlay-box">
-        <p>Farbe wählen</p>
+        <p class="eyebrow">Joker</p>
+        <h2 id="color-title">Farbe wählen</h2>
+        <p class="hint">Mit dieser Farbe geht es weiter.</p>
         <div class="color-pick">
-          <button data-color="r" style="background:#e0453a"></button>
-          <button data-color="y" style="background:#f5b91f"></button>
-          <button data-color="g" style="background:#3da642"></button>
-          <button data-color="b" style="background:#2277dd"></button>
+          <button data-color="r">Rot</button>
+          <button data-color="y">Gelb</button>
+          <button data-color="g">Grün</button>
+          <button data-color="b">Blau</button>
         </div>
+        <button id="btn-color-cancel" class="btn ghost">Abbrechen</button>
       </div>
     </div>
 
     <!-- Overlay: Weitergabe (Lokalmodus) -->
-    <div id="modal-curtain" class="overlay hidden">
+    <div id="modal-curtain" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="curtain-name">
       <div class="overlay-box">
         <p>Weitergeben an</p>
         <h2 id="curtain-name">—</h2>
@@ -95,19 +127,20 @@
     </div>
 
     <!-- Overlay: Spielende -->
-    <div id="modal-end" class="overlay hidden">
+    <div id="modal-end" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="end-title">
       <div class="overlay-box">
-        <h2 id="end-title">🏆</h2>
+        <p class="eyebrow">Runde beendet</p>
+        <h2 id="end-title"></h2>
         <button id="btn-again" class="btn primary">Nochmal spielen</button>
         <button id="btn-end-leave" class="btn ghost">Zur Lobby / Start</button>
       </div>
     </div>
 
-    <div id="toast" class="hidden"></div>
+    <div id="toast" class="hidden" role="status"></div>
   </div>
 
   <script src="firebase-config.js"></script>
-  <script src="uno-engine.js"></script>
-  <script src="game.js"></script>
+  <script src="uno-engine.js?v=3"></script>
+  <script src="game.js?v=3"></script>
 </body>
 </html>

@@ -6,7 +6,8 @@ const show = id => $(id).classList.remove('hidden');
 const hide = id => $(id).classList.add('hidden');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-const SYMBOLS = { skip: '⊘', rev: '⇄', d2: '+2', wild: '', wild4: '+4' };
+const SYMBOLS = { skip: '⊘', rev: '⇄', d2: '+2', wild: '★', wild4: '+4' };
+const EFFECTS = { skip: 'Aussetzen', rev: 'Richtungswechsel', d2: '+2 Karten', wild: 'Farbwechsel', wild4: '+4 Karten' };
 const FB_VERSION = '10.14.1';
 
 let db = null, fb = null;
@@ -15,8 +16,12 @@ let myPid = null, myName = '';
 let roomCode = null, isHost = false, joined = false;
 let cur = null;
 let localMode = false;
+let soloMode = false;
+let botTimer, endTimer, effectTimer, actionTimer, curtainTimer;
 let curtainFor = null;
 let pendingWild = null;
+let selectedCard = null, lastMove = null, lastHand = null, lastDiscard = null, waiting = false;
+let viewedSeat = null;
 let actionQueue = [], draining = false;
 let fbEnabled = !!window.UNO_FIREBASE_CONFIG;
 
@@ -119,8 +124,6 @@ function subscribeRoom() {
     }
     if (cur.status === 'lobby') { showScreen('screen-lobby'); renderLobby(); }
     else { showScreen('screen-game'); renderGame(); }
-    if (cur.status === 'finished') renderEnd();
-    else hide('modal-end');
   });
   fb.onChildAdded(fb.child(roomRef, 'actions'), snap => {
     if (!isHost) return;
@@ -128,6 +131,8 @@ function subscribeRoom() {
     drainActions();
   });
   fb.onChildAdded(fb.child(roomRef, 'feedback/' + myPid), snap => {
+    unlockAction();
+    renderGame();
     toast(snap.val());
     fb.remove(snap.ref);
   });
@@ -154,19 +159,44 @@ async function drainActions() {
 }
 
 function sendAction(a) {
+  if (!myTurn() || cur.status !== 'playing' || waiting || curtainFor) return;
   if (localMode) {
-    const pid = cur.order[cur.turn];
-    const before = cur.turn;
-    const r = E.applyAction(cur, pid, a);
-    if (!r.ok) return toast(r.err);
-    if (cur.status === 'finished') renderEnd();
-    if (cur.status === 'playing' && cur.turn !== before) {
-      curtainFor = cur.order[cur.turn];
-      renderGame();
-    } else renderGame();
+    applyLocal(a);
     return;
   }
-  fb.push(fb.child(roomRef, 'actions'), Object.assign({ pid: myPid }, a));
+  waiting = true;
+  renderGame();
+  actionTimer = setTimeout(() => {
+    unlockAction();
+    renderGame();
+    toast('Der Raum antwortet nicht. Prüfe deine Verbindung.');
+  }, 8000);
+  fb.push(fb.child(roomRef, 'actions'), Object.assign({ pid: myPid }, a)).catch(() => {
+    if (!waiting) return;
+    unlockAction();
+    renderGame();
+    toast('Zug konnte nicht gesendet werden.');
+  });
+}
+
+function unlockAction() {
+  clearTimeout(actionTimer);
+  waiting = false;
+}
+
+function applyLocal(action) {
+  const pid = cur.order[cur.turn];
+  const r = E.applyAction(cur, pid, action);
+  if (!r.ok) return toast(r.err);
+  if (!soloMode && cur.status === 'playing' && cur.order[cur.turn] !== pid) curtainFor = cur.order[cur.turn];
+  renderGame();
+  scheduleBot();
+}
+
+function scheduleBot() {
+  clearTimeout(botTimer);
+  if (!soloMode || cur.status !== 'playing' || myTurn()) return;
+  botTimer = setTimeout(() => applyLocal(E.botAction(cur, cur.order[cur.turn])), 780);
 }
 
 // ---------- Lobby ----------
@@ -203,92 +233,207 @@ async function hostStartGame() {
 }
 
 // ---------- Spielfeld ----------
-function activePid() { return localMode ? cur.order[cur.turn] : myPid; }
-function myTurn() { return localMode || cur.order[cur.turn] === myPid; }
+function activePid() { return localMode && !soloMode ? cur.order[cur.turn] : myPid; }
+function myTurn() { return cur && cur.order[cur.turn] === activePid(); }
 
-function cardHtml(card, small) {
-  const sym = card.c === 'w' ? (card.v === 'wild' ? '<span class="wild-oval"></span>' : '+4')
-    : (SYMBOLS[card.v] || card.v);
-  const corner = card.c === 'w' ? (card.v === 'wild' ? '★' : '+4') : (SYMBOLS[card.v] || card.v);
-  return `<div class="card ${card.c}${small ? '' : ''}" title="${esc(E.label(card))}">
-    <span class="corner tl">${corner}</span>${sym}<span class="corner br">${corner}</span></div>`;
+function cardHtml(card, button = false, attrs = '') {
+  const symbol = SYMBOLS[card.v] || card.v;
+  const tag = button ? 'button' : 'span';
+  const label = esc(E.label(card));
+  return `<${tag} class="card ${card.c}" ${button ? 'type="button"' : 'role="img"'} aria-label="${label}" ${attrs}>
+    <span class="corner tl" aria-hidden="true">${symbol}</span>
+    <span class="card-oval" aria-hidden="true"><span>${symbol}</span></span>
+    <span class="corner br" aria-hidden="true">${symbol}</span></${tag}>`;
 }
 
 function renderGame() {
   if (!cur || !cur.order) return;
-  if (localMode && curtainFor) {
-    $('curtain-name').textContent = cur.players[curtainFor].name;
-    show('modal-curtain');
-  } else hide('modal-curtain');
-
   const me = activePid();
-  // Gegner-Leiste
+  const current = cur.order[cur.turn];
+  const move = cur.move;
+  const key = move ? `${cur.round}:${move.n}` : null;
+  const newMove = key !== null && key !== lastMove;
+  const animate = newMove && lastHand !== null;
+  const source = animate && move.t === 'play'
+    ? (selectedCard && move.pid === viewedSeat ? selectedCard.rect : seatRect(move.pid, viewedSeat)) : null;
+  const drawDest = animate && curtainFor && move.t === 'draw' ? seatRect(move.pid, viewedSeat) : null;
+  viewedSeat = me;
+  if (newMove) {
+    lastMove = key;
+    selectedCard = null;
+    unlockAction();
+  }
+
+  $('mode-label').textContent = soloMode ? 'Gegen Bots' : localMode ? 'Am selben Gerät' : 'Raum ' + roomCode;
   $('opponents').innerHTML = cur.order
     .filter(pid => pid !== me)
     .map(pid => {
       const p = cur.players[pid] || { name: '?' };
       const n = (cur.hands[pid] || []).length;
-      const act = cur.order[cur.turn] === pid ? ' active' : '';
+      const act = current === pid && cur.status === 'playing' ? ' active' : '';
       const off = p.connected === false && !localMode ? ' off' : '';
       const uno = n === 1 ? '<span class="uno-badge">UNO!</span>' : '';
-      const backs = Array(Math.min(n, 10)).fill('<span class="mini-back"></span>').join('');
-      return `<div class="opp${act}${off}">${uno}<span class="n">${esc(p.name)}</span><span class="cards">${backs}</span></div>`;
+      const backs = '<span class="mini-back"></span>'.repeat(Math.min(n, 5));
+      return `<div class="opp${act}${off}" aria-label="${esc(p.name)}, ${n} Karten${act ? ', am Zug' : ''}"><div class="opp-name"><span class="seat-dot"></span><strong>${esc(p.name)}</strong></div>
+        <div class="seat-cards"><span class="cards" aria-hidden="true">${backs}</span><span>${n}</span></div>${uno}</div>`;
     }).join('');
 
-  // Tischmitte
-  $('discard-wrap').innerHTML = cardHtml(cur.top);
-  document.querySelector('#pile .deck-count').textContent = cur.deck.length;
-  $('color-dot').style.background = { r: '#e0453a', y: '#f5b91f', g: '#3da642', b: '#2277dd' }[cur.currentColor] || '#fff';
+  const discard = cur.discard.slice(-3);
+  const discardKey = JSON.stringify([cur.round, discard, newMove && move.t === 'play' ? key : lastDiscard?.play]);
+  if (discardKey !== lastDiscard?.key) {
+    lastDiscard = { key: discardKey, play: newMove && move.t === 'play' ? key : lastDiscard?.play };
+    $('discard-wrap').innerHTML = discard.map((card, i) => cardHtml(card, false,
+      i === discard.length - 1 ? 'data-top' : `aria-hidden="true" data-layer="${discard.length - 1 - i}"`)).join('');
+  }
+  $('color-dot').dataset.color = cur.currentColor;
+  $('color-name').textContent = E.COLOR_NAMES[cur.currentColor];
+  $('direction').textContent = cur.dir === 1 ? '↻' : '↺';
+  $('direction').setAttribute('aria-label', cur.dir === 1 ? 'Im Uhrzeigersinn' : 'Gegen den Uhrzeigersinn');
+  $('direction').title = $('direction').getAttribute('aria-label');
   $('log-line').textContent = (cur.log && cur.log[cur.log.length - 1]) || '';
-  $('turn-banner').textContent = cur.status === 'playing'
-    ? (myTurn() ? 'Du bist dran!' : (cur.players[cur.order[cur.turn]] || {}).name + ' ist dran …')
-    : '';
-
-  // Eigene Hand
   const hand = cur.hands[me] || [];
-  const turn = myTurn() && cur.status === 'playing';
-  const w4ok = E.wild4Legal(hand, cur);
-  $('hand').innerHTML = '';
-  hand.forEach((card, i) => {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = cardHtml(card);
-    const el = wrap.firstChild;
-    let playable = turn && (!cur.drew ? E.canPlay(card, cur) : sameCard(card, cur.drew));
-    if (card.v === 'wild4' && !w4ok) playable = false;
-    el.classList.add(playable ? 'playable' : 'disabled');
-    if (cur.drew && sameCard(card, cur.drew)) el.classList.add('drew-card');
-    el.addEventListener('click', () => onCardClick(card));
-    $('hand').appendChild(el);
-  });
-
-  // Buttons
-  const canDraw = turn && !cur.drew;
-  $('pile').classList.toggle('playable', canDraw);
-  $('pile').onclick = canDraw ? () => sendAction({ t: 'draw' }) : null;
+  const turn = myTurn() && cur.status === 'playing' && !curtainFor;
+  const deckCount = (cur.deck || []).length;
   const canPass = turn && !!cur.drew;
+  $('turn-banner').classList.toggle('your-turn', turn);
+  const title = cur.status === 'finished' ? 'Runde beendet' : turn ? 'Du bist dran!' : cur.players[current].name + ' ist dran';
+  const help = turn ? (waiting ? 'Zug wird gesendet …' : canPass ? 'Neue Karte legen oder passen.' : 'Karte antippen oder vom Stapel ziehen.') : '';
+  const banner = `<strong>${esc(title)}</strong>${help ? `<span>${help}</span>` : ''}`;
+  if ($('turn-banner').innerHTML !== banner) $('turn-banner').innerHTML = banner;
+  $('draw-caption').textContent = deckCount ? `Ziehen · ${deckCount}` : cur.discard.length > 1 ? 'Stapel neu mischen' : 'Stapel leer';
+  $('pile').disabled = !turn || waiting || canPass;
+  $('pile').setAttribute('aria-label', deckCount ? `Karte ziehen, ${deckCount} im Stapel` : $('draw-caption').textContent);
+  $('pile').parentElement.dataset.depth = Math.min(deckCount, 3);
   $('btn-pass').classList.toggle('hidden', !canPass);
-  $('btn-uno').classList.toggle('hidden', !(turn || hand.length <= 2));
+  $('btn-pass').disabled = waiting;
+  $('hand-label').textContent = localMode && !soloMode ? cur.players[me].name + 's Hand' : 'Deine Hand';
+  $('hand-count').textContent = curtainFor ? '' : `${hand.length} ${hand.length === 1 ? 'Karte · UNO!' : 'Karten'}`;
+
+  const w4ok = E.wild4Legal(hand, cur);
+  const handEl = $('hand');
+  const handKey = JSON.stringify([me, hand, turn, canPass, waiting, cur.currentColor, cur.top.v, curtainFor]);
+  if (lastHand !== handKey) {
+    lastHand = handKey;
+    const scroll = handEl.scrollLeft;
+    const drawnIdx = turn && cur.drew ? hand.length - 1 : -1;
+    const focus = handEl.contains(document.activeElement) ? +document.activeElement.dataset.index : -1;
+    handEl.classList.toggle('can-play', turn);
+    handEl.classList.toggle('many', hand.length > 7);
+    handEl.innerHTML = curtainFor ? '' : hand.map((card, i) => {
+      const playable = turn && (!cur.drew ? E.canPlay(card, cur) : i === drawnIdx) && (card.v !== 'wild4' || w4ok);
+      const arc = Math.max(-3, Math.min(3, i - (hand.length - 1) / 2));
+      return cardHtml(card, true, `data-index="${i}" data-playable="${playable}" data-drawn="${i === drawnIdx}" style="--tilt:${arc * 1.9}deg;--down:${arc ** 2 * .8}px" ${!playable || waiting ? 'disabled' : ''}`);
+    }).join('');
+    handEl.scrollLeft = scroll;
+    if (animate && move.pid === me && move.t === 'draw') handEl.scrollLeft = handEl.scrollWidth;
+    if (focus >= 0) {
+      const button = handEl.children[focus];
+      if (button && !button.disabled) button.focus({ preventScroll: true });
+      else if (!$('pile').disabled) $('pile').focus({ preventScroll: true });
+    }
+  }
+
+  if (curtainFor) {
+    $('curtain-name').textContent = cur.players[curtainFor].name;
+    if (animate && !reducedMotion() && move.t !== 'pass') {
+      curtainTimer = setTimeout(() => {
+        curtainTimer = null;
+        showDialog('modal-curtain', 'btn-reveal');
+      }, move.uno ? 800 : move.count ? 650 : 430);
+    } else if (!curtainTimer) showDialog('modal-curtain', 'btn-reveal');
+  } else hideDialog('modal-curtain');
+  if (animate) animateMove(move, me, source, drawDest);
+  if (cur.status === 'finished' && !endTimer && $('modal-end').classList.contains('hidden')) {
+    endTimer = setTimeout(() => { endTimer = null; renderEnd(); }, animate && !reducedMotion() ? 520 : 0);
+  } else if (cur.status !== 'finished') {
+    clearTimeout(endTimer);
+    endTimer = null;
+    hideDialog('modal-end');
+  }
 }
 
-function sameCard(a, b) { return a && b && a.c === b.c && a.v === b.v; }
+function seatRect(pid, me) {
+  if (pid === me) return $('hand').getBoundingClientRect();
+  return $('opponents').children[cur.order.filter(p => p !== me).indexOf(pid)]?.getBoundingClientRect();
+}
 
-function onCardClick(card) {
-  if (!myTurn() || cur.status !== 'playing') return;
-  if (cur.drew && !sameCard(card, cur.drew)) return toast('Nur die gezogene Karte — oder weitergeben');
-  if (!E.canPlay(card, cur)) return toast('Diese Karte passt nicht');
-  if (card.v === 'wild4' && !E.wild4Legal(cur.hands[activePid()], cur)) {
-    return toast('+4 darfst du nur spielen, wenn du keine Karte der Farbe ' + E.COLOR_NAMES[cur.currentColor] + ' hast');
+function reducedMotion() { return matchMedia('(prefers-reduced-motion: reduce)').matches; }
+
+function flyCard(card, from, to, delay = 0) {
+  if (!from || !to || !from.width || !to.width || reducedMotion()) return;
+  const tile = document.createElement('div');
+  tile.className = 'flying-card';
+  tile.setAttribute('aria-hidden', 'true');
+  tile.innerHTML = card ? cardHtml(card) : '<span class="card back"><span class="back-mark">UNO</span></span>';
+  document.body.appendChild(tile);
+  const position = (rect, scale, angle) => `translate(${rect.x + rect.width / 2}px, ${rect.y + rect.height / 2}px) translate(-50%, -50%) scale(${scale}) rotate(${angle}deg)`;
+  tile.animate([
+    { transform: position(from, .75, -18), opacity: 0 },
+    { opacity: 1, offset: .16 },
+    { transform: position(to, 1, 0), opacity: 1 },
+  ], { duration: 390, delay, easing: 'cubic-bezier(.2,.7,.25,1)' }).finished.then(() => tile.remove());
+}
+
+function animateMove(move, me, source, drawDest) {
+  clearTimeout(effectTimer);
+  hide('move-effect');
+  const pile = $('pile').getBoundingClientRect();
+  const played = move.t === 'play';
+  if (played) {
+    const top = document.querySelector('[data-top]');
+    flyCard(move.card, source, top.getBoundingClientRect());
+    if (source && !reducedMotion()) top.classList.add('arriving');
   }
-  if (card.c === 'w') { pendingWild = card; show('modal-color'); return; }
+  const target = move.t === 'draw' ? move.pid : move.target;
+  const count = move.t === 'draw' ? 1 : move.count || 0;
+  if (count) {
+    const handCard = $('hand').lastElementChild;
+    const dest = drawDest || (target === me && handCard ? handCard.getBoundingClientRect() : seatRect(target, me));
+    for (let i = 0; i < count; i++) flyCard(null, pile, dest, (played ? 170 : 0) + i * 65);
+  }
+  const effect = played && EFFECTS[move.card.v];
+  if (effect || move.uno) {
+    const text = [move.uno ? (move.pid === me ? 'UNO!' : cur.players[move.pid].name + ': UNO!') : '', effect].filter(Boolean);
+    $('move-effect').textContent = text.join(' · ');
+    show('move-effect');
+    effectTimer = setTimeout(() => hide('move-effect'), 1250);
+  }
+}
+
+function onCardClick(button) {
+  if (button.disabled || !myTurn() || cur.status !== 'playing') return;
+  const index = +button.dataset.index;
+  const card = cur.hands[activePid()][index];
+  selectedCard = { rect: button.getBoundingClientRect(), index };
+  if (card.c === 'w') {
+    pendingWild = card;
+    showDialog('modal-color', 'modal-color');
+    return;
+  }
   sendAction({ t: 'play', card });
 }
 
+function showDialog(id, focusId) {
+  if (!$(id).classList.contains('hidden')) return;
+  show(id);
+  $('screen-game').inert = true;
+  const el = $(focusId);
+  (el.closest('button') || el.querySelector('button:not(.hidden)')).focus();
+}
+
+function hideDialog(id) {
+  if ($(id).classList.contains('hidden')) return;
+  hide(id);
+  $('screen-game').inert = !!document.querySelector('.overlay:not(.hidden)');
+}
+
 function renderEnd() {
+  if (cur?.status !== 'finished') return;
   const w = cur.winner;
-  const name = w === myPid || (localMode && w === activePid()) ? 'Du hast' : esc((cur.players[w] || {}).name || '?') + ' hat';
-  $('end-title').textContent = '🏆 ' + name + ' gewonnen!';
-  show('modal-end');
+  const name = (!localMode || soloMode) && w === myPid ? 'Du hast' : (cur.players[w] || {}).name + ' hat';
+  $('end-title').textContent = name + ' gewonnen!';
   $('btn-again').classList.toggle('hidden', !isHost && !localMode);
+  showDialog('modal-end', 'modal-end');
 }
 
 // ---------- Aktionen / Buttons ----------
@@ -302,6 +447,7 @@ async function leaveRoom(silent) {
   }
   roomRef = null; cur = null; roomCode = null; isHost = false;
   actionQueue = [];
+  resetPresentation();
   history.replaceState(null, '', location.pathname);
   showScreen('screen-start');
 }
@@ -312,6 +458,7 @@ function initLocalNames() {
   for (let i = 0; i < 2; i++) {
     const inp = document.createElement('input');
     inp.placeholder = 'Spieler ' + (i + 1);
+    inp.setAttribute('aria-label', inp.placeholder);
     inp.maxLength = 16;
     inp.value = i === 0 ? (localStorage.getItem('uno-name') || '') : '';
     box.appendChild(inp);
@@ -322,17 +469,46 @@ function startLocal() {
   const names = [...$('local-names').querySelectorAll('input')]
     .map(i => i.value.trim()).filter(Boolean);
   if (names.length < 2) return err('Mindestens 2 Namen eintragen');
+  startOffline(names, false);
+}
+
+function startOffline(names, solo) {
+  err('');
+  resetPresentation();
   localMode = true;
-  cur = { status: 'lobby', players: {}, order: [], log: [] };
+  soloMode = solo;
+  myPid = solo ? 'l0' : null;
+  cur = { players: {}, order: [] };
   names.forEach((n, i) => {
     const pid = 'l' + i;
     cur.players[pid] = { name: n, connected: true };
     cur.order.push(pid);
   });
+  resetOfflineRound();
+}
+
+function resetOfflineRound() {
   E.deal(cur);
-  curtainFor = cur.order[0];
+  curtainFor = soloMode ? null : cur.order[0];
   showScreen('screen-game');
   renderGame();
+}
+
+function resetPresentation() {
+  [botTimer, endTimer, effectTimer, curtainTimer].forEach(clearTimeout);
+  endTimer = curtainTimer = null;
+  unlockAction();
+  lastMove = lastHand = lastDiscard = viewedSeat = curtainFor = pendingWild = selectedCard = null;
+  ['modal-color', 'modal-curtain', 'modal-end'].forEach(hideDialog);
+  hide('move-effect');
+  document.querySelectorAll('.flying-card').forEach(tile => tile.remove());
+}
+
+function leaveOffline() {
+  resetPresentation();
+  localMode = soloMode = false;
+  cur = null;
+  showScreen('screen-start');
 }
 
 // ---------- Init ----------
@@ -342,17 +518,15 @@ function init() {
   const pre = params.get('room');
   if (pre) $('input-code').value = pre.toUpperCase();
 
-  if (!fbEnabled) {
-    hide('online-block');
-    show('local-block');
-    initLocalNames();
-  }
+  if (!fbEnabled) hide('online-block');
+  initLocalNames();
 
   $('btn-add-local').onclick = () => {
     const box = $('local-names');
     if (box.children.length >= 8) return;
     const inp = document.createElement('input');
     inp.placeholder = 'Spieler ' + (box.children.length + 1);
+    inp.setAttribute('aria-label', inp.placeholder);
     inp.maxLength = 16;
     box.appendChild(inp);
   };
@@ -362,8 +536,20 @@ function init() {
     myName = $('input-name').value.trim() || 'Spieler';
     localStorage.setItem('uno-name', myName);
   };
-  $('btn-create').onclick = () => { saveName(); err(''); createRoom(); };
-  $('btn-join').onclick = () => { saveName(); err(''); joinRoom($('input-code').value); };
+  $('btn-bots').onclick = () => {
+    saveName();
+    startOffline([myName, 'Bot Mika', 'Bot Karo'], true);
+  };
+  const online = async action => {
+    saveName();
+    err('');
+    $('screen-start').inert = true;
+    try { await action(); }
+    catch (_) { err('Keine Verbindung zum Online-Spiel. Bitte versuche es erneut.'); }
+    finally { $('screen-start').inert = false; }
+  };
+  $('btn-create').onclick = () => online(createRoom);
+  $('btn-join').onclick = () => online(() => joinRoom($('input-code').value));
   $('input-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join').click(); });
 
   $('btn-copy').onclick = () => {
@@ -374,34 +560,42 @@ function init() {
   };
   $('btn-start-game').onclick = hostStartGame;
   $('btn-leave-lobby').onclick = () => leaveRoom();
-  $('btn-leave-game').onclick = () => { if (localMode) { showScreen('screen-start'); } else leaveRoom(); };
+  $('btn-leave-game').onclick = () => { if (localMode) leaveOffline(); else leaveRoom(); };
   $('btn-end-leave').onclick = () => {
-    hide('modal-end');
-    if (localMode) { localMode = false; showScreen('screen-start'); }
+    hideDialog('modal-end');
+    if (localMode) leaveOffline();
     else { showScreen('screen-lobby'); renderLobby(); }
   };
 
-  $('btn-uno').onclick = () => {
-    sendAction({ t: 'uno' });
-    toast('UNO!');
-  };
+  $('pile').onclick = () => sendAction({ t: 'draw' });
   $('btn-pass').onclick = () => sendAction({ t: 'pass' });
+  $('hand').onclick = event => {
+    const card = event.target.closest('button[data-index]');
+    if (card) onCardClick(card);
+  };
 
-  document.querySelectorAll('#modal-color button').forEach(b => {
+  document.querySelectorAll('#modal-color [data-color]').forEach(b => {
     b.onclick = () => {
-      hide('modal-color');
+      hideDialog('modal-color');
       if (pendingWild) sendAction({ t: 'play', card: pendingWild, color: b.dataset.color });
       pendingWild = null;
     };
   });
+  const cancelColor = () => {
+    hideDialog('modal-color');
+    pendingWild = null;
+    if (selectedCard) $('hand').children[selectedCard.index]?.focus();
+    selectedCard = null;
+  };
+  $('btn-color-cancel').onclick = cancelColor;
+  $('modal-color').addEventListener('keydown', e => { if (e.key === 'Escape') cancelColor(); });
   $('btn-reveal').onclick = () => { curtainFor = null; renderGame(); };
 
   $('btn-again').onclick = async () => {
-    hide('modal-end');
+    hideDialog('modal-end');
     if (localMode) {
-      E.deal(cur);
-      curtainFor = cur.order[0];
-      renderGame();
+      resetPresentation();
+      resetOfflineRound();
       return;
     }
     if (isHost && cur) {
