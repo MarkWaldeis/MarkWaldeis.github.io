@@ -4,6 +4,8 @@ Die Seite, auf der die fertigen Spiele, Szenen und Websites liegen.
 
 Live: https://markwaldeis.github.io/
 
+Spielebibliothek: https://markwaldeis.github.io/spiele/
+
 ## Ein Projekt dauerhaft hinzufügen
 
 1. Statische Dateien nach `spiele/dein-name/` legen. Die Startseite heißt `index.html`.
@@ -21,6 +23,8 @@ Live: https://markwaldeis.github.io/
 ```
 
 `kind` ist `Spiel`, `Szene` oder `Website`. Ein Projekt, das nur woanders liegt, bekommt die volle `https://`-Adresse. `"play": "external"` öffnet es als Link statt in der Spielfläche, zum Beispiel ein Windows-Spiel.
+
+Alle Einträge mit `"kind": "Spiel"` erscheinen automatisch in der Spielebibliothek. Mit `"spotlight": true` erscheint ein Spiel zusätzlich oberhalb der vollständigen Liste.
 
 Das Titelbild liegt unter `bilder/<id>.jpg`. Der Dateiname ist die `id` aus `projects.json`. Ohne diese Datei bleibt die Karte ohne Bild.
 

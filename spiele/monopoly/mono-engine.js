@@ -66,7 +66,14 @@ const Mono = (() => {
       case 'pay': pay(st, pid, null, fx.v); break;
       case 'jailCard': st.jailCards[pid] = (st.jailCards[pid] || 0) + 1; break;
       case 'jail': sendToJail(st, pid); break;
-      case 'back': st.pos[pid] = (st.pos[pid] + 40 - fx.n) % 40; resolveSpace(st, pid); break;
+      case 'back': {
+        for (let i = 0; i < fx.n; i++) {
+          st.pos[pid] = (st.pos[pid] + 39) % 40;
+          recordStep(st, pid, st.pos[pid]);
+        }
+        resolveSpace(st, pid);
+        break;
+      }
       case 'perBuilding': payPerBuilding(st, pid, fx.h, fx.hotel); break;
       case 'payEach': payEachPlayer(st, pid, fx.v); break;
       case 'receiveEach': receiveFromEach(st, pid, fx.v); break;
@@ -140,6 +147,7 @@ const Mono = (() => {
   function movePlayerTo(st, pid, idx, collect) {
     const old = st.pos[pid];
     st.pos[pid] = idx;
+    recordStep(st, pid, idx, true);
     if (collect && idx < old) { st.money[pid] += 200; log(st, name(st, pid) + ' zieht über Los: +200 €'); }
     log(st, name(st, pid) + ' rückt auf ' + S[idx].name);
     resolveSpace(st, pid);
@@ -151,12 +159,14 @@ const Mono = (() => {
     const passed = idx <= p;
     if (passed) { st.money[pid] += 200; log(st, name(st, pid) + ' zieht über Los: +200 €'); }
     st.pos[pid] = idx;
+    recordStep(st, pid, idx, true);
     log(st, name(st, pid) + ' rückt auf ' + S[idx].name);
     if (specialRent) st.rentBoost = pid;
     resolveSpace(st, pid);
   }
   function sendToJail(st, pid) {
     st.pos[pid] = 10; st.jailed[pid] = 0;
+    recordStep(st, pid, 10, true);
     log(st, name(st, pid) + ' geht ins Gefängnis');
     st.pending = null; st.phase = 'manage';
   }
@@ -278,7 +288,7 @@ const Mono = (() => {
             return { ok: true };
           }
           // jail roll
-          st.dice = roll();
+          rollDice(st, pid);
           log(st, name(st, pid) + ' würfelt ' + st.dice[0] + ' und ' + st.dice[1]);
           if (st.dice[0] === st.dice[1]) { delete st.jailed[pid]; movePlayer(st, pid, st.dice[0] + st.dice[1]); }
           else {
@@ -289,7 +299,7 @@ const Mono = (() => {
           return { ok: true };
         }
         if (st.phase !== 'roll') return { ok: false, err: 'Schon gewürfelt' };
-        st.dice = roll();
+        rollDice(st, pid);
         log(st, name(st, pid) + ' würfelt ' + st.dice[0] + ' und ' + st.dice[1]);
         if (st.dice[0] === st.dice[1]) {
           st.doubles++;
@@ -297,7 +307,7 @@ const Mono = (() => {
         }
         movePlayer(st, pid, st.dice[0] + st.dice[1]);
         // Pasch → nochmal würfeln (wenn Feld nicht in Buy/Ende mündete)
-        if (st.dice[0] === st.dice[1] && st.phase === 'manage') st.phase = 'roll';
+        if (st.dice[0] === st.dice[1] && st.phase === 'manage' && st.jailed[pid] === undefined && !st.mustRaise[pid] && !st.out[pid]) st.phase = 'roll';
         return { ok: true };
       }
       case 'buy': {
@@ -396,16 +406,29 @@ const Mono = (() => {
 
   function settle(st, pid) { if (st.mustRaise[pid] !== undefined && st.money[pid] >= 0) delete st.mustRaise[pid]; }
   function ownProp(st, pid, idx) { return st.props[idx] && st.props[idx].owner === pid; }
+  function rollDice(st, pid) {
+    st.dice = roll();
+    st.rollSeq = (st.rollSeq || 0) + 1;
+    st.motion = { pid, steps: [] };
+  }
+  function recordStep(st, pid, space, jump = false) {
+    if (st.motion && st.motion.pid === pid && Array.isArray(st.motion.steps)) {
+      st.motion.steps.push({ space, jump });
+    }
+  }
   function movePlayer(st, pid, steps) {
     const old = st.pos[pid];
     st.pos[pid] = (old + steps) % 40;
+    for (let i = 1; i <= steps; i++) recordStep(st, pid, (old + i) % 40);
     if (st.pos[pid] < old) { st.money[pid] += 200; log(st, name(st, pid) + ' zieht über Los: +200 €'); }
     log(st, name(st, pid) + ' rückt auf ' + S[st.pos[pid]].name);
     resolveSpace(st, pid);
   }
   function validTrade(st, pid, a) {
     const give = a.give || [], take = a.take || [];
-    if (!give.length && !take.length && !(a.giveMoney > 0) && !(a.takeMoney > 0)) return false;
+    const given = a.giveMoney || 0, taken = a.takeMoney || 0;
+    if (![given, taken].every(x => Number.isSafeInteger(x) && x >= 0)) return false;
+    if (pid === a.to || (!give.length && !take.length && !given && !taken && !a.giveCard && !a.takeCard)) return false;
     if (!give.every(i => ownProp(st, pid, i) && !st.props[i].houses)) return false;
     if (!take.every(i => ownProp(st, a.to, i) && !st.props[i].houses)) return false;
     if ((a.giveMoney || 0) > st.money[pid] || (a.takeMoney || 0) > st.money[a.to]) return false;
@@ -422,7 +445,7 @@ const Mono = (() => {
     if (pid !== cur) return { ok: false, err: 'Du bist nicht am Zug' };
     if (a.t === 'bid') {
       const v = a.amount | 0;
-      if (v <= au.high || v < 10) return { ok: false, err: 'Mindestens ' + Math.max(10, au.high + 10) + ' € bieten' };
+      if (v < au.high + 10) return { ok: false, err: 'Mindestens ' + (au.high + 10) + ' € bieten' };
       if (v > st.money[pid]) return { ok: false, err: 'Nicht genug Geld' };
       au.high = v; au.bidder = pid;
       log(st, name(st, pid) + ' bietet ' + v + ' €');
@@ -432,18 +455,19 @@ const Mono = (() => {
       if (au.idx >= au.left.length) au.idx = 0;
     } else return { ok: false, err: 'Unbekannte Aktion' };
     if (a.t === 'bid') au.idx = (au.idx + 1) % au.left.length;
-    // nur noch einer übrig → Zuschlag
-    if (au.left.length <= 1) {
-      const win = au.bidder || au.left[0];
-      const amount = au.high || 0;
+    // Der Höchstbietende erhält den Zuschlag, sobald alle anderen passen.
+    if (!au.left.length || (au.left.length === 1 && au.left[0] === au.bidder)) {
+      const win = au.bidder;
       if (au.bidder) {
         pay(st, win, null, au.high);
         st.props[au.space] = { owner: win, houses: 0, mortgaged: false };
-        log(st, name(st, win) + ' ersteigert ' + S[au.space].name + ' für ' + amount + ' €');
+        log(st, name(st, win) + ' ersteigert ' + S[au.space].name + ' für ' + au.high + ' €');
       } else {
         log(st, 'Niemand bietet — ' + S[au.space].name + ' bleibt der Bank');
       }
       st.auction = null; st.phase = 'manage';
+    } else if (au.left[au.idx] === au.bidder) {
+      au.idx = (au.idx + 1) % au.left.length;
     }
     return { ok: true };
   }
@@ -452,8 +476,8 @@ const Mono = (() => {
     if (a.t === 'cancel' && pid === tr.from) { st.trade = null; log(st, 'Angebot zurückgezogen'); return { ok: true }; }
     if (pid !== tr.to) return { ok: false, err: 'Nur ' + name(st, tr.to) + ' antwortet' };
     if (a.t === 'accept') {
-      for (const i of tr.give) st.props[i].owner = tr.to;
-      for (const i of tr.take) st.props[i].owner = tr.from;
+      for (const i of tr.give || []) st.props[i].owner = tr.to;
+      for (const i of tr.take || []) st.props[i].owner = tr.from;
       st.money[tr.from] -= tr.giveMoney; st.money[tr.to] += tr.giveMoney;
       st.money[tr.to] -= tr.takeMoney; st.money[tr.from] += tr.takeMoney;
       if (tr.giveCard) { st.jailCards[tr.from]--; st.jailCards[tr.to] = (st.jailCards[tr.to] || 0) + 1; }
@@ -472,7 +496,8 @@ const Mono = (() => {
     st.status = 'playing';
     st.pos = {}; st.money = {}; st.props = {}; st.out = {}; st.jailed = {}; st.jailCards = {};
     for (const pid of st.order) { st.pos[pid] = 0; st.money[pid] = 1500; st.jailCards[pid] = 0; }
-    st.turn = 0; st.doubles = 0; st.dice = [1, 1];
+    st.turn = 0; st.doubles = 0; st.dice = null; st.rollSeq = 0; st.motion = null;
+    st.round = (st.round || 0) + 1;
     st.chance = chanceDeck(); st.community = communityDeck();
     st.pending = null; st.auction = null; st.trade = null;
     st.phase = 'roll'; st.winner = null; st.mustRaise = {}; st.rentBoost = null;

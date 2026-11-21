@@ -67,6 +67,7 @@ body::before {
   gap: 24px;
   padding: 48px 0 18px;
 }
+.games-entry { display: inline-flex; align-items: center; gap: .6em; min-height: 44px; margin-top: 16px; }
 .kicker {
   margin: 0 0 8px;
   color: var(--brass);

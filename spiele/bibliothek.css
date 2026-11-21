@@ -1,0 +1,82 @@
+:root {
+  color-scheme: light;
+  --paper: #f8f4eb;
+  --ink: #24201b;
+  --red: #a93128;
+  --line: #d9cfc1;
+  font-family: "DM Sans", system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+a { color: inherit; }
+p, h1, h2, h3 { margin: 0; }
+:focus-visible { outline: 3px solid var(--red); outline-offset: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+.mast, main {
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-inline: max(22px, env(safe-area-inset-left)) max(22px, env(safe-area-inset-right));
+}
+.mast { min-height: 68px; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.mast a { display: inline-flex; align-items: center; gap: .4em; min-height: 44px; text-decoration: none; font-weight: 700; }
+.brand span, .archive span, h1 span { color: var(--red); }
+.archive { font-size: .88rem; }
+main { padding-bottom: max(40px, env(safe-area-inset-bottom)); }
+h1, h2, h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; }
+h1 { font-size: clamp(3.1rem, 9vw, 7.6rem); line-height: .92; letter-spacing: -.045em; margin-block: clamp(25px, 5vw, 58px) clamp(25px, 3.8vw, 46px); }
+#featured, #games { display: grid; gap: 16px; }
+#featured { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#games { grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); }
+.game-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fffaf1;
+  text-decoration: none;
+}
+.cover { aspect-ratio: 16 / 9; overflow: hidden; background: #e5dac3; }
+.cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#featured .game-card { grid-template-columns: minmax(0, .94fr) minmax(0, 1fr); grid-template-rows: 1fr; }
+#featured .cover { aspect-ratio: auto; position: relative; min-height: 235px; }
+#featured .cover img { position: absolute; inset: 0; }
+.copy { position: relative; padding: 16px 16px 56px; }
+#featured .copy { padding-inline: clamp(16px, 2.8vw, 32px); }
+.tags { font-size: .76rem; color: var(--red); font-weight: 700; }
+.copy h2 { font-size: clamp(1.9rem, 3.6vw, 3.4rem); line-height: 1; margin-block: 8px; }
+.copy h3 { font-size: 1.85rem; line-height: 1; margin-block: 8px; }
+.description { color: #594e44; font-size: .9rem; line-height: 1.45; }
+.play { position: absolute; bottom: 14px; right: 14px; color: white; background: var(--red); border-radius: 50%; width: 34px; aspect-ratio: 1; display: grid; place-items: center; font-size: 21px; }
+@media (hover: hover) {
+  .game-card:hover { border-color: var(--red); }
+  .game-card:hover h2, .game-card:hover h3 { color: var(--red); }
+  .mast a:hover { text-decoration: underline; }
+}
+.library { margin-top: 36px; border-top: 1px solid var(--line); padding-top: 22px; }
+.library-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.library-head h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); line-height: 1; }
+.search input, #filters button, #games button { font: inherit; color: inherit; background: #fffaf1; border: 1px solid #a79d8e; border-radius: 999px; min-height: 44px; padding: 9px 15px; }
+.search input { width: min(37vw, 290px); }
+#filters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+#filters button, #games button { cursor: pointer; }
+#filters button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: white; }
+#status { color: #594e44; font-size: .86rem; margin-block: 14px; }
+
+@media (max-width: 850px) {
+  #featured .game-card { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  #featured .cover { min-height: 0; aspect-ratio: 16 / 10; }
+}
+@media (max-width: 530px) {
+  #featured { grid-template-columns: 1fr; gap: 10px; }
+  #featured .game-card { grid-template-columns: 33% 1fr; grid-template-rows: 1fr; }
+  #featured .cover { aspect-ratio: auto; }
+  #featured .copy { padding: 12px 44px 14px 14px; }
+  #featured .play { right: 8px; bottom: 10px; width: 28px; }
+  .search input { width: min(46vw, 230px); }
+}

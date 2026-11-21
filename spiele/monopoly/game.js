@@ -1,33 +1,53 @@
 'use strict';
-/* global Mono, MONO_FIREBASE_CONFIG */
+/* global Mono, MonoBoard */
 const E = Mono;
 const $ = id => document.getElementById(id);
-const show = id => $(id).classList.remove('hidden');
-const hide = id => $(id).classList.add('hidden');
+const show = id => {
+  const el = $(id);
+  if (el instanceof HTMLDialogElement) {
+    if (!el.open) el.showModal();
+  } else el.classList.remove('hidden');
+};
+const hide = id => {
+  const el = $(id);
+  if (el instanceof HTMLDialogElement) el.close();
+  else el.classList.add('hidden');
+};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const FB_VERSION = '10.14.1';
 const TOKENS = ['🚗', '🎩', '🐕', '🚢', '👢', '🧺'];
 const TOKEN_COLORS = ['#e74c3c', '#3498db', '#f1c40f', '#27ae60', '#9b59b6', '#e67e22'];
-const PIP_POS = {
-  1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8]
-};
-
 let db = null, fb = null;
 let roomRef = null;
 let myPid = null, myName = '';
-let roomCode = null, isHost = false, joined = false;
+let roomCode = null, isHost = false, local = false;
 let cur = null;
-let actionQueue = [], draining = false;
+let disconnect = null;
+let subscriptions = [];
+let connected = false, draining = false, pendingAction = null;
 let lastCardSeq = 0;
-let manageOpen = false;
+let round = null;
+let isAnimating = false;
+let afterRoll = 0;
+const visuals = MonoBoard.create(E, TOKENS, TOKEN_COLORS, onSpaceClick);
 
 function toast(msg, ms = 3000) {
-  const t = $('toast');
+  const dialog = [...document.querySelectorAll('dialog[open]')].at(-1);
+  let t = $('toast');
+  if (dialog) {
+    t = dialog.querySelector('.dialog-feedback');
+    if (!t) {
+      t = document.createElement('p');
+      t.className = 'dialog-feedback';
+      t.setAttribute('role', 'status');
+      dialog.firstElementChild.append(t);
+    }
+  }
   t.textContent = msg;
-  show('toast');
+  t.classList.remove('hidden');
   clearTimeout(t._h);
-  t._h = setTimeout(() => hide('toast'), ms);
+  t._h = setTimeout(() => t.classList.add('hidden'), ms);
 }
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
@@ -60,14 +80,15 @@ async function createRoom() {
   for (let i = 0; i < 10; i++) {
     const code = newCode();
     const ref = fb.ref(db, 'mrooms/' + code);
-    if (!(await fb.get(ref)).exists()) {
+    const player = { name: myName, connected: true, joinedAt: Date.now() };
+    const result = await fb.runTransaction(ref, current => current === null ? {
+      code, status: 'lobby', hostId: myPid, createdAt: Date.now(),
+      players: { [myPid]: player }
+    } : undefined, { applyLocally: false });
+    if (result.committed) {
       roomCode = code;
       roomRef = ref;
       sessionStorage.setItem('mono-pid-' + code, myPid);
-      await fb.set(ref, {
-        code, status: 'lobby', hostId: myPid, createdAt: Date.now(),
-        players: { [myPid]: { name: myName, connected: true, joinedAt: Date.now() } },
-      });
       afterJoin();
       return;
     }
@@ -78,84 +99,129 @@ async function createRoom() {
 async function joinRoom(code) {
   if (!(await ensureFb())) return;
   code = (code || '').toUpperCase().trim();
-  if (code.length !== 4) return err('Code hat 4 Zeichen');
+  if (!/^[A-Z0-9]{4}$/.test(code)) return err('Der Einladungscode besteht aus vier Zeichen.');
   const ref = fb.ref(db, 'mrooms/' + code);
-  const snap = await fb.get(ref);
-  if (!snap.exists()) return err('Raum nicht gefunden');
-  const room = snap.val();
-  myPid = sessionStorage.getItem('mono-pid-' + code) || 'p' + Math.random().toString(36).slice(2, 10);
-  const existing = room.players && room.players[myPid];
-  if (room.status !== 'lobby' && !existing) return err('Das Spiel läuft schon');
-  const count = Object.keys(room.players || {}).length;
-  if (!existing && count >= 6) return err('Raum ist voll (max. 6)');
-  roomCode = code;
-  roomRef = ref;
-  sessionStorage.setItem('mono-pid-' + code, myPid);
-  await fb.update(fb.child(roomRef, 'players/' + myPid), {
-    name: myName, connected: true,
-    joinedAt: (existing && existing.joinedAt) || Date.now(),
-  });
-  afterJoin();
+  // Ein aktiver Listener hält den Raum im SDK-Cache, bis die Transaktion läuft.
+  let stopWatching;
+  try {
+    const snapshot = await new Promise((resolve, reject) => { stopWatching = fb.onValue(ref, resolve, reject); });
+    if (!snapshot.exists()) return err('Raum nicht gefunden.');
+    myPid = sessionStorage.getItem('mono-pid-' + code) || 'p' + Math.random().toString(36).slice(2, 10);
+    const result = await fb.runTransaction(ref, room => {
+      if (!room) return;
+      room.players ||= {};
+      const existing = room.players[myPid];
+      if (!existing && (room.status !== 'lobby' || Object.keys(room.players).length >= 6)) return;
+      room.players[myPid] = { name: myName, connected: true, joinedAt: existing?.joinedAt || Date.now() };
+      return room;
+    }, { applyLocally: false });
+    if (!result.committed) return err(result.snapshot.val()?.status === 'lobby' ?
+      'Der Raum ist voll (maximal 6 Spieler).' : 'Der Raum ist geschlossen oder das Spiel läuft bereits.');
+    roomCode = code;
+    roomRef = ref;
+    sessionStorage.setItem('mono-pid-' + code, myPid);
+    afterJoin();
+  } finally { stopWatching?.(); }
 }
 
 function afterJoin() {
-  joined = true;
-  fb.onDisconnect(fb.child(roomRef, 'players/' + myPid + '/connected')).set(false);
+  history.replaceState(null, '', '?room=' + roomCode);
   subscribeRoom();
-  showScreen('screen-lobby');
-  renderLobby();
 }
 
 function subscribeRoom() {
-  fb.onValue(roomRef, snap => {
+  const ref = roomRef;
+  const presence = fb.child(ref, 'players/' + myPid + '/connected');
+  let connectedBefore = false;
+  subscriptions.push(fb.onValue(fb.ref(db, '.info/connected'), async snap => {
+    connected = snap.val() === true;
+    if (cur?.status === 'playing') renderTurn();
+    if (!connected) return;
+    const reconnecting = connectedBefore;
+    connectedBefore = true;
+    try {
+      disconnect = fb.onDisconnect(presence);
+      await disconnect.set(false);
+      if (reconnecting && roomRef === ref) await fb.set(presence, true);
+    } catch {
+      if (roomRef === ref) toast('Verbindung zum Spielraum unterbrochen.');
+    }
+  }));
+  subscriptions.push(fb.onValue(ref, snap => {
     cur = snap.val();
     if (!cur) { toast('Der Raum wurde geschlossen'); leaveRoom(true); return; }
     isHost = cur.hostId === myPid;
+    if (pendingAction && !cur.actions?.[pendingAction]) pendingAction = null;
     const host = cur.players && cur.players[cur.hostId];
-    if (joined && host && host.connected === false) {
-      fb.runTransaction(fb.child(roomRef, 'hostId'), h => {
-        const hNow = cur.players && cur.players[h];
-        return (hNow && hNow.connected === false) ? myPid : undefined;
-      });
+    if (host?.connected === false && cur.players?.[myPid]?.connected) {
+      fb.runTransaction(ref, room => {
+        if (room?.players?.[room.hostId]?.connected !== false || !room.players?.[myPid]?.connected) return;
+        room.hostId = myPid;
+        return room;
+      }, { applyLocally: false }).catch(() => {});
     }
     if (cur.status === 'lobby') { showScreen('screen-lobby'); renderLobby(); }
     else { showScreen('screen-game'); renderGame(); }
-    if (cur.status === 'finished') renderEnd();
-    else hide('modal-end');
-  });
-  fb.onChildAdded(fb.child(roomRef, 'actions'), snap => {
-    if (!isHost) return;
-    actionQueue.push(snap);
-    drainActions();
-  });
-  fb.onChildAdded(fb.child(roomRef, 'feedback/' + myPid), snap => {
+    if (isHost && cur.actions) drainActions();
+  }));
+  subscriptions.push(fb.onChildAdded(fb.child(ref, 'feedback/' + myPid), snap => {
     toast(snap.val());
-    fb.remove(snap.ref);
-  });
+  }));
 }
 
 async function drainActions() {
   if (draining) return;
+  const ref = roomRef;
+  const host = myPid;
   draining = true;
   try {
-    while (actionQueue.length) {
-      const snap = actionQueue.shift();
-      const a = snap.val();
-      let r;
-      try { r = E.applyAction(cur, a.pid, a); }
-      catch (e) { r = { ok: false, err: 'Fehler: ' + e.message }; }
-      if (r.ok) {
-        try { await fb.set(roomRef, cur); } catch (e) {}
-      } else {
-        await fb.push(fb.child(roomRef, 'feedback/' + a.pid), r.err || 'Ungültiger Zug').catch(() => {});
-      }
-      await fb.remove(snap.ref).catch(() => {});
+    while (roomRef === ref && isHost && cur?.actions) {
+      const key = Object.keys(cur.actions).sort()[0];
+      if (!key) break;
+      const result = await fb.runTransaction(ref, room => {
+        const action = room?.actions?.[key];
+        if (!action || room.hostId !== host) return;
+        delete room.actions[key];
+        if (!room.players?.[action.pid]) return room;
+        const state = structuredClone(room);
+        const result = applyAction(state, action.pid, action);
+        if (result.ok) return state;
+        room.feedback ||= {};
+        room.feedback[action.pid] = { [key]: result.err };
+        return room;
+      }, { applyLocally: false });
+      if (!result.committed || cur?.actions?.[key]) break;
     }
+  } catch {
+    if (roomRef === ref) toast('Der Zug konnte nicht verarbeitet werden.');
   } finally { draining = false; }
 }
 
+function applyAction(state, pid, action) {
+  try { return E.applyAction(state, pid, action); }
+  catch { return { ok: false, err: 'Diese Aktion konnte nicht ausgeführt werden.' }; }
+}
+
 function sendAction(a) {
-  fb.push(fb.child(roomRef, 'actions'), Object.assign({ pid: myPid }, a));
+  if (isAnimating || pendingAction) return;
+  if (local) {
+    const next = structuredClone(cur);
+    const result = applyAction(next, myPid, a);
+    if (!result.ok) return toast(result.err);
+    cur = next;
+    renderGame();
+    return;
+  }
+  if (!connected || !roomRef) return toast('Warte auf die Verbindung zum Spielraum.');
+  const ref = fb.push(fb.child(roomRef, 'actions'));
+  pendingAction = ref.key;
+  renderTurn();
+  fb.set(ref, { ...a, pid: myPid }).catch(() => {
+    if (pendingAction !== ref.key) return;
+    pendingAction = null;
+    renderGame();
+    toast('Der Zug konnte nicht gesendet werden. Versuche es erneut.');
+  });
 }
 
 // ---------- Lobby ----------
@@ -183,70 +249,31 @@ function renderLobby() {
 }
 
 async function hostStartGame() {
-  const ids = Object.keys(cur.players)
-    .filter(pid => cur.players[pid].connected !== false)
-    .sort((x, y) => (cur.players[x].joinedAt || 0) - (cur.players[y].joinedAt || 0));
-  cur.order = ids;
-  E.deal(cur);
-  cur.actions = null;
-  await fb.set(roomRef, cur);
+  const phase = cur.status;
+  const button = $(phase === 'lobby' ? 'btn-start-game' : 'btn-again');
+  button.disabled = true;
+  try {
+    const result = await fb.runTransaction(roomRef, room => {
+      if (room?.hostId !== myPid || room.status !== phase) return;
+      const ids = connectedPlayers(room);
+      if (ids.length < 2) return;
+      room.order = ids;
+      room.actions = null;
+      room.feedback = null;
+      return E.deal(room);
+    }, { applyLocally: false });
+    if (!result.committed) toast('Zum Start müssen mindestens zwei Personen verbunden sein.');
+  } catch {
+    toast('Der Spielstart ist fehlgeschlagen. Versuche es erneut.');
+  } finally { button.disabled = false; }
+}
+
+function connectedPlayers(room) {
+  return Object.keys(room.players || {}).filter(pid => room.players[pid].connected !== false)
+    .sort((x, y) => room.players[x].joinedAt - room.players[y].joinedAt);
 }
 
 // ---------- Brett ----------
-function gridPos(i) {
-  if (i <= 9) return { row: 11, col: 11 - i, edge: 'top' };
-  if (i <= 19) return { row: 21 - i, col: 1, edge: 'right' };
-  if (i <= 29) return { row: 1, col: i - 19, edge: 'bottom' };
-  return { row: i - 29, col: 11, edge: 'left' };
-}
-const TYPE_ICON = { bahn: '🚂', tax: '💰', chance: '?', community: '📦', free: '🅿️', go: '⬅', gotojail: '👮', jail: '🔒' };
-function iconFor(i) {
-  if (i === 12) return '⚡';   // Elektrizitätswerk
-  if (i === 27) return '🚰';   // Wasserwerk
-  if (i === 38) return '⭐';   // Zusatzsteuer
-  return TYPE_ICON[E.S[i].t] || '';
-}
-
-const prevPos = {};
-const walkAnim = {};
-let prevDice = '';
-function stepToken(pid, target) {
-  setTimeout(() => {
-    if (walkAnim[pid] === undefined) return;
-    walkAnim[pid] = (walkAnim[pid] + 1) % 40;
-    const tok = document.querySelector(`[data-tok="${pid}"]`);
-    const cell = $('space-' + walkAnim[pid]);
-    if (tok && cell) cell.querySelector('.s-tokens').appendChild(tok);
-    if (walkAnim[pid] !== target) stepToken(pid, target);
-    else delete walkAnim[pid];
-  }, 170);
-}
-
-let boardBuilt = false;
-function buildBoard() {
-  const board = $('board');
-  const center = $('board-center');
-  E.S.forEach((s, i) => {
-    const g = gridPos(i);
-    const d = document.createElement('div');
-    d.className = 'space t-' + s.t + ' edge-' + g.edge + (i % 10 === 0 ? ' corner c-' + s.t : '');
-    d.id = 'space-' + i;
-    d.style.gridRow = g.row;
-    d.style.gridColumn = g.col;
-    let inner = '';
-    if (s.t === 'prop') inner += `<div class="colorbar" style="background:${E.GROUP_CSS[s.group]}"></div>`;
-    inner += `<div class="s-name">${esc(s.name)}</div>`;
-    if (s.price) inner += `<div class="s-price">${s.price} €</div>`;
-    if (s.t === 'tax') inner += `<div class="s-price">${s.amount} €</div>`;
-    const icon = iconFor(i);
-    if (icon) inner += `<div class="s-icon${icon === '?' ? ' qmark' : ''}">${icon}</div>`;
-    inner += '<div class="s-houses"></div><div class="s-owner"></div><div class="s-tokens"></div>';
-    d.innerHTML = inner;
-    d.addEventListener('click', () => onSpaceClick(i));
-    board.insertBefore(d, center);
-  });
-  boardBuilt = true;
-}
 
 function spaceDesc(i) {
   const s = E.S[i];
@@ -297,174 +324,168 @@ function showDeed(i) {
 
 // ---------- Render ----------
 function renderGame() {
-  if (!cur || !cur.order) return;
-  // RTDB löscht leere Objekte
-  cur.out = cur.out || {}; cur.pos = cur.pos || {}; cur.money = cur.money || {};
-  cur.props = cur.props || {}; cur.jailed = cur.jailed || {}; cur.jailCards = cur.jailCards || {};
-  cur.mustRaise = cur.mustRaise || {}; cur.log = cur.log || [];
-  if (!boardBuilt) buildBoard();
+  if (!cur?.order) return;
+  // Realtime Database speichert leere Objektfelder nicht.
+  for (const key of ['out', 'pos', 'money', 'props', 'jailed', 'jailCards', 'mustRaise']) cur[key] ||= {};
+  if (round !== (cur.round || 0)) {
+    round = cur.round || 0;
+    lastCardSeq = cur.cardSeq || 0;
+    clearTimeout(afterRoll);
+    isAnimating = false;
+    visuals.reset();
+  }
 
   const active = cur.order[cur.turn];
-  const myTurn = active === myPid;
-
-  // Würfel
-  renderDie('die1', cur.dice && cur.dice[0]);
-  renderDie('die2', cur.dice && cur.dice[1]);
-  const diceKey = (cur.dice || []).join('-');
-  if (cur.dice && diceKey !== prevDice) {
-    $('dice-row').classList.remove('shake');
-    void $('dice-row').offsetWidth;
-    $('dice-row').classList.add('shake');
+  const duration = visuals.update(cur);
+  if (duration > 0) {
+    isAnimating = true;
+    clearTimeout(afterRoll);
+    afterRoll = setTimeout(() => {
+      isAnimating = false;
+      if (cur?.order) renderGame();
+    }, duration);
   }
-  prevDice = diceKey;
 
-  // Felder aktualisieren (Figuren laufen animiert zum Zielfeld)
-  const tokenMap = {};
-  cur.order.forEach(pid => {
-    if (cur.out[pid]) return;
-    const target = cur.pos[pid];
-    const dist = ((target - prevPos[pid]) + 40) % 40;
-    const shown = walkAnim[pid] !== undefined ? walkAnim[pid]
-      : (prevPos[pid] !== undefined && prevPos[pid] !== target && dist > 0 && dist <= 12
-          ? prevPos[pid] : target);
-    (tokenMap[shown] = tokenMap[shown] || []).push(pid);
-  });
-  for (let i = 0; i < 40; i++) {
-    const el = $('space-' + i);
-    const p = cur.props && cur.props[i];
-    const houses = el.querySelector('.s-houses');
-    if (p && p.houses > 0) {
-      houses.innerHTML = p.houses === 5
-        ? '<span class="hotel">🏨</span>'
-        : Array(p.houses).fill('<span class="house"></span>').join('');
-    } else houses.innerHTML = '';
-    const own = el.querySelector('.s-owner');
-    if (p && p.owner) {
-      const oi = cur.order.indexOf(p.owner);
-      own.innerHTML = `<span class="own-dot" style="background:${TOKEN_COLORS[oi % TOKEN_COLORS.length]}">${p.mortgaged ? '💸' : ''}</span>`;
-    } else own.innerHTML = '';
-    const tk = el.querySelector('.s-tokens');
-    tk.innerHTML = (tokenMap[i] || []).map(pid => {
-      const oi = cur.order.indexOf(pid);
-      return `<span class="token" data-tok="${pid}" title="${esc((cur.players[pid] || {}).name)}" style="text-shadow:0 0 3px ${TOKEN_COLORS[oi % TOKEN_COLORS.length]}">${TOKENS[oi % TOKENS.length]}</span>`;
-    }).join('');
-    el.classList.toggle('mortgaged', !!(p && p.mortgaged));
+  const nextPlayer = cur.trade?.to || cur.auction?.left?.[cur.auction.idx] || active;
+  const handoff = local && myPid && myPid !== nextPlayer && cur.status !== 'finished';
+  if (local && !isAnimating && cur.status !== 'finished') myPid = nextPlayer;
+  $('table-mode').textContent = local ? 'An einem Gerät' : 'Raum ' + roomCode;
+  renderTurn();
+  renderPlayers(active);
+
+  const log = cur.log || [];
+  const latest = log.slice(-20).reverse().map(message => '<li>' + esc(message) + '</li>').join('');
+  if ($('log-box').innerHTML !== latest) {
+    $('log-box').start = log.length;
+    $('log-box').innerHTML = latest;
   }
-  // Lauf-Animation starten
-  cur.order.forEach(pid => {
-    if (cur.out[pid]) return;
-    const target = cur.pos[pid];
-    const dist = prevPos[pid] !== undefined ? ((target - prevPos[pid]) + 40) % 40 : 0;
-    if (prevPos[pid] !== undefined && prevPos[pid] !== target && dist > 0 && dist <= 12 && walkAnim[pid] === undefined) {
-      walkAnim[pid] = prevPos[pid];
-      stepToken(pid, target);
-    }
-    prevPos[pid] = target;
-  });
 
-  // Mitte
-  const st = $('center-status');
-  if (cur.status === 'finished') st.textContent = '';
-  else if (cur.auction) st.textContent = '🔨 Versteigerung läuft!';
-  else st.textContent = myTurn ? 'Du bist am Zug' : 'Am Zug: ' + esc((cur.players[active] || {}).name || '?');
-  $('log-box').innerHTML = (cur.log || []).slice(-8).map(l => `<div>${esc(l)}</div>`).join('');
-  $('log-box').scrollTop = 99999;
-
-  // Karten-Popup
-  if (cur.cardSeq && cur.cardSeq !== lastCardSeq && cur.lastCard) {
+  if ($('modal-manage').open) renderManage();
+  if (!isAnimating && cur.cardSeq && cur.cardSeq !== lastCardSeq && cur.lastCard) {
     lastCardSeq = cur.cardSeq;
-    const type = cur.lastCardType === 'community' ? 'GEMEINSCHAFT' : 'EREIGNIS';
-    $('drawn-card').classList.toggle('community', cur.lastCardType === 'community');
-    $('drawn-card').querySelector('.dc-type').textContent = type + 'SKARTE';
+    const community = cur.lastCardType === 'community';
+    $('drawn-card').classList.toggle('community', community);
+    $('card-title').textContent = community ? 'Gemeinschaftskarte' : 'Ereigniskarte';
     $('drawn-card').querySelector('.dc-text').textContent = cur.lastCard;
     show('modal-card');
-    clearTimeout($('modal-card')._h);
-    $('modal-card')._h = setTimeout(() => hide('modal-card'), 6000);
   }
+  if (isAnimating) return;
 
-  // Buttons
-  const raising = cur.mustRaise && cur.mustRaise[myPid] !== undefined;
-  ['btn-roll', 'btn-jail-pay', 'btn-jail-card', 'btn-buy', 'btn-auction', 'btn-end', 'btn-trade', 'btn-manage', 'btn-bankrupt'].forEach(hide);
-  if (cur.status === 'playing' && !cur.auction) {
-    if (myTurn && !cur.trade) {
-      if (cur.phase === 'roll') show('btn-roll');
-      if (cur.phase === 'jail') {
-        $('btn-roll').textContent = '🎲 Würfeln (Pasch)';
+  if (cur.auction) renderAuction();
+  else { hide('modal-auction'); bidAdd = 10; }
+  if (cur.trade?.to === myPid) renderTradeIn(cur.trade);
+  else hide('modal-trade-in');
+  if (cur.status === 'finished') renderEnd();
+  else hide('modal-end');
+
+  if (handoff) {
+    $('pass-to').textContent = 'Gib das Gerät an ' + cur.players[nextPlayer].name + ' weiter.';
+    show('modal-pass');
+  }
+}
+
+function renderTurn() {
+  const active = cur.order[cur.turn];
+  const myTurn = active === myPid;
+  const name = cur.players[active]?.name || 'Mitspieler';
+  const raising = cur.mustRaise[myPid] !== undefined;
+  const funds = cur.money[myPid] || 0;
+  const position = cur.pending?.space ?? cur.pos[active];
+  const purchase = cur.phase === 'buy' && cur.pending && E.S[cur.pending.space];
+  const playing = cur.status === 'playing';
+  const busy = isAnimating || !!pendingAction || (!local && !connected);
+  const buttons = ['btn-roll', 'btn-jail-pay', 'btn-jail-card', 'btn-buy', 'btn-auction', 'btn-end',
+    'btn-trade', 'btn-trade-cancel', 'btn-manage', 'btn-bankrupt'];
+  buttons.forEach(hide);
+
+  let title = local ? name + ' ist am Zug' : (myTurn ? 'Du bist am Zug' : name + ' ist am Zug');
+  let hint = 'Warten auf den nächsten Zug.';
+  if (!playing) {
+    title = 'Spiel beendet';
+    hint = '';
+  } else if (cur.auction) {
+    title = 'Versteigerung';
+    hint = E.S[cur.auction.space].name;
+  } else if (cur.trade) {
+    title = 'Handelsangebot';
+    hint = (cur.players[cur.trade.to]?.name || 'Mitspieler') + ' entscheidet über das Angebot.';
+    if (!local && cur.trade.from === myPid) show('btn-trade-cancel');
+  } else if (myTurn) {
+    switch (cur.phase) {
+      case 'roll':
+        hint = cur.doubles ? 'Pasch! Du darfst erneut würfeln.' : 'Würfle, um deine Figur zu bewegen.';
+        $('btn-roll').textContent = 'Würfeln';
         show('btn-roll');
-        if ((cur.money[myPid] || 0) >= 50) show('btn-jail-pay');
-        if ((cur.jailCards && cur.jailCards[myPid]) > 0) show('btn-jail-card');
-      } else $('btn-roll').textContent = '🎲 Würfeln';
-      if (cur.phase === 'buy' && cur.pending) {
-        const s = E.S[cur.pending.space];
-        $('btn-buy').textContent = 'Kaufen (' + s.price + ' €)';
+        break;
+      case 'jail':
+        hint = 'Versuche einen Pasch oder nutze eine der anderen Optionen.';
+        $('btn-roll').textContent = 'Auf Pasch würfeln';
+        show('btn-roll');
+        if (funds >= 50) show('btn-jail-pay');
+        if (cur.jailCards[myPid] > 0) show('btn-jail-card');
+        break;
+      case 'buy':
+        if (!purchase) break;
+        hint = funds >= purchase.price
+          ? 'Kaufen, versteigern oder den Zug ohne Kauf beenden.'
+          : 'Dein Guthaben reicht für den Kauf nicht aus.';
+        $('btn-buy').textContent = 'Für ' + fmt(purchase.price) + ' kaufen';
+        $('btn-end').textContent = 'Ohne Kauf weiter';
         show('btn-buy'); show('btn-auction'); show('btn-end');
-      }
-      if (cur.phase === 'manage' || cur.phase === 'jailend') {
-        show('btn-end');
-        if (!raising) { show('btn-manage'); show('btn-trade'); }
-      }
-      if (raising) {
-        show('btn-manage');
-        show('btn-bankrupt');
-        toast('Du bist im Minus — verkaufe Gebäude/Hypotheken oder erkläre Konkurs', 4000);
-      }
+        break;
+      case 'manage':
+      case 'jailend':
+        hint = cur.phase === 'jailend' ? 'Deine Figur bleibt im Gefängnis.' : 'Du kannst handeln, Grundstücke verwalten oder den Zug beenden.';
+        $('btn-end').textContent = 'Zug beenden';
+        show('btn-end'); show('btn-manage'); show('btn-trade');
+        break;
+    }
+    if (raising) {
+      buttons.forEach(hide);
+      hint = 'Verkaufe Gebäude oder nimm eine Hypothek auf, um deine Schulden zu begleichen.';
+      show('btn-manage'); show('btn-bankrupt');
     }
   }
+  if (isAnimating) hint = 'Die Figur zieht …';
+  else if (!local && !connected) hint = 'Verbindung zum Spielraum wird hergestellt …';
+  else if (pendingAction) hint = 'Zug wird übertragen …';
 
-  $('turn-banner').textContent = cur.status === 'playing'
-    ? (myTurn ? (raising ? '⚠️ Schulden begleichen!' : '🎲 Du bist dran!') : esc((cur.players[active] || {}).name || '?') + ' ist dran …')
-    : '';
+  $('turn-banner').textContent = title;
+  $('turn-hint').textContent = hint;
+  $('turn-money').textContent = fmt(funds);
+  const field = $('current-space');
+  field.dataset.space = position;
+  field.textContent = E.S[position]?.name || '';
+  field.classList.toggle('hidden', !E.S[position]);
+  buttons.forEach(id => $(id).disabled = busy || (id === 'btn-buy' && purchase && funds < purchase.price));
+}
 
-  // Spielerliste
-  $('players-list').innerHTML = cur.order.map((pid, i) => {
-    const p = cur.players[pid] || { name: '?' };
-    const cls = ['pl-row'];
-    if (pid === active) cls.push('active');
-    if (cur.out[pid]) cls.push('out');
-    if (p.connected === false) cls.push('off');
-    const props = cur.props ? Object.keys(cur.props).filter(k => cur.props[k].owner === pid).length : 0;
-    return `<div class="${cls.join(' ')}">
-      <span class="ptoken" style="color:${TOKEN_COLORS[i % TOKEN_COLORS.length]}">${TOKENS[i % TOKENS.length]}</span>
-      <span class="pl-name">${esc(p.name)}${pid === myPid ? ' (du)' : ''}${cur.jailed[pid] !== undefined ? ' 🔒' : ''}</span>
+function renderPlayers(active) {
+  $('players-list').innerHTML = cur.order.map((pid, index) => {
+    const player = cur.players[pid];
+    const classes = ['pl-row'];
+    if (pid === active) classes.push('active');
+    if (cur.out[pid]) classes.push('out');
+    if (player.connected === false) classes.push('off');
+    const owned = Object.values(cur.props).filter(prop => prop.owner === pid).length;
+    return `<div class="${classes.join(' ')}">
+      <span class="ptoken" style="--piece-color:${TOKEN_COLORS[index]}">${TOKENS[index]}</span>
+      <span class="pl-name">${esc(player.name)}${!local && pid === myPid ? ' (du)' : ''}${cur.jailed[pid] !== undefined ? ' · Gefängnis' : ''}</span>
       <span class="pl-money">${fmt(cur.money[pid] || 0)}</span>
-      <span class="pl-props">${props} Grundstücke</span>
+      <span class="pl-props">${owned} Grundstücke</span>
     </div>`;
   }).join('');
 
-  // Eigene Grundstücke (Kurzliste)
-  const mine = cur.props ? Object.keys(cur.props).filter(k => cur.props[k].owner === myPid).map(Number).sort((x, y) => x - y) : [];
-  $('my-props').innerHTML = mine.length
-    ? '<div class="props-head">Deine Grundstücke:</div>' + mine.map(i => {
-        const s = E.S[i], p = cur.props[i];
-        const col = s.group ? E.GROUP_CSS[s.group] : '#888';
-        return `<div class="my-prop" data-i="${i}"><span class="chip" style="background:${col}"></span>${esc(s.name)}${p.mortgaged ? ' 💸' : ''}${p.houses ? ' ' + '🏠'.repeat(p.houses === 5 ? 0 : p.houses) + (p.houses === 5 ? '🏨' : '') : ''}</div>`;
-      }).join('')
-    : '';
-
-  // Feld des aktiven Spielers aufleuchten
-  if (cur.status === 'playing' && !cur.out[active] && $('space-' + cur.pos[active])) {
-    $('space-' + cur.pos[active]).classList.add('flash');
-    setTimeout(() => { const e = $('space-' + cur.pos[active]); e && e.classList.remove('flash'); }, 1200);
-  }
-
-  // Auktions-Modal
-  if (cur.auction) renderAuction();
-  else hide('modal-auction');
-
-  // Handel eingehend
-  const tr = cur.trade;
-  if (tr && tr.to === myPid) renderTradeIn(tr);
-  else hide('modal-trade-in');
-}
-
-function renderDie(id, v) {
-  const d = $(id);
-  const cells = d.querySelectorAll('.pip');
-  if (cells.length !== 9) {
-    d.innerHTML = '<div class="pipgrid">' + Array(9).fill('<span class="pip"></span>').join('') + '</div>';
-  }
-  d.querySelectorAll('.pip').forEach((p, i) => p.classList.toggle('on', PIP_POS[v] && PIP_POS[v].includes(i)));
-  d.classList.toggle('rolled', !!v);
+  const mine = Object.keys(cur.props).filter(key => cur.props[key].owner === myPid).map(Number).sort((a, b) => a - b);
+  $('props-count').textContent = mine.length;
+  const properties = mine.map(i => {
+    const space = E.S[i], prop = cur.props[i];
+    const color = E.GROUP_CSS[space.group] || '#777';
+    const status = prop.mortgaged ? ' · Hypothek' : (prop.houses === 5 ? ' · Hotel' : (prop.houses ? ' · ' + prop.houses + ' Haus/Häuser' : ''));
+    return `<button type="button" class="my-prop" data-i="${i}">
+      <span class="chip" style="background:${color}"></span>${esc(space.name)}${status}</button>`;
+  }).join('') || '<p class="hint">Noch keine Grundstücke.</p>';
+  if ($('my-props').innerHTML !== properties) $('my-props').innerHTML = properties;
 }
 
 function renderAuction() {
@@ -477,12 +498,21 @@ function renderAuction() {
     : 'Noch kein Gebot';
   const inAuction = au.left.includes(myPid);
   const myBidTurn = inAuction && au.left[au.idx] === myPid;
-  $('btn-bid').disabled = !myBidTurn;
-  $('btn-pass-auction').disabled = !myBidTurn;
-  document.querySelectorAll('.bid-amt').forEach(b => b.disabled = !myBidTurn);
+  const balance = cur.money[myPid];
+  const canAct = myBidTurn && !pendingAction && (local || connected);
+  const bid = au.high + bidAdd;
+  $('btn-bid').textContent = 'Für ' + fmt(bid) + ' bieten';
+  $('btn-bid').disabled = !canAct || bid > balance;
+  $('btn-pass-auction').disabled = !canAct;
+  document.querySelectorAll('.bid-amt').forEach(button => {
+    const add = Number(button.dataset.add);
+    button.disabled = !canAct || au.high + add > balance;
+    button.setAttribute('aria-pressed', String(add === bidAdd));
+  });
   $('auction-status').textContent = !inAuction
-    ? 'Du bist ausgestiegen / nicht dabei'
-    : (myBidTurn ? 'Du bist am Zug — bieten oder passen' : 'Warte auf ' + esc((cur.players[au.left[au.idx]] || {}).name));
+    ? 'Du bietest nicht mehr mit.'
+    : (myBidTurn ? 'Du bist dran. Erhöhe das Gebot oder passe.' : 'Warte auf ' + cur.players[au.left[au.idx]].name);
+  $('btn-auction-leave').classList.toggle('hidden', local);
   show('modal-auction');
 }
 
@@ -490,7 +520,7 @@ let bidAdd = 10;
 document.addEventListener('click', e => {
   if (e.target.classList && e.target.classList.contains('bid-amt')) {
     bidAdd = parseInt(e.target.dataset.add, 10);
-    $('btn-bid').textContent = 'Bieten: ' + ((cur && cur.auction ? cur.auction.high : 0) + bidAdd) + ' €';
+    if (cur?.auction) renderAuction();
   }
 });
 
@@ -510,6 +540,7 @@ function renderTradeModal() {
 }
 function renderTradeProps() {
   const to = $('trade-to').value;
+  $('trade-take-card').checked = false;
   const mkList = (pid, container) => {
     const list = cur.props ? Object.keys(cur.props).filter(k => cur.props[k].owner === pid && !cur.props[k].houses && !cur.props[k].mortgaged).map(Number).sort((a, b) => a - b) : [];
     $(container).innerHTML = list.length
@@ -525,12 +556,17 @@ function checkedProps(id) {
 }
 function renderTradeIn(tr) {
   const from = esc((cur.players[tr.from] || {}).name);
-  const list = arr => arr.length ? arr.map(i => esc(E.S[i].name)).join(', ') : '—';
+  const offer = (properties, money, card) => [
+    ...(properties || []).map(i => esc(E.S[i].name)),
+    ...(money ? [fmt(money)] : []),
+    ...(card ? ['Gefängnisfrei-Karte'] : [])
+  ].join(', ') || 'Nichts';
   $('trade-in-body').innerHTML = `
     <p><b>${from}</b> bietet dir:</p>
-    <p>➡️ ${list(tr.give)}${tr.giveMoney ? ' + ' + tr.giveMoney + ' €' : ''}${tr.giveCard ? ' + Gefängnisfrei-Karte' : ''}</p>
-    <p>⬅️ dafür: ${list(tr.take)}${tr.takeMoney ? ' + ' + tr.takeMoney + ' €' : ''}${tr.takeCard ? ' + Gefängnisfrei-Karte' : ''}</p>`;
+    <p><strong>Du bekommst</strong><br>${offer(tr.give, tr.giveMoney, tr.giveCard)}</p>
+    <p><strong>Du gibst</strong><br>${offer(tr.take, tr.takeMoney, tr.takeCard)}</p>`;
   show('modal-trade-in');
+  $('btn-trade-leave').classList.toggle('hidden', local);
 }
 
 // ---------- Verwaltung ----------
@@ -540,18 +576,20 @@ function renderManage() {
     const s = E.S[i], p = cur.props[i];
     const col = s.group ? E.GROUP_CSS[s.group] : '#888';
     const ownAll = s.group && E.ownsGroup(cur, myPid, s.group);
-    const canBuild = ownAll && !p.mortgaged && p.houses < 5 && (cur.money[myPid] || 0) >= s.house;
-    const canSell = p.houses > 0;
+    const others = s.group ? E.GROUPS[s.group].filter(j => j !== i).map(j => cur.props[j]) : [];
+    const canBuild = ownAll && !p.mortgaged && p.houses < 5 && cur.money[myPid] >= s.house &&
+      others.every(prop => !prop.mortgaged && prop.houses >= p.houses);
+    const canSell = p.houses > 0 && others.every(prop => (prop?.houses || 0) <= p.houses);
     const canMort = !p.mortgaged && !(s.group && E.GROUPS[s.group].some(j => cur.props[j] && cur.props[j].houses > 0));
     const canUnmort = p.mortgaged && (cur.money[myPid] || 0) >= Math.ceil(s.price / 2 * 1.1);
     return `<div class="mg-row">
       <span class="chip" style="background:${col}"></span>
       <span class="mg-name">${esc(s.name)}${p.mortgaged ? ' <em>(Hypothek)</em>' : ''} ${p.houses === 5 ? '🏨' : '🏠'.repeat(p.houses)}</span>
       <span class="mg-btns">
-        ${canBuild ? `<button class="btn sm" data-a="build" data-i="${i}">+ ${p.houses === 4 ? '🏨' : '🏠'} ${s.house} €</button>` : ''}
-        ${canSell ? `<button class="btn sm" data-a="sellhouse" data-i="${i}">− 🏠 ${Math.floor(s.house / 2)} €</button>` : ''}
-        ${canMort ? `<button class="btn sm" data-a="mortgage" data-i="${i}">💸 +${Math.floor(s.price / 2)} €</button>` : ''}
-        ${canUnmort ? `<button class="btn sm" data-a="unmortgage" data-i="${i}">↩️ −${Math.ceil(s.price / 2 * 1.1)} €</button>` : ''}
+        ${canBuild ? `<button class="btn sm" data-a="build" data-i="${i}">${p.houses === 4 ? 'Hotel' : 'Haus'} bauen · −${s.house} €</button>` : ''}
+        ${canSell ? `<button class="btn sm" data-a="sellhouse" data-i="${i}">Gebäude verkaufen · +${Math.floor(s.house / 2)} €</button>` : ''}
+        ${canMort ? `<button class="btn sm" data-a="mortgage" data-i="${i}">Hypothek aufnehmen · +${Math.floor(s.price / 2)} €</button>` : ''}
+        ${canUnmort ? `<button class="btn sm" data-a="unmortgage" data-i="${i}">Hypothek ablösen · −${Math.ceil(s.price / 2 * 1.1)} €</button>` : ''}
       </span>
     </div>`;
   }).join('') : '<div class="hint">Du besitzt noch nichts.</div>';
@@ -560,25 +598,64 @@ function renderManage() {
 // ---------- Ende ----------
 function renderEnd() {
   const w = cur.winner;
-  const name = w === myPid ? 'Du hast' : esc((cur.players[w] || {}).name || '?') + ' hat';
-  $('end-title').textContent = '🏆 ' + name + ' gewonnen!';
+  const name = !local && w === myPid ? 'Du hast' : (cur.players[w]?.name || 'Ein Spieler') + ' hat';
+  $('end-title').textContent = name + ' gewonnen!';
   show('modal-end');
-  $('btn-again').classList.toggle('hidden', !isHost);
+  $('btn-again').classList.toggle('hidden', !local && !isHost);
 }
 
-async function leaveRoom(silent) {
-  joined = false;
-  if (roomRef && myPid) {
-    try { await fb.update(fb.child(roomRef, 'players/' + myPid), { connected: false }); } catch (e) {}
-    fb.off(roomRef);
-    fb.off(fb.child(roomRef, 'actions'));
-    fb.off(fb.child(roomRef, 'feedback/' + myPid));
-  }
-  roomRef = null; cur = null; roomCode = null; isHost = false;
-  actionQueue = []; lastCardSeq = 0; boardBuilt = false;
-  document.querySelectorAll('#board .space').forEach(el => el.remove());
+function leaveRoom(silent = false) {
+  const ref = roomRef, pid = myPid, presence = disconnect;
+  for (const unsubscribe of subscriptions) unsubscribe();
+  subscriptions = [];
+  roomRef = null; cur = null; myPid = null; roomCode = null;
+  isHost = false; connected = false; local = false; disconnect = null; pendingAction = null; round = null;
+  isAnimating = false;
+  clearTimeout(afterRoll);
+  visuals.reset();
+  document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
   history.replaceState(null, '', location.pathname);
   showScreen('screen-start');
+  if (!silent && ref && pid) {
+    fb.runTransaction(ref, room => {
+      const player = room?.players?.[pid];
+      if (!player) return;
+      if (room.status === 'lobby') {
+        delete room.players[pid];
+        if (!Object.keys(room.players).length) return null;
+        if (room.hostId === pid) room.hostId = connectedPlayers(room)[0] || Object.keys(room.players)[0];
+      } else player.connected = false;
+      return room;
+    }, { applyLocally: false }).then(() => presence?.cancel()).catch(() => {});
+  }
+}
+
+function renderLocalNames() {
+  const container = $('local-names');
+  const size = Number($('local-count').value);
+  while (container.children.length > size) container.lastElementChild.remove();
+  while (container.children.length < size) {
+    const i = container.children.length + 1;
+    const label = document.createElement('label');
+    label.className = 'local-player';
+    label.innerHTML = `<span class="ptoken" aria-hidden="true">${TOKENS[i - 1]}</span>
+      <span>Spieler ${i}</span><input name="player" maxlength="16" placeholder="Name optional" autocapitalize="words">`;
+    container.append(label);
+  }
+}
+
+function startLocal(event) {
+  event.preventDefault();
+  const players = {};
+  new FormData(event.currentTarget).getAll('player').forEach((name, i) => {
+    players['local' + i] = { name: name.trim() || 'Spieler ' + (i + 1), connected: true };
+  });
+  local = true;
+  myPid = null;
+  cur = E.deal({ players, order: Object.keys(players) });
+  hide('modal-local');
+  showScreen('screen-game');
+  renderGame();
 }
 
 // ---------- Init ----------
@@ -592,19 +669,47 @@ function init() {
     myName = $('input-name').value.trim() || 'Spieler';
     localStorage.setItem('mono-name', myName);
   };
-  $('btn-create').onclick = () => { saveName(); err(''); createRoom(); };
-  $('btn-join').onclick = () => { saveName(); err(''); joinRoom($('input-code').value); };
+  const online = async action => {
+    saveName();
+    err('');
+    for (const id of ['btn-join', 'btn-create', 'btn-local']) $(id).disabled = true;
+    $('online-block').setAttribute('aria-busy', 'true');
+    try { await action(); }
+    catch { err('Der Spielraum ist gerade nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.'); }
+    finally {
+      $('online-block').removeAttribute('aria-busy');
+      for (const id of ['btn-join', 'btn-create', 'btn-local']) $(id).disabled = false;
+    }
+  };
+  $('btn-create').onclick = () => online(createRoom);
+  $('btn-join').onclick = () => online(() => joinRoom($('input-code').value));
   $('input-code').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-join').click(); });
+  const shareUrl = () => new URL('?room=' + roomCode, location.href).href;
   $('btn-copy').onclick = () => {
-    const url = location.origin + location.pathname + '?room=' + roomCode;
+    const url = shareUrl();
     (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
       .then(() => toast('Link kopiert — schick ihn deinen Mitspielern'))
-      .catch(() => toast(url, 6000));
+      .catch(() => window.prompt('Einladungslink kopieren', url));
   };
+  if (navigator.share) {
+    show('btn-share');
+    $('btn-share').onclick = () => navigator.share({ title: 'Monopoly', url: shareUrl() }).catch(() => {});
+  }
   $('btn-start-game').onclick = hostStartGame;
-  $('btn-leave-lobby').onclick = () => leaveRoom();
-  $('btn-leave-game').onclick = () => leaveRoom();
-  $('btn-end-leave').onclick = () => { hide('modal-end'); showScreen('screen-lobby'); renderLobby(); };
+  $('btn-leave-lobby').onclick = $('btn-end-leave').onclick = () => leaveRoom();
+  const confirmLeave = () => { if (confirm('Möchtest du die Partie verlassen?')) leaveRoom(); };
+  for (const id of ['btn-leave-game', 'btn-auction-leave', 'btn-trade-leave']) $(id).onclick = confirmLeave;
+  $('btn-local').onclick = () => { renderLocalNames(); show('modal-local'); };
+  $('btn-local-close').onclick = () => hide('modal-local');
+  $('local-count').onchange = renderLocalNames;
+  $('local-form').onsubmit = startLocal;
+  $('btn-local-ready').onclick = () => hide('modal-pass');
+  $('field-select').replaceChildren(...E.S.map((space, i) => new Option(space.name, i)));
+  $('btn-field').onclick = () => onSpaceClick(Number($('field-select').value));
+  $('current-space').onclick = () => onSpaceClick(Number($('current-space').dataset.space));
+  for (const id of ['modal-auction', 'modal-pass', 'modal-trade-in', 'modal-end']) {
+    $(id).addEventListener('cancel', event => event.preventDefault());
+  }
 
   $('btn-roll').onclick = () => sendAction({ t: 'roll' });
   $('btn-jail-pay').onclick = () => sendAction({ t: 'roll', mode: 'pay' });
@@ -616,46 +721,44 @@ function init() {
   $('btn-bid').onclick = () => { if (cur && cur.auction) sendAction({ t: 'bid', amount: cur.auction.high + bidAdd }); };
   $('btn-pass-auction').onclick = () => sendAction({ t: 'pass' });
   $('btn-trade').onclick = renderTradeModal;
-  $('btn-manage').onclick = () => { renderManage(); manageOpen = true; show('modal-manage'); };
-  $('btn-close-manage').onclick = () => { manageOpen = false; hide('modal-manage'); };
+  $('btn-trade-cancel').onclick = () => sendAction({ t: 'cancel' });
+  $('btn-manage').onclick = () => { renderManage(); show('modal-manage'); };
+  $('btn-close-manage').onclick = () => hide('modal-manage');
   $('manage-list').addEventListener('click', e => {
     const b = e.target.closest('button[data-a]');
     if (!b) return;
     sendAction({ t: b.dataset.a, space: parseInt(b.dataset.i, 10) });
-    setTimeout(renderManage, 400);
   });
   $('btn-send-trade').onclick = () => {
     const to = $('trade-to').value;
     if (!to) return;
-    sendAction({
+    const offer = {
       t: 'trade', to,
       give: checkedProps('trade-give'), take: checkedProps('trade-take'),
       giveMoney: parseInt($('trade-give-money').value, 10) || 0,
       takeMoney: parseInt($('trade-take-money').value, 10) || 0,
       giveCard: $('trade-give-card').checked, takeCard: $('trade-take-card').checked,
-    });
+    };
+    if (!offer.give.length && !offer.take.length && !offer.giveMoney && !offer.takeMoney && !offer.giveCard && !offer.takeCard) {
+      return toast('Wähle aus, was du geben oder bekommen möchtest.');
+    }
     hide('modal-trade');
+    sendAction(offer);
   };
   $('btn-cancel-trade').onclick = () => hide('modal-trade');
-  $('btn-accept-trade').onclick = () => { sendAction({ t: 'accept' }); hide('modal-trade-in'); };
-  $('btn-decline-trade').onclick = () => { sendAction({ t: 'decline' }); hide('modal-trade-in'); };
-  $('modal-card').addEventListener('click', () => hide('modal-card'));
-  $('modal-deed').addEventListener('click', () => hide('modal-deed'));
+  $('btn-accept-trade').onclick = () => sendAction({ t: 'accept' });
+  $('btn-decline-trade').onclick = () => sendAction({ t: 'decline' });
+  $('btn-card-close').onclick = () => hide('modal-card');
+  $('btn-deed-close').onclick = () => hide('modal-deed');
   $('my-props').addEventListener('click', e => {
     const row = e.target.closest('.my-prop');
     if (row) showDeed(+row.dataset.i);
   });
-  $('btn-again').onclick = async () => {
-    hide('modal-end');
-    if (isHost && cur) {
-      cur.order = Object.keys(cur.players)
-        .filter(pid => cur.players[pid].connected !== false)
-        .sort((x, y) => (cur.players[x].joinedAt || 0) - (cur.players[y].joinedAt || 0));
-      lastCardSeq = 0;
-      E.deal(cur);
-      cur.actions = null;
-      await fb.set(roomRef, cur);
-    }
+  $('btn-again').onclick = () => {
+    if (!local) return hostStartGame();
+    myPid = null;
+    E.deal(cur);
+    renderGame();
   };
 }
 init();

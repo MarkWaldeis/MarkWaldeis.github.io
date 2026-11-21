@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f8f4eb">
+  <meta name="description" content="UNO, Monopoly und weitere Browserspiele im Kabinett von Mark Waldeis.">
+  <title>Spielebibliothek | Kabinett</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="bibliothek.css">
+  <script src="bibliothek.js" defer></script>
+</head>
+<body>
+  <header class="mast">
+    <a class="brand" href="../">Kabinett<span> / </span>Spiele</a>
+    <a class="archive" href="../">Zum Archiv <span aria-hidden="true">↗</span></a>
+  </header>
+  <main>
+    <h1>Spielebibliothek<span>.</span></h1>
+    <section id="featured" aria-label="Empfohlene Spiele" hidden></section>
+    <section class="library" aria-labelledby="all-title">
+      <div class="library-head">
+        <h2 id="all-title">Alle Spiele</h2>
+        <label class="search">
+          <span class="sr">Spiele durchsuchen</span>
+          <input id="search" type="search" placeholder="Spiel suchen …" autocomplete="off">
+        </label>
+      </div>
+      <div id="filters" aria-label="Spiele nach Thema filtern" hidden></div>
+      <p id="status" role="status">Spiele werden geladen …</p>
+      <div id="games"></div>
+      <noscript>Die Spielauswahl benötigt JavaScript. <a href="uno/">UNO öffnen</a> · <a href="monopoly/">Monopoly öffnen</a></noscript>
+    </section>
+  </main>
+</body>
+</html>

@@ -41,6 +41,7 @@
       "title": "UNO — Multiplayer",
       "kind": "Spiel",
       "featured": true,
+      "spotlight": true,
       "tags": [
         "Karten",
         "Multiplayer"
@@ -53,11 +54,12 @@
       "title": "Monopoly — Multiplayer",
       "kind": "Spiel",
       "featured": true,
+      "spotlight": true,
       "tags": [
         "Brettspiel",
         "Multiplayer"
       ],
-      "blurb": "Monopoly online mit Freunden: Raum-Code teilen und losspielen. Deutsche Original-Felder, Häuser, Auktionen und Handel.",
+      "blurb": "Kaufe Straßen, baue Häuser und handle mit Freunden. Online oder gemeinsam an einem Gerät.",
       "href": "spiele/monopoly/index.html"
     },
     {
