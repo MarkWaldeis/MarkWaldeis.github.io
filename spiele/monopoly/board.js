@@ -3,7 +3,7 @@
 const MonoBoard = (() => {
   const PIPS = [[], [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]];
   const ROTATION = [[0, 0], [0, 0], [0, -90], [-90, 0], [90, 0], [0, 90], [0, 180]];
-  const ICON = { bahn: '🚂', tax: '€', chance: '?', community: '✦', free: 'P', go: '←', gotojail: '↪', jail: '🔒' };
+  const ICON = { bahn: '🚂', tax: '€', chance: '?', community: '📦', free: 'P', go: '←', gotojail: '↪', jail: '🔒' };
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const faceMarkup = PIPS.slice(1).map((pips, i) =>
     `<div class="die-face face-${i + 1}"><div class="pipgrid">${Array.from({ length: 9 }, (_, j) =>
@@ -36,7 +36,7 @@ const MonoBoard = (() => {
       cell.className = `space t-${space.t} edge-${edge}${index % 10 === 0 ? ' corner c-' + space.t : ''}`;
       cell.style.gridArea = row + ' / ' + column;
       cell.setAttribute('aria-label', space.name);
-      const icon = index === 12 ? '⚡' : index === 27 ? '◈' : ICON[space.t];
+      const icon = index === 12 ? '💡' : index === 27 ? '🚰' : ICON[space.t];
       const price = space.price || space.amount;
       cell.innerHTML = `
         ${space.group ? `<span class="colorbar" style="background:${engine.GROUP_CSS[space.group]}"></span>` : ''}
