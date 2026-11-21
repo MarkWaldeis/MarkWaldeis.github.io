@@ -17,12 +17,13 @@ let roomCode = null, isHost = false, joined = false;
 let cur = null;
 let localMode = false;
 let soloMode = false;
-let botTimer, endTimer, effectTimer, actionTimer, curtainTimer;
+let botTimer, endTimer, effectTimer, actionTimer, curtainTimer, interactionTimer;
 let curtainFor = null;
 let pendingWild = null;
 let selectedCard = null, lastMove = null, lastHand = null, lastDiscard = null, waiting = false;
 let viewedSeat = null;
 let actionQueue = [], draining = false;
+const queuedActions = new Set();
 let fbEnabled = !!window.UNO_FIREBASE_CONFIG;
 
 // ---------- kleine Helfer ----------
@@ -113,6 +114,7 @@ function subscribeRoom() {
   fb.onValue(roomRef, snap => {
     cur = snap.val();
     if (!cur) { toast('Der Raum wurde geschlossen'); leaveRoom(true); return; }
+    const becameHost = !isHost && cur.hostId === myPid;
     isHost = cur.hostId === myPid;
     // Host-Übernahme, falls der Host offline ist
     const host = cur.players && cur.players[cur.hostId];
@@ -124,11 +126,10 @@ function subscribeRoom() {
     }
     if (cur.status === 'lobby') { showScreen('screen-lobby'); renderLobby(); }
     else { showScreen('screen-game'); renderGame(); }
+    if (becameHost) Object.entries(cur.actions || {}).forEach(([key, action]) => queueAction(key, action));
   });
   fb.onChildAdded(fb.child(roomRef, 'actions'), snap => {
-    if (!isHost) return;
-    actionQueue.push(snap);
-    drainActions();
+    if (isHost) queueAction(snap.key, snap.val());
   });
   fb.onChildAdded(fb.child(roomRef, 'feedback/' + myPid), snap => {
     unlockAction();
@@ -138,28 +139,49 @@ function subscribeRoom() {
   });
 }
 
+function queueAction(key, action) {
+  if (queuedActions.has(key)) return;
+  queuedActions.add(key);
+  actionQueue.push({ key, action, ref: roomRef, host: myPid });
+  drainActions();
+}
+
 async function drainActions() {
   if (draining) return;
   draining = true;
   try {
-  while (actionQueue.length) {
-    const snap = actionQueue.shift();
-    const a = snap.val();
-    let r;
-    try { r = E.applyAction(cur, a.pid, a); }
-    catch (e) { r = { ok: false, err: 'Fehler: ' + e.message }; }
-    if (r.ok) {
-      try { await fb.set(roomRef, cur); } catch (e) { /* Verbindung weg — nächster Sync korrigiert */ }
-    } else {
-      await fb.push(fb.child(roomRef, 'feedback/' + a.pid), r.err || 'Ungültiger Zug').catch(() => {});
+    while (actionQueue.length) {
+      const { key, action, ref, host } = actionQueue.shift();
+      let err;
+      let result;
+      try {
+        if (ref !== roomRef || !isHost) continue;
+        result = await fb.runTransaction(ref, state => {
+          err = null;
+          if (state?.hostId !== host || !state.actions?.[key]) return;
+          if (action.revision == null) {
+            err = 'Bitte lade das Spiel neu';
+            return;
+          }
+          const applied = E.applyAction(state, action.pid, action);
+          if (!applied.ok) { err = applied.err; return; }
+          delete state.actions[key];
+          return state;
+        }, { applyLocally: false });
+        if (!result.committed && err) {
+          await fb.push(fb.child(ref, 'feedback/' + action.pid), err);
+          await fb.remove(fb.child(ref, 'actions/' + key));
+        }
+      } catch (_) {
+        // Nicht quittierte Aktionen bleiben beim Raum.
+      } finally { queuedActions.delete(key); }
     }
-    await fb.remove(snap.ref).catch(() => {});
-  }
   } finally { draining = false; }
 }
 
-function sendAction(a) {
-  if (!myTurn() || cur.status !== 'playing' || waiting || curtainFor) return;
+function sendAction(a, revision = cur && E.revision(cur)) {
+  if (!myTurn() || cur.status !== 'playing' || waiting || interactionTimer || curtainFor || revision !== E.revision(cur)) return;
+  a = { ...a, revision };
   if (localMode) {
     applyLocal(a);
     return;
@@ -262,6 +284,17 @@ function renderGame() {
     lastMove = key;
     selectedCard = null;
     unlockAction();
+    if (pendingWild) {
+      pendingWild = null;
+      hideDialog('modal-color');
+    }
+    if (move.pid === me && current === me) {
+      clearTimeout(interactionTimer);
+      interactionTimer = setTimeout(() => {
+        interactionTimer = null;
+        renderGame();
+      }, 260);
+    }
   }
 
   $('mode-label').textContent = soloMode ? 'Gegen Bots' : localMode ? 'Am selben Gerät' : 'Raum ' + roomCode;
@@ -295,23 +328,31 @@ function renderGame() {
   const turn = myTurn() && cur.status === 'playing' && !curtainFor;
   const deckCount = (cur.deck || []).length;
   const canPass = turn && !!cur.drew;
+  const drawAllowed = E.canDraw(hand, cur);
+  const blocked = waiting || !!interactionTimer;
   $('turn-banner').classList.toggle('your-turn', turn);
   const title = cur.status === 'finished' ? 'Runde beendet' : turn ? 'Du bist dran!' : cur.players[current].name + ' ist dran';
-  const help = turn ? (waiting ? 'Zug wird gesendet …' : canPass ? 'Neue Karte legen oder passen.' : 'Karte antippen oder vom Stapel ziehen.') : '';
+  let help = '';
+  if (turn) {
+    if (waiting) help = 'Zug wird gesendet …';
+    else if (canPass) help = 'Nur die neue Karte legen oder passen.';
+    else if (drawAllowed) help = 'Keine passende Karte – tippe auf den Ziehstapel.';
+    else help = 'Lege eine markierte Karte. Ziehen geht nur ohne passende Karte.';
+  }
   const banner = `<strong>${esc(title)}</strong>${help ? `<span>${help}</span>` : ''}`;
   if ($('turn-banner').innerHTML !== banner) $('turn-banner').innerHTML = banner;
   $('draw-caption').textContent = deckCount ? `Ziehen · ${deckCount}` : cur.discard.length > 1 ? 'Stapel neu mischen' : 'Stapel leer';
-  $('pile').disabled = !turn || waiting || canPass;
+  $('pile').disabled = !turn || blocked || !drawAllowed;
+  $('pile').classList.toggle('unavailable', !turn || !drawAllowed);
   $('pile').setAttribute('aria-label', deckCount ? `Karte ziehen, ${deckCount} im Stapel` : $('draw-caption').textContent);
   $('pile').parentElement.dataset.depth = Math.min(deckCount, 3);
   $('btn-pass').classList.toggle('hidden', !canPass);
-  $('btn-pass').disabled = waiting;
+  $('btn-pass').disabled = blocked;
   $('hand-label').textContent = localMode && !soloMode ? cur.players[me].name + 's Hand' : 'Deine Hand';
   $('hand-count').textContent = curtainFor ? '' : `${hand.length} ${hand.length === 1 ? 'Karte · UNO!' : 'Karten'}`;
 
-  const w4ok = E.wild4Legal(hand, cur);
   const handEl = $('hand');
-  const handKey = JSON.stringify([me, hand, turn, canPass, waiting, cur.currentColor, cur.top.v, curtainFor]);
+  const handKey = JSON.stringify([me, hand, turn, canPass, blocked, cur.currentColor, cur.top.v, curtainFor]);
   if (lastHand !== handKey) {
     lastHand = handKey;
     const scroll = handEl.scrollLeft;
@@ -320,9 +361,9 @@ function renderGame() {
     handEl.classList.toggle('can-play', turn);
     handEl.classList.toggle('many', hand.length > 7);
     handEl.innerHTML = curtainFor ? '' : hand.map((card, i) => {
-      const playable = turn && (!cur.drew ? E.canPlay(card, cur) : i === drawnIdx) && (card.v !== 'wild4' || w4ok);
+      const playable = turn && E.canPlayFromHand(card, hand, cur);
       const arc = Math.max(-3, Math.min(3, i - (hand.length - 1) / 2));
-      return cardHtml(card, true, `data-index="${i}" data-playable="${playable}" data-drawn="${i === drawnIdx}" style="--tilt:${arc * 1.9}deg;--down:${arc ** 2 * .8}px" ${!playable || waiting ? 'disabled' : ''}`);
+      return cardHtml(card, true, `data-index="${i}" data-playable="${playable}" data-drawn="${i === drawnIdx}" style="--tilt:${arc * 1.9}deg;--down:${arc ** 2 * .8}px" ${!playable || blocked ? 'disabled' : ''}`);
     }).join('');
     handEl.scrollLeft = scroll;
     if (animate && move.pid === me && move.t === 'draw') handEl.scrollLeft = handEl.scrollWidth;
@@ -406,7 +447,7 @@ function onCardClick(button) {
   const card = cur.hands[activePid()][index];
   selectedCard = { rect: button.getBoundingClientRect(), index };
   if (card.c === 'w') {
-    pendingWild = card;
+    pendingWild = { card, revision: E.revision(cur) };
     showDialog('modal-color', 'modal-color');
     return;
   }
@@ -447,6 +488,7 @@ async function leaveRoom(silent) {
   }
   roomRef = null; cur = null; roomCode = null; isHost = false;
   actionQueue = [];
+  queuedActions.clear();
   resetPresentation();
   history.replaceState(null, '', location.pathname);
   showScreen('screen-start');
@@ -495,8 +537,8 @@ function resetOfflineRound() {
 }
 
 function resetPresentation() {
-  [botTimer, endTimer, effectTimer, curtainTimer].forEach(clearTimeout);
-  endTimer = curtainTimer = null;
+  [botTimer, endTimer, effectTimer, curtainTimer, interactionTimer].forEach(clearTimeout);
+  endTimer = curtainTimer = interactionTimer = null;
   unlockAction();
   lastMove = lastHand = lastDiscard = viewedSeat = curtainFor = pendingWild = selectedCard = null;
   ['modal-color', 'modal-curtain', 'modal-end'].forEach(hideDialog);
@@ -577,7 +619,7 @@ function init() {
   document.querySelectorAll('#modal-color [data-color]').forEach(b => {
     b.onclick = () => {
       hideDialog('modal-color');
-      if (pendingWild) sendAction({ t: 'play', card: pendingWild, color: b.dataset.color });
+      if (pendingWild) sendAction({ t: 'play', card: pendingWild.card, color: b.dataset.color }, pendingWild.revision);
       pendingWild = null;
     };
   });

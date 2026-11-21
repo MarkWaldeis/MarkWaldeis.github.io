@@ -37,6 +37,19 @@ const UnoEngine = (() => {
     return !hand.some(c => c.c === state.currentColor);
   }
 
+  function canPlayFromHand(card, hand, state) {
+    return (!state.drew || same(card, state.drew)) && canPlay(card, state)
+      && (card.v !== 'wild4' || wild4Legal(hand, state));
+  }
+
+  function canDraw(hand, state) {
+    return !state.drew && !hand.some(card => canPlayFromHand(card, hand, state));
+  }
+
+  function revision(state) {
+    return `${state.round || 0}:${state.move?.n || 0}`;
+  }
+
   function name(state, pid) {
     return (state.players[pid] && state.players[pid].name) || '?';
   }
@@ -69,7 +82,7 @@ const UnoEngine = (() => {
     const hands = {};
     for (const pid of state.order) hands[pid] = deck.splice(0, 7);
     let top = deck.pop();
-    while (top.c === 'w') { deck.unshift(top); top = deck.pop(); }
+    while (!/^\d$/.test(top.v)) { deck.unshift(top); top = deck.pop(); }
     state.status = 'playing';
     state.deck = deck;
     state.discard = [top];
@@ -88,12 +101,14 @@ const UnoEngine = (() => {
 
   function applyAction(state, pid, action) {
     if (state.status !== 'playing') return { ok: false, err: 'Spiel läuft nicht' };
+    if (action.revision != null && action.revision !== revision(state)) return { ok: false, err: 'Dieser Zug ist nicht mehr aktuell' };
     if (state.order[state.turn] !== pid) return { ok: false, err: 'Nicht dein Zug' };
     const hand = state.hands[pid];
     if (!hand) return { ok: false, err: 'Keine Hand' };
 
     if (action.t === 'draw') {
       if (state.drew) return { ok: false, err: 'Du hast schon gezogen' };
+      if (!canDraw(hand, state)) return { ok: false, err: 'Lege eine passende Karte, statt zu ziehen' };
       const card = drawOne(state);
       setMove(state, pid, card ? 'draw' : 'pass');
       if (card) {
@@ -101,7 +116,7 @@ const UnoEngine = (() => {
         state.drew = card;
         log(state, name(state, pid) + ' zieht eine Karte');
       } else log(state, 'Keine Karte zum Ziehen – ' + name(state, pid) + ' passt');
-      if (!card || !canPlay(card, state) || (card.v === 'wild4' && !wild4Legal(hand, state))) nextTurn(state);
+      if (!card || !canPlayFromHand(card, hand, state)) nextTurn(state);
       return { ok: true };
     }
 
@@ -148,21 +163,19 @@ const UnoEngine = (() => {
 
       let skip = 1;
       const n = state.order.length;
+      const again = n === 2 ? ' · ' + name(state, pid) + ' ist noch einmal dran' : '';
       if (card.v === 'skip') {
         skip = 2;
         move.target = nextPid(state);
-        log(state, name(state, move.target) + ' setzt aus');
-      }
-      else if (card.v === 'rev') {
+        log(state, name(state, move.target) + ' setzt aus' + again);
+      } else if (card.v === 'rev') {
         state.dir *= -1;
         skip = n === 2 ? 2 : 1;
-        log(state, 'Richtung wechselt');
-      } else if (card.v === 'd2') {
-        drawToVictim(state, move, 2);
-        skip = 2;
-      } else if (card.v === 'wild4') {
-        drawToVictim(state, move, 4);
-        skip = 2;
+        const effect = n === 2 ? ' – ' + name(state, nextPid(state)) + ' setzt aus' + again : '';
+        log(state, 'Richtung wechselt' + effect);
+      } else if (card.v === 'd2' || card.v === 'wild4') {
+        skip = n === 2 ? 1 : 2;
+        drawToVictim(state, move, card.v === 'd2' ? 2 : 4, skip === 2);
       }
       nextTurn(state, skip);
       return { ok: true };
@@ -179,7 +192,7 @@ const UnoEngine = (() => {
     return state.order[(state.turn + state.dir + n) % n];
   }
 
-  function drawToVictim(state, move, count) {
+  function drawToVictim(state, move, count, skipsTurn) {
     move.target = nextPid(state);
     move.count = 0;
     for (let i = 0; i < count; i++) {
@@ -188,13 +201,14 @@ const UnoEngine = (() => {
       state.hands[move.target].push(card);
       move.count++;
     }
-    log(state, name(state, move.target) + (move.count ? ' zieht ' + move.count + ' Karten und setzt aus' : ' setzt aus'));
+    const draws = move.count === 1 ? ' zieht eine Karte' : ' zieht ' + move.count + ' Karten';
+    const next = skipsTurn ? 'setzt aus' : 'ist dran';
+    log(state, name(state, move.target) + (move.count ? draws + ' und ' : ' ') + next);
   }
 
   function botAction(state, pid) {
     const hand = state.hands[pid];
-    const cards = hand.filter(c => (state.drew ? same(c, state.drew) : canPlay(c, state))
-      && (c.v !== 'wild4' || wild4Legal(hand, state)));
+    const cards = hand.filter(c => canPlayFromHand(c, hand, state));
     const card = cards.find(c => c.c !== 'w') || cards[0];
     if (!card) return { t: state.drew ? 'pass' : 'draw' };
     if (card.c !== 'w') return { t: 'play', card };
@@ -209,7 +223,7 @@ const UnoEngine = (() => {
     return COLOR_NAMES[card.c] + ' ' + v;
   }
 
-  return { COLORS, COLOR_NAMES, buildDeck, canPlay, wild4Legal, deal, applyAction, botAction, label, drawOne, nextTurn };
+  return { COLORS, COLOR_NAMES, buildDeck, canPlayFromHand, canDraw, revision, deal, applyAction, botAction, label, drawOne, nextTurn };
 })();
 
 if (typeof module !== 'undefined') module.exports = UnoEngine;

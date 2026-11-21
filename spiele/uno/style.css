@@ -162,6 +162,7 @@ input::placeholder { color: #9cb6ad; }
 #pile { transition: box-shadow .18s, transform .18s; }
 #pile:not(:disabled) { box-shadow: 0 0 0 2px var(--gold), 0 5px 14px #0008; }
 #pile:not(:disabled):active { transform: translateY(3px); }
+.draw-stack:has(#pile.unavailable) { filter: saturate(.28) brightness(.75); }
 [data-depth="0"] #pile { opacity: .65; }
 [data-layer="1"] { transform: translate(4px, 3px) rotate(11deg); }
 [data-layer="2"] { transform: translate(-6px, 3px) rotate(-12deg); }
