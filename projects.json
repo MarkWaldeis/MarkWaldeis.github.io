@@ -39,6 +39,18 @@
       "href": "spiele/monopoly/index.html"
     },
     {
+      "id": "tennis",
+      "title": "Muse Tennis",
+      "kind": "Spiel",
+      "tags": [
+        "3D",
+        "Sport",
+        "Multiplayer"
+      ],
+      "blurb": "Spiele auf fünf 3D-Plätzen gegen die KI oder starte ein Online-Duell per Raumcode.",
+      "href": "https://markwaldeis.github.io/muse-tennis/"
+    },
+    {
       "id": "sea-serpent",
       "title": "Sea Serpent",
       "kind": "Szene",
