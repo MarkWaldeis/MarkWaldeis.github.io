@@ -253,6 +253,16 @@ const Mono = (() => {
     st.phase = st.jailed[st.order[st.turn]] !== undefined ? 'jail' : 'roll';
   }
 
+  function canRollAgain(st, pid) {
+    return st.status === 'playing' && st.doubles > 0 && st.dice?.[0] === st.dice?.[1] &&
+      st.jailed[pid] === undefined && st.mustRaise[pid] === undefined && !st.out[pid];
+  }
+
+  function finishPurchase(st, pid) {
+    st.pending = null;
+    st.phase = canRollAgain(st, pid) ? 'roll' : 'manage';
+  }
+
   function applyAction(st, pid, a) {
     // RTDB löscht leere Objekte — defensiv initialisieren
     st.mustRaise = st.mustRaise || {};
@@ -307,7 +317,7 @@ const Mono = (() => {
         }
         movePlayer(st, pid, st.dice[0] + st.dice[1]);
         // Pasch → nochmal würfeln (wenn Feld nicht in Buy/Ende mündete)
-        if (st.dice[0] === st.dice[1] && st.phase === 'manage' && st.jailed[pid] === undefined && !st.mustRaise[pid] && !st.out[pid]) st.phase = 'roll';
+        if (st.phase === 'manage' && canRollAgain(st, pid)) st.phase = 'roll';
         return { ok: true };
       }
       case 'buy': {
@@ -317,7 +327,7 @@ const Mono = (() => {
         pay(st, pid, null, s.price);
         st.props[idx] = { owner: pid, houses: 0, mortgaged: false };
         log(st, name(st, pid) + ' kauft ' + s.name + ' für ' + s.price + ' €');
-        st.pending = null; st.phase = 'manage';
+        finishPurchase(st, pid);
         return { ok: true };
       }
       case 'auction': {
@@ -395,6 +405,10 @@ const Mono = (() => {
       case 'end': {
         if (st.mustRaise[pid] !== undefined) return { ok: false, err: 'Erst Schulden begleichen (Hypothek/Gebäude verkaufen oder Konkurs)' };
         if (st.phase === 'jailend' || st.phase === 'manage' || st.phase === 'buy') {
+          if (canRollAgain(st, pid)) {
+            finishPurchase(st, pid);
+            return { ok: true };
+          }
           nextTurn(st);
           return { ok: true };
         }
@@ -465,7 +479,8 @@ const Mono = (() => {
       } else {
         log(st, 'Niemand bietet — ' + S[au.space].name + ' bleibt der Bank');
       }
-      st.auction = null; st.phase = 'manage';
+      st.auction = null;
+      finishPurchase(st, st.order[st.turn]);
     } else if (au.left[au.idx] === au.bidder) {
       au.idx = (au.idx + 1) % au.left.length;
     }
@@ -506,7 +521,7 @@ const Mono = (() => {
     return st;
   }
 
-  return { S, GROUPS, GROUP_CSS, deal, applyAction, ownsGroup, rentFor, totalAssets };
+  return { S, GROUPS, GROUP_CSS, deal, applyAction, canRollAgain, ownsGroup, rentFor, totalAssets };
 })();
 
 if (typeof module !== 'undefined') module.exports = Mono;

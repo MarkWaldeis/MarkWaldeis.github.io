@@ -414,7 +414,7 @@ function renderTurn() {
     switch (cur.phase) {
       case 'roll':
         hint = cur.doubles ? 'Pasch! Du darfst erneut würfeln.' : 'Würfle, um deine Figur zu bewegen.';
-        $('btn-roll').textContent = 'Würfeln';
+        $('btn-roll').textContent = cur.doubles ? 'Erneut würfeln' : 'Würfeln';
         show('btn-roll');
         break;
       case 'jail':
@@ -427,7 +427,7 @@ function renderTurn() {
       case 'buy':
         if (!purchase) break;
         hint = funds >= purchase.price
-          ? 'Kaufen, versteigern oder den Zug ohne Kauf beenden.'
+          ? 'Kaufen, versteigern oder ohne Kauf weiterspielen.'
           : 'Dein Guthaben reicht für den Kauf nicht aus.';
         $('btn-buy').textContent = 'Für ' + fmt(purchase.price) + ' kaufen';
         $('btn-end').textContent = 'Ohne Kauf weiter';
@@ -437,6 +437,10 @@ function renderTurn() {
       case 'jailend':
         hint = cur.phase === 'jailend' ? 'Deine Figur bleibt im Gefängnis.' : 'Du kannst handeln, Grundstücke verwalten oder den Zug beenden.';
         $('btn-end').textContent = 'Zug beenden';
+        if (E.canRollAgain(cur, myPid)) {
+          hint = 'Nach einem Pasch steht dir noch ein Wurf zu.';
+          $('btn-end').textContent = 'Weiter zum Zusatzwurf';
+        }
         show('btn-end'); show('btn-manage'); show('btn-trade');
         break;
     }
