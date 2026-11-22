@@ -94,11 +94,12 @@ const MonoBoard = (() => {
         const space = state.pos[pid];
         const stack = stacks.get(space);
         const target = point(space, stack.indexOf(pid), stack.length);
+        const ti = Number.isInteger(state.players?.[pid]?.token) ? state.players[pid].token : index;
         if (!piece) {
           const node = document.createElement('span');
           node.className = 'piece';
-          node.style.setProperty('--piece-color', colors[index]);
-          node.innerHTML = '<span>' + icons[index] + '</span>';
+          node.style.setProperty('--piece-color', colors[ti]);
+          node.innerHTML = '<span>' + icons[ti] + '</span>';
           pieceLayer.append(node);
           piece = { node, target };
           pieces.set(pid, piece);

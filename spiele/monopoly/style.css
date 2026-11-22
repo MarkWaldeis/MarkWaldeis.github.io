@@ -318,3 +318,10 @@ dialog::backdrop { background: #0a251bae; }
   dialog { animation: none !important; }
   .btn:active, .bid-amt:active { transform: none; }
 }
+
+/* Figuren-Auswahl im Warteraum */
+#token-pick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.token-pick-label { font-size: 12px; color: #555; width: 100%; }
+.tok-opt { font-size: 20px; padding: 4px 8px; border: 2px solid var(--line, #333); border-radius: 8px; background: #fff; cursor: pointer; }
+.tok-opt.sel { border-color: var(--red, #d4202c); background: #fdeaea; }
+.tok-opt:disabled { opacity: .35; cursor: default; }

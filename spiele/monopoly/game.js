@@ -225,6 +225,11 @@ function sendAction(a) {
 }
 
 // ---------- Lobby ----------
+function tokenIdx(pid, fallback) {
+  const t = cur && cur.players && cur.players[pid] && cur.players[pid].token;
+  return Number.isInteger(t) && t >= 0 && t < TOKENS.length ? t : (fallback ?? 0);
+}
+
 function renderLobby() {
   $('lobby-code').textContent = roomCode;
   const ul = $('lobby-players');
@@ -234,9 +239,16 @@ function renderLobby() {
     const p = players[pid];
     const me = pid === myPid ? ' (du)' : '';
     const crown = pid === cur.hostId ? ' <span class="crown">👑</span>' : '';
-    const token = TOKENS[i % TOKENS.length];
+    const token = TOKENS[tokenIdx(pid, i)];
     return `<li><span class="dot${p.connected === false ? ' off' : ''}"></span><span class="ptoken">${token}</span>${esc(p.name)}${me}${crown}</li>`;
   }).join('');
+  // Figuren-Auswahl (nur im Warteraum)
+  const taken = new Set(ids.map(pid => players[pid].token).filter(t => Number.isInteger(t)));
+  const mine = players[myPid] ? tokenIdx(myPid, ids.indexOf(myPid)) : -1;
+  $('token-pick').innerHTML = players[myPid]
+    ? '<div class="token-pick-label">Deine Figur:</div>' + TOKENS.map((t, i) =>
+        `<button type="button" class="tok-opt${i === mine ? ' sel' : ''}" data-tok="${i}" ${taken.has(i) && i !== mine ? 'disabled' : ''}>${t}</button>`).join('')
+    : '';
   const online = ids.filter(pid => players[pid].connected !== false).length;
   if (isHost) {
     show('btn-start-game');
@@ -473,7 +485,7 @@ function renderPlayers(active) {
     if (player.connected === false) classes.push('off');
     const owned = Object.values(cur.props).filter(prop => prop.owner === pid).length;
     return `<div class="${classes.join(' ')}">
-      <span class="ptoken" style="--piece-color:${TOKEN_COLORS[index]}">${TOKENS[index]}</span>
+      <span class="ptoken" style="--piece-color:${TOKEN_COLORS[tokenIdx(pid, index)]}">${TOKENS[tokenIdx(pid, index)]}</span>
       <span class="pl-name">${esc(player.name)}${!local && pid === myPid ? ' (du)' : ''}${cur.jailed[pid] !== undefined ? ' · Gefängnis' : ''}</span>
       <span class="pl-money">${fmt(cur.money[pid] || 0)}</span>
       <span class="pl-props">${owned} Grundstücke</span>
@@ -754,6 +766,18 @@ function init() {
   $('btn-decline-trade').onclick = () => sendAction({ t: 'decline' });
   $('btn-card-close').onclick = () => hide('modal-card');
   $('btn-deed-close').onclick = () => hide('modal-deed');
+  $('token-pick').addEventListener('click', async e => {
+    const b = e.target.closest('.tok-opt');
+    if (!b || b.disabled) return;
+    const t = +b.dataset.tok;
+    try {
+      await fb.runTransaction(roomRef, room => {
+        if (!room || room.status !== 'lobby' || !room.players?.[myPid]) return;
+        room.players[myPid].token = t;
+        return room;
+      }, { applyLocally: false });
+    } catch {}
+  });
   $('my-props').addEventListener('click', e => {
     const row = e.target.closest('.my-prop');
     if (row) showDeed(+row.dataset.i);
