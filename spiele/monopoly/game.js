@@ -30,6 +30,9 @@ let lastCardSeq = 0;
 let round = null;
 let isAnimating = false;
 let afterRoll = 0;
+let lastFxSeq = 0;
+let pendingCardTimer = null;
+let dismissedTradeKey = null;
 const visuals = MonoBoard.create(E, TOKENS, TOKEN_COLORS, onSpaceClick);
 
 function toast(msg, ms = 3000) {
@@ -342,13 +345,17 @@ function renderGame() {
   if (round !== (cur.round || 0)) {
     round = cur.round || 0;
     lastCardSeq = cur.cardSeq || 0;
+    lastFxSeq = cur.fxSeq || 0;
     clearTimeout(afterRoll);
+    clearTimeout(pendingCardTimer);
+    pendingCardTimer = null;
     isAnimating = false;
     visuals.reset();
   }
 
   const active = cur.order[cur.turn];
-  const duration = visuals.update(cur);
+  const timing = visuals.update(cur);
+  const duration = timing.duration;
   if (duration > 0) {
     isAnimating = true;
     clearTimeout(afterRoll);
@@ -357,6 +364,26 @@ function renderGame() {
       if (cur?.order) renderGame();
     }, duration);
   }
+
+  // Ereigniskarte: erst anzeigen, dann kurze Pause, dann weiterlaufen
+  if (cur.cardSeq && cur.cardSeq !== lastCardSeq && cur.lastCard) {
+    lastCardSeq = cur.cardSeq;
+    const at = timing.cardAt != null ? timing.cardAt : duration;
+    pendingCardTimer = setTimeout(() => {
+      pendingCardTimer = null;
+      const community = cur.lastCardType === 'community';
+      $('drawn-card').classList.toggle('community', community);
+      $('card-title').textContent = community ? 'Gemeinschaftskarte' : 'Ereigniskarte';
+      $('drawn-card').querySelector('.dc-text').textContent = cur.lastCard;
+      show('modal-card');
+    }, at);
+  }
+
+  // Geldeffekte (Miete, Handel, Bankrott) nach der Laufanimation abspielen
+  for (const key of Object.keys(cur.fx || {}).map(Number).filter(s => s > lastFxSeq).sort((a, b) => a - b)) {
+    setTimeout(() => playFx(cur.fx[key]), Math.max(0, (duration || 0)) + 250);
+  }
+  lastFxSeq = cur.fxSeq || 0;
 
   const nextPlayer = cur.trade?.to || cur.auction?.left?.[cur.auction.idx] || active;
   const handoff = local && myPid && myPid !== nextPlayer && cur.status !== 'finished';
@@ -373,20 +400,12 @@ function renderGame() {
   }
 
   if ($('modal-manage').open) renderManage();
-  if (!isAnimating && cur.cardSeq && cur.cardSeq !== lastCardSeq && cur.lastCard) {
-    lastCardSeq = cur.cardSeq;
-    const community = cur.lastCardType === 'community';
-    $('drawn-card').classList.toggle('community', community);
-    $('card-title').textContent = community ? 'Gemeinschaftskarte' : 'Ereigniskarte';
-    $('drawn-card').querySelector('.dc-text').textContent = cur.lastCard;
-    show('modal-card');
-  }
   if (isAnimating) return;
 
   if (cur.auction) renderAuction();
   else { hide('modal-auction'); bidAdd = 10; }
-  if (cur.trade?.to === myPid) renderTradeIn(cur.trade);
-  else hide('modal-trade-in');
+  if (cur.trade) renderTradeIn(cur.trade);
+  else { hide('modal-trade-in'); dismissedTradeKey = null; }
   if (cur.status === 'finished') renderEnd();
   else hide('modal-end');
 
@@ -422,7 +441,7 @@ function renderTurn() {
     title = 'Handelsangebot';
     hint = (cur.players[cur.trade.to]?.name || 'Mitspieler') + ' entscheidet über das Angebot.';
     if (!local && cur.trade.from === myPid) show('btn-trade-cancel');
-  } else if (myTurn) {
+  } else if (myTurn && !raising) {
     switch (cur.phase) {
       case 'roll':
         hint = cur.doubles ? 'Pasch! Du darfst erneut würfeln.' : 'Würfle, um deine Figur zu bewegen.';
@@ -456,11 +475,12 @@ function renderTurn() {
         show('btn-end'); show('btn-manage'); show('btn-trade');
         break;
     }
-    if (raising) {
-      buttons.forEach(hide);
-      hint = 'Verkaufe Gebäude oder nimm eine Hypothek auf, um deine Schulden zu begleichen.';
-      show('btn-manage'); show('btn-bankrupt');
-    }
+  }
+  if (playing && !cur.auction && !cur.trade && raising) {
+    buttons.forEach(hide);
+    title = 'Du musst Geld auftreiben';
+    hint = 'Verkaufe Gebäude oder nimm eine Hypothek auf, um deine Schulden zu begleichen.';
+    show('btn-manage'); show('btn-bankrupt');
   }
   if (isAnimating) hint = 'Die Figur zieht …';
   else if (!local && !connected) hint = 'Verbindung zum Spielraum wird hergestellt …';
@@ -484,7 +504,7 @@ function renderPlayers(active) {
     if (cur.out[pid]) classes.push('out');
     if (player.connected === false) classes.push('off');
     const owned = Object.values(cur.props).filter(prop => prop.owner === pid).length;
-    return `<div class="${classes.join(' ')}">
+    return `<div class="${classes.join(' ')}" data-pid="${pid}">
       <span class="ptoken" style="--piece-color:${TOKEN_COLORS[tokenIdx(pid, index)]}">${TOKENS[tokenIdx(pid, index)]}</span>
       <span class="pl-name">${esc(player.name)}${!local && pid === myPid ? ' (du)' : ''}${cur.jailed[pid] !== undefined ? ' · Gefängnis' : ''}</span>
       <span class="pl-money">${fmt(cur.money[pid] || 0)}</span>
@@ -572,17 +592,111 @@ function checkedProps(id) {
 }
 function renderTradeIn(tr) {
   const from = esc((cur.players[tr.from] || {}).name);
+  const to = esc((cur.players[tr.to] || {}).name);
   const offer = (properties, money, card) => [
     ...(properties || []).map(i => esc(E.S[i].name)),
     ...(money ? [fmt(money)] : []),
     ...(card ? ['Gefängnisfrei-Karte'] : [])
   ].join(', ') || 'Nichts';
+  const mine = tr.to === myPid;
+  const own = tr.from === myPid;
+  if (!mine && !own && dismissedTradeKey === JSON.stringify(tr)) return;
   $('trade-in-body').innerHTML = `
-    <p><b>${from}</b> bietet dir:</p>
-    <p><strong>Du bekommst</strong><br>${offer(tr.give, tr.giveMoney, tr.giveCard)}</p>
-    <p><strong>Du gibst</strong><br>${offer(tr.take, tr.takeMoney, tr.takeCard)}</p>`;
+    <p>${mine ? `<b>${from}</b> bietet <b>dir</b>:` : own ? `Dein Angebot an <b>${to}</b>:` : `<b>${from}</b> bietet <b>${to}</b>:`}</p>
+    <p><strong>${mine ? 'Du bekommst' : from + ' gibt'}</strong><br>${offer(tr.give, tr.giveMoney, tr.giveCard)}</p>
+    <p><strong>${mine ? 'Du gibst' : to + ' gibt'}</strong><br>${offer(tr.take, tr.takeMoney, tr.takeCard)}</p>
+    ${own ? '<p class="hint">Wartet auf die Antwort …</p>' : ''}
+    ${!mine && !own ? '<p class="hint">Du schaust zu — die beiden verhandeln gerade.</p>' : ''}`;
+  $('btn-accept-trade').classList.toggle('hidden', !mine);
+  $('btn-decline-trade').classList.toggle('hidden', !mine);
+  $('btn-trade-in-cancel').classList.toggle('hidden', !own || local);
+  $('btn-trade-spect-close').classList.toggle('hidden', mine || own);
   show('modal-trade-in');
   $('btn-trade-leave').classList.toggle('hidden', local);
+}
+
+// ---------- Effekt-Animationen ----------
+let fxLayer = null;
+function fxLayerEl() {
+  if (!fxLayer) {
+    fxLayer = document.createElement('div');
+    fxLayer.id = 'fx-layer';
+    $('game-wrap').append(fxLayer);
+  }
+  return fxLayer;
+}
+function anchorOf(pid) {
+  const layer = fxLayerEl();
+  const base = layer.getBoundingClientRect();
+  const row = $('players-list').querySelector(`[data-pid="${pid}"]`);
+  const boardPt = visuals.piecePoint(pid);
+  const boardEl = $('board');
+  if (boardPt && boardEl) {
+    const b = boardEl.getBoundingClientRect();
+    return [b.left + boardPt[0] - base.left, b.top + boardPt[1] - base.top];
+  }
+  if (row) {
+    const r = row.getBoundingClientRect();
+    return [r.left + r.width / 2 - base.left, r.top + r.height / 2 - base.top];
+  }
+  return [base.width / 2, base.height / 2];
+}
+function flyEl(cls, from, to, delay = 0) {
+  const el = document.createElement('span');
+  el.className = 'fx ' + cls;
+  el.style.left = from[0] + 'px';
+  el.style.top = from[1] + 'px';
+  fxLayerEl().append(el);
+  const midY = Math.min(from[1], to[1]) - 46;
+  el.animate([
+    { transform: 'translate(-50%,-50%) scale(.7)', opacity: 0 },
+    { transform: `translate(${from[0] === to[0] ? '-50%' : '-30%'},-50%) scale(1.1)`, opacity: 1, offset: .18 },
+    { transform: `translate(${to[0] - from[0] - 18}px, ${midY - from[1]}px) translate(-50%,-50%) scale(1)`, opacity: 1, offset: .7 },
+    { transform: `translate(${to[0] - from[0]}px, ${to[1] - from[1]}px) translate(-50%,-50%) scale(.85)`, opacity: 0 }
+  ], { duration: 950, delay, easing: 'cubic-bezier(.3,.6,.4,1)', fill: 'backwards' }).onfinish = () => el.remove();
+}
+function bumpMoney(pid, gain) {
+  const row = $('players-list').querySelector(`[data-pid="${pid}"] .pl-money`);
+  if (!row) return;
+  row.classList.remove('gain', 'loss');
+  void row.offsetWidth;
+  row.classList.add(gain ? 'gain' : 'loss');
+}
+function playFx(fx) {
+  if (!fx) return;
+  if (fx.k === 'pay') {
+    const from = anchorOf(fx.from), to = anchorOf(fx.to);
+    const n = Math.min(5, Math.max(2, Math.ceil(fx.v / 80)));
+    for (let i = 0; i < n; i++) flyEl('bill', from, to, i * 130);
+    bumpMoney(fx.from, false);
+    setTimeout(() => bumpMoney(fx.to, true), 900);
+  } else if (fx.k === 'trade') {
+    const a = anchorOf(fx.from), b = anchorOf(fx.to);
+    (fx.give || []).forEach((i, k) => {
+      const el = flyEl('deed', a, b, k * 140);
+      void el;
+    });
+    (fx.take || []).forEach((i, k) => flyEl('deed', b, a, k * 140));
+    if (fx.giveMoney) for (let i = 0; i < 3; i++) flyEl('bill', a, b, 200 + i * 130);
+    if (fx.takeMoney) for (let i = 0; i < 3; i++) flyEl('bill', b, a, 200 + i * 130);
+    if (fx.giveCard) flyEl('jcard', a, b, 400);
+    if (fx.takeCard) flyEl('jcard', b, a, 400);
+    if (fx.giveMoney) setTimeout(() => bumpMoney(fx.to, true), 1100);
+    if (fx.takeMoney) setTimeout(() => bumpMoney(fx.from, true), 1100);
+  } else if (fx.k === 'out') {
+    const at = anchorOf(fx.pid);
+    const el = document.createElement('span');
+    el.className = 'fx burst';
+    el.textContent = '💥';
+    el.style.left = at[0] + 'px';
+    el.style.top = at[1] + 'px';
+    fxLayerEl().append(el);
+    el.animate([
+      { transform: 'translate(-50%,-50%) scale(.4)', opacity: 1 },
+      { transform: 'translate(-50%,-50%) scale(1.6)', opacity: 1, offset: .4 },
+      { transform: 'translate(-50%,-50%) scale(1.2)', opacity: 0 }
+    ], { duration: 1400, easing: 'ease-out' }).onfinish = () => el.remove();
+  }
 }
 
 // ---------- Verwaltung ----------
@@ -764,6 +878,8 @@ function init() {
   $('btn-cancel-trade').onclick = () => hide('modal-trade');
   $('btn-accept-trade').onclick = () => sendAction({ t: 'accept' });
   $('btn-decline-trade').onclick = () => sendAction({ t: 'decline' });
+  $('btn-trade-in-cancel').onclick = () => sendAction({ t: 'cancel' });
+  $('btn-trade-spect-close').onclick = () => { dismissedTradeKey = JSON.stringify(cur?.trade); hide('modal-trade-in'); };
   $('btn-card-close').onclick = () => hide('modal-card');
   $('btn-deed-close').onclick = () => hide('modal-deed');
   $('token-pick').addEventListener('click', async e => {

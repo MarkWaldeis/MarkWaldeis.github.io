@@ -19,7 +19,11 @@ const MonoBoard = (() => {
 
   const rotate = (x, y) => `rotateX(${x}deg) rotateY(${y}deg)`;
   const translate = (x, y, lift = 0, scale = 1) =>
-    `translate3d(${x}px, ${y - lift}px, 0) translate(-50%, -68%) scale(${scale})`;
+    `translate3d(${x}px, ${y - lift}px, 0) translate(-50%, -86%) scale(${scale})`;
+  const STEP_MS = 76;         // Dauer pro Feld beim Laufen
+  const CARD_PAUSE = 1600;    // Karte kurz zeigen, dann weiterlaufen
+  // Richtungszeilen im Sprite: 0=Süden,1=Westen,2=Norden,3=Osten
+  const dirOf = (dx, dy) => Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 0 : 2);
 
   function create(engine, icons, colors, onSelect) {
     const board = document.getElementById('board');
@@ -81,7 +85,7 @@ const MonoBoard = (() => {
     }
 
     function drawPieces(state, motion, delay) {
-      let duration = 0;
+      let duration = 0, cardAt = null;
       const active = state.order[state.turn];
       const stacks = locations(state);
       state.order.forEach((pid, index) => {
@@ -99,32 +103,59 @@ const MonoBoard = (() => {
           const node = document.createElement('span');
           node.className = 'piece';
           node.style.setProperty('--piece-color', colors[ti]);
-          node.innerHTML = '<span>' + icons[ti] + '</span>';
+          node.style.setProperty('--dir', 0);
+          node.innerHTML = `<span class="emoji">${icons[ti]}</span><span class="fig" style="background-image:url('figs/fig-${ti}.png')"></span><span class="shadow"></span>`;
           pieceLayer.append(node);
-          piece = { node, target };
+          piece = { node, target, timers: [] };
           pieces.set(pid, piece);
         }
         piece.node.classList.toggle('is-active', pid === active);
         piece.node.style.transform = translate(...target);
-        if (motion?.pid === pid && motion.steps?.length) {
+        const steps = motion?.pid === pid ? (motion.steps || []) : [];
+        const cardSteps = motion?.pid === pid ? (motion.cardSteps || []) : [];
+        if (steps.length || cardSteps.length) {
           piece.animation?.cancel();
-          const steps = motion.steps;
-          const frames = [{ transform: translate(...piece.target) }];
-          let from = piece.target;
-          for (const [i, step] of steps.entries()) {
-            const to = i === steps.length - 1 ? target : point(step.space);
-            frames.push({
-              transform: translate((from[0] + to[0]) / 2, (from[1] + to[1]) / 2, step.jump ? 28 : 13, step.jump ? 1.32 : 1.12)
-            }, { transform: translate(...to) });
-            from = to;
+          piece.cardAnim?.cancel();
+          piece.timers.forEach(clearTimeout);
+          piece.timers = [];
+          const segs = [];
+          let t = delay;
+          if (steps.length) {
+            const travel = Math.max(250, steps.length * STEP_MS);
+            segs.push({ steps, at: delay, per: travel / steps.length });
+            t = delay + travel;
           }
-          const travel = Math.max(250, steps.length * 76);
-          piece.animation = piece.node.animate(frames, { duration: travel, delay, fill: 'backwards', easing: 'ease-in-out' });
-          duration = delay + travel;
+          if (cardSteps.length) {
+            cardAt = t;
+            const at = t + CARD_PAUSE;
+            const travel = Math.max(250, cardSteps.length * STEP_MS);
+            segs.push({ steps: cardSteps, at, per: travel / cardSteps.length });
+            t = at + travel;
+          }
+          let from = piece.target;
+          for (const [si, seg] of segs.entries()) {
+            const last = si === segs.length - 1;
+            const frames = [{ transform: translate(...from) }];
+            seg.steps.forEach((step, i) => {
+              const to = last && i === seg.steps.length - 1 ? target : point(step.space);
+              const mid = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
+              frames.push({ transform: translate(mid[0], mid[1], step.jump ? 28 : 13, step.jump ? 1.3 : 1.1) },
+                { transform: translate(...to) });
+              piece.timers.push(setTimeout(() =>
+                piece.node.style.setProperty('--dir', dirOf(to[0] - from[0], to[1] - from[1])), seg.at + i * seg.per));
+              from = to;
+            });
+            const anim = piece.node.animate(frames,
+              { duration: seg.steps.length * seg.per, delay: seg.at, fill: 'backwards', easing: 'ease-in-out' });
+            if (si === 0) piece.animation = anim; else piece.cardAnim = anim;
+          }
+          piece.node.classList.add('running');
+          piece.timers.push(setTimeout(() => piece.node.classList.remove('running'), t));
+          duration = Math.max(duration, t);
         }
         piece.target = target;
       });
-      return duration;
+      return { duration, cardAt };
     }
 
     function drawDice(values, animate) {
@@ -166,7 +197,8 @@ const MonoBoard = (() => {
       const delay = drawDice(state.dice, animate);
       const motion = animate ? state.motion : null;
       current = state;
-      const duration = drawPieces(state, motion, delay);
+      const drawn = drawPieces(state, motion, delay);
+      const duration = drawn.duration, cardAt = drawn.cardAt;
 
       for (const [index, item] of cells.entries()) {
         const prop = state.props[index];
@@ -193,15 +225,27 @@ const MonoBoard = (() => {
           { duration: 460, delay: duration || delay });
         highlighted = activeSpace;
       }
-      return Math.max(delay, duration);
+      return { duration: Math.max(delay, duration), cardAt };
     }
 
     new ResizeObserver(() => {
       if (board.offsetWidth && current) drawPieces(current, null, 0);
     }).observe(board);
 
+    // Position einer Figur in Board-Pixeln (für Effekte), sonst null
+    function piecePoint(pid) {
+      const piece = pieces.get(pid);
+      if (!piece) return null;
+      return [piece.target[0], piece.target[1]];
+    }
+
     function reset() {
-      for (const piece of pieces.values()) piece.animation?.cancel();
+      for (const piece of pieces.values()) {
+        piece.animation?.cancel();
+        piece.cardAnim?.cancel();
+        piece.timers?.forEach(clearTimeout);
+        piece.timers = [];
+      }
       for (const die of dice) {
         die.spin?.cancel();
         die.toss?.cancel();
@@ -214,7 +258,7 @@ const MonoBoard = (() => {
       current = null;
     }
 
-    return { update, reset };
+    return { update, reset, piecePoint };
   }
 
   return { create };

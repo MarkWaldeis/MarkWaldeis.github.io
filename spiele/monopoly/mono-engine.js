@@ -54,6 +54,13 @@ const Mono = (() => {
   function shuffled(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; }
   function name(state, pid) { return (state.players[pid] || {}).name || '?'; }
   function log(st, m) { st.log.push(m); if (st.log.length > 60) st.log.shift(); }
+  // Animations-Ereignisse für die Oberfläche (Geldflug, Handel, Bankrott)
+  function pushFx(st, fx) {
+    st.fxSeq = (st.fxSeq || 0) + 1;
+    st.fx = st.fx || {};
+    st.fx[st.fxSeq] = fx;
+    for (const k of Object.keys(st.fx)) if (st.fxSeq - k > 12) delete st.fx[k];
+  }
   function roll() { return [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]; }
 
   // ---------- Karten (Daten + Interpreter — JSON-serialisierbar für Firebase) ----------
@@ -125,7 +132,10 @@ const Mono = (() => {
   function pay(st, from, to, amount) {
     if (from) st.money[from] -= amount;
     if (to) st.money[to] += amount;
-    if (from && to) log(st, name(st, from) + ' zahlt ' + amount + ' € an ' + name(st, to));
+    if (from && to) {
+      log(st, name(st, from) + ' zahlt ' + amount + ' € an ' + name(st, to));
+      pushFx(st, { k: 'pay', from, to, v: amount });
+    }
     else if (from) log(st, name(st, from) + ' zahlt ' + amount + ' € an die Bank');
     else if (to) log(st, name(st, to) + ' erhält ' + amount + ' € von der Bank');
     checkBankrupt(st, from, to);
@@ -195,6 +205,8 @@ const Mono = (() => {
       st.lastCardType = s.t;
       st.cardSeq = (st.cardSeq || 0) + 1;
       st.phase = 'manage';
+      // Weitere Züge dieser Aktion gehören zur Karte — separat animieren
+      if (st.motion && st.motion.pid === pid) st.motion.cardSplit = true;
       runCard(st, pid, card);
       if (st.phase !== 'buy' && st.phase !== 'over') st.phase = st.pending ? 'buy' : st.phase;
     }
@@ -235,6 +247,7 @@ const Mono = (() => {
     st.out[pid] = true;
     delete st.mustRaise[pid];
     log(st, name(st, pid) + ' ist bankrott!');
+    pushFx(st, { k: 'out', pid });
     for (const k in st.props) {
       const p = st.props[k];
       if (p.owner !== pid) continue;
@@ -281,7 +294,15 @@ const Mono = (() => {
     if (st.auction) return auctionAction(st, pid, a);
     // Handelsangebot: nur Empfänger antwortet
     if (st.trade) return tradeAction(st, pid, a);
-    if (pid !== me) return { ok: false, err: 'Nicht dein Zug' };
+    if (pid !== me) {
+      // Wer Geld auftreiben muss, darf das auch außerhalb seines Zugs
+      if (st.mustRaise[pid] === undefined) return { ok: false, err: 'Nicht dein Zug' };
+      if (!['mortgage', 'sellhouse', 'unmortgage', 'bankrupt'].includes(a.t))
+        return { ok: false, err: 'Du musst erst Geld auftreiben.' };
+    }
+    // Während offener Schulden nur Geld auftreiben oder Konkurs
+    if (st.mustRaise[pid] !== undefined && !['mortgage', 'sellhouse', 'unmortgage', 'bankrupt'].includes(a.t))
+      return { ok: false, err: 'Erst Schulden begleichen (Hypothek/Gebäude verkaufen oder Konkurs).' };
 
     switch (a.t) {
       case 'roll': {
@@ -399,11 +420,11 @@ const Mono = (() => {
       case 'bankrupt': {
         if ((st.mustRaise[pid] === undefined) && st.money[pid] >= 0) return { ok: false, err: 'Nicht bankrott' };
         declareBankrupt(st, pid, st.mustRaise[pid] === 'bank' ? null : st.mustRaise[pid]);
-        if (st.status === 'playing') nextTurn(st);
+        if (st.status === 'playing' && pid === me) nextTurn(st);
         return { ok: true };
       }
       case 'end': {
-        if (st.mustRaise[pid] !== undefined) return { ok: false, err: 'Erst Schulden begleichen (Hypothek/Gebäude verkaufen oder Konkurs)' };
+        if (Object.keys(st.mustRaise).length) return { ok: false, err: 'Erst müssen alle Schulden begleichen sein (Hypothek/Gebäude verkaufen oder Konkurs)' };
         if (st.phase === 'jailend' || st.phase === 'manage' || st.phase === 'buy') {
           if (canRollAgain(st, pid)) {
             finishPurchase(st, pid);
@@ -427,7 +448,9 @@ const Mono = (() => {
   }
   function recordStep(st, pid, space, jump = false) {
     if (st.motion && st.motion.pid === pid && Array.isArray(st.motion.steps)) {
-      st.motion.steps.push({ space, jump });
+      const step = { space, jump };
+      if (st.motion.cardSplit) (st.motion.cardSteps ||= []).push(step);
+      else st.motion.steps.push(step);
     }
   }
   function movePlayer(st, pid, steps) {
@@ -498,6 +521,7 @@ const Mono = (() => {
       if (tr.giveCard) { st.jailCards[tr.from]--; st.jailCards[tr.to] = (st.jailCards[tr.to] || 0) + 1; }
       if (tr.takeCard) { st.jailCards[tr.to]--; st.jailCards[tr.from] = (st.jailCards[tr.from] || 0) + 1; }
       log(st, 'Handel angenommen');
+      pushFx(st, { k: 'trade', from: tr.from, to: tr.to, give: tr.give, take: tr.take, giveMoney: tr.giveMoney, takeMoney: tr.takeMoney, giveCard: tr.giveCard, takeCard: tr.takeCard });
       st.trade = null;
       checkBankrupt(st, tr.from, tr.to); checkBankrupt(st, tr.to, tr.from);
       return { ok: true };
@@ -517,6 +541,7 @@ const Mono = (() => {
     st.pending = null; st.auction = null; st.trade = null;
     st.phase = 'roll'; st.winner = null; st.mustRaise = {}; st.rentBoost = null;
     st.lastCard = null; st.lastCardType = null; st.cardSeq = 0;
+    st.fx = {}; st.fxSeq = 0;
     st.log = ['Spiel gestartet — viel Glück!'];
     return st;
   }
