@@ -332,6 +332,9 @@ dialog::backdrop { background: #0a251bae; }
 #trade-in-body { display: grid; gap: 8px; }
 .mg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding-block: 8px; border-bottom: 1px solid var(--line); }
 .mg-name { font-weight: 700; font-size: .87rem; }
+.mg-buildings { display: inline-flex; gap: 2px; vertical-align: -2px; margin-left: 3px; }
+.mg-buildings .house, .mg-buildings .hotel { width: 15px; }
+.mg-buildings .hotel { width: 19px; }
 .mg-btns { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
 #toast {
   position: fixed; z-index: 6; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%);

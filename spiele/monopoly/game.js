@@ -35,6 +35,17 @@ let pendingCardTimer = null;
 let dismissedTradeKey = null;
 const visuals = MonoBoard.create(E, TOKENS, TOKEN_COLORS, onSpaceClick);
 
+// Debug-Hook nur lokal (Tests): __mono.st()/act()/render()/setRandom()
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  window.__mono = {
+    st: () => cur,
+    act: sendAction,
+    render: () => renderGame(),
+    setRandom: fn => { Math.random = fn; },
+    setPid: pid => { myPid = pid; },
+  };
+}
+
 function toast(msg, ms = 3000) {
   const dialog = [...document.querySelectorAll('dialog[open]')].at(-1);
   let t = $('toast');
@@ -715,7 +726,7 @@ function renderManage() {
     const canUnmort = p.mortgaged && (cur.money[myPid] || 0) >= Math.ceil(s.price / 2 * 1.1);
     return `<div class="mg-row">
       <span class="chip" style="background:${col}"></span>
-      <span class="mg-name">${esc(s.name)}${p.mortgaged ? ' <em>(Hypothek)</em>' : ''} ${p.houses === 5 ? '🏨' : '🏠'.repeat(p.houses)}</span>
+      <span class="mg-name">${esc(s.name)}${p.mortgaged ? ' <em>(Hypothek)</em>' : ''} <span class="mg-buildings">${p.houses === 5 ? '<i class="hotel"></i>' : '<i class="house"></i>'.repeat(p.houses)}</span></span>
       <span class="mg-btns">
         ${canBuild ? `<button class="btn sm" data-a="build" data-i="${i}">${p.houses === 4 ? 'Hotel' : 'Haus'} bauen · −${s.house} €</button>` : ''}
         ${canSell ? `<button class="btn sm" data-a="sellhouse" data-i="${i}">Gebäude verkaufen · +${Math.floor(s.house / 2)} €</button>` : ''}
