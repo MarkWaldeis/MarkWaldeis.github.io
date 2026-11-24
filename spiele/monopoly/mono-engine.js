@@ -58,8 +58,8 @@ const Mono = (() => {
   function pushFx(st, fx) {
     st.fxSeq = (st.fxSeq || 0) + 1;
     st.fx = st.fx || {};
-    st.fx[st.fxSeq] = fx;
-    for (const k of Object.keys(st.fx)) if (st.fxSeq - k > 12) delete st.fx[k];
+    st.fx['f' + st.fxSeq] = fx;
+    for (const k of Object.keys(st.fx)) if (st.fxSeq - (k.slice(1) | 0) > 12) delete st.fx[k];
   }
   function roll() { return [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]; }
 

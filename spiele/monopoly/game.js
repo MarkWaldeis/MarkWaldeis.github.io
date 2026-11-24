@@ -380,8 +380,9 @@ function renderGame() {
   }
 
   // Geldeffekte (Miete, Handel, Bankrott) nach der Laufanimation abspielen
-  for (const key of Object.keys(cur.fx || {}).map(Number).filter(s => s > lastFxSeq).sort((a, b) => a - b)) {
-    setTimeout(() => playFx(cur.fx[key]), Math.max(0, (duration || 0)) + 250);
+  for (const seq of Object.keys(cur.fx || {}).map(k => Number(k.slice(1) || k)).filter(s => s > lastFxSeq).sort((a, b) => a - b)) {
+    const fx = cur.fx['f' + seq] || cur.fx[seq];
+    setTimeout(() => playFx(fx), Math.max(0, (duration || 0)) + 250);
   }
   lastFxSeq = cur.fxSeq || 0;
 
