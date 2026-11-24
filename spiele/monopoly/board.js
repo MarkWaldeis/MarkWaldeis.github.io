@@ -105,6 +105,9 @@ const MonoBoard = (() => {
           node.style.setProperty('--piece-color', colors[ti]);
           node.style.setProperty('--dir', 0);
           node.innerHTML = `<span class="emoji">${icons[ti]}</span><span class="fig" style="background-image:url('figs/fig-${ti}.png')"></span><span class="shadow"></span>`;
+          const probe = new Image();
+          probe.onerror = () => node.classList.add('no-sprite');
+          probe.src = `figs/fig-${ti}.png`;
           pieceLayer.append(node);
           piece = { node, target, timers: [] };
           pieces.set(pid, piece);

@@ -176,7 +176,10 @@ input:not([type="checkbox"]), select {
 .piece .emoji {
   position: absolute; left: 0; right: 0; bottom: .5em; text-align: center;
   font-size: 1.5em; filter: drop-shadow(0 2px 1px #00000055);
+  display: none; /* Fallback ohne Sprite — scheint sonst durch die transparente Figur hindurch */
 }
+.piece.no-sprite .emoji { display: block; }
+.piece.no-sprite .fig { display: none; }
 .piece .fig {
   position: absolute; left: 50%; bottom: .12em; width: 3.4em; height: 3.4em;
   transform: translateX(-50%);
